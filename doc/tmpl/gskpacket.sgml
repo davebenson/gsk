@@ -19,6 +19,9 @@ and destination of the packet.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskPacket ##### -->
 <para>
 A packet of binary data, optionally associated with

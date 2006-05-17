@@ -16,6 +16,9 @@ as HTTP content).
 GskHttpClient
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### USER_FUNCTION GskHttpServerTrap ##### -->
 <para>
 Function which will be called when the server has a request ready.

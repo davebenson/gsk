@@ -15,6 +15,9 @@ from a raw socket.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskStreamListenerSocket ##### -->
 <para>
 An instance of a socket-based #GskStreamListener.

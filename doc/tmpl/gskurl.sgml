@@ -27,6 +27,9 @@ TODO: find a reference RFC for URL encoding.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskUrl ##### -->
 <para>
 A URL (Universal Resource Locator).

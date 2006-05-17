@@ -15,6 +15,9 @@ and its corresponding GParamSpec.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### FUNCTION gsk_fd_get_type ##### -->
 <para>
 GType of a file-descriptor. (private)

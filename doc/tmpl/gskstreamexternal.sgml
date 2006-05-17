@@ -16,6 +16,9 @@ another process which is exec(2)'d from this one.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### USER_FUNCTION GskStreamExternalTerminated ##### -->
 <para>
 Function to run when the process underlying the stream is terminated.

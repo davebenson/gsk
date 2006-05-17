@@ -18,6 +18,9 @@ the real initialization into gsk_init_raw().
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskInitInfo ##### -->
 <para>
 Information about how to initialize GSK.

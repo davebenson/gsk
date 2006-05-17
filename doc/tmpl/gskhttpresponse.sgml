@@ -16,6 +16,9 @@ It may also include often information about the content.
 GskHttpHeader, GskHttpRequest
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskHttpResponse ##### -->
 <para>
 An instance of a HTTP response header.

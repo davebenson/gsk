@@ -14,6 +14,9 @@ gskzlib
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### FUNCTION gsk_zlib_error_to_gsk_error ##### -->
 <para>
 

@@ -16,6 +16,9 @@ a sensible resolver, or it can be used to implement wacky DNS hacks.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskDnsServerClass ##### -->
 <para>
 Base class for DNS servers.

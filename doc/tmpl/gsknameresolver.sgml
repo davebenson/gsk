@@ -16,6 +16,9 @@ its name, and (2) a way of registering new types of address families and namespa
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskNameResolver ##### -->
 <para>
 Opaque object representing an instance which implements

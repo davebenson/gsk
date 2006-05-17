@@ -24,6 +24,9 @@ Additional configuration may be done: for example, whether to follow redirection
 #GskUrlTransferHttp.
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskUrlTransferRedirect ##### -->
 <para>
 A node in the linked-list of redirections we have receieved.

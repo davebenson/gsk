@@ -15,6 +15,9 @@ of the /dev/poll mechanism, which can be found on Solaris.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskMainLoopDevPoll ##### -->
 <para>
 A /dev/poll-based main-loop.

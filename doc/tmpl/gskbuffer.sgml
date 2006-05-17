@@ -17,6 +17,9 @@ and gsk_buffer_read() reads from the beginning.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskBuffer ##### -->
 <para>
 A buffer is just a list of fragments and a size counter.

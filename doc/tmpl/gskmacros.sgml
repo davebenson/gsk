@@ -14,6 +14,9 @@ beyond those provided by glib.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### MACRO GSK_DECLARE_POOL_ALLOCATORS ##### -->
 <para>
 Declare static inline functions type_free and type_alloc,

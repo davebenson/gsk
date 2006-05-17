@@ -18,6 +18,10 @@
 config
 
 
+<!-- ##### SECTION ./tmpl/gsk-unused.sgml:Stability_Level ##### -->
+
+
+
 <!-- ##### SECTION ./tmpl/gsk.sgml:Long_Description ##### -->
 <para>
 
@@ -2200,10 +2204,6 @@ possibly in a thread-pool.
 <para>
 
 </para>
-
-
-<!-- ##### SECTION Stability_Level ##### -->
-
 
 
 <!-- ##### MACRO VERSION ##### -->

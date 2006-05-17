@@ -15,6 +15,9 @@ In particular, this class defines many HTTP specific configurations.
 #GskUrlTransfer.
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskUrlTransferHttp ##### -->
 <para>
 

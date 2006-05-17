@@ -16,6 +16,9 @@ to the #GskNameResolver interface.
 GskDnsLocalResolver and GskDnsClient.
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskDnsResolverHints ##### -->
 <para>
 

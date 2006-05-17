@@ -29,6 +29,9 @@ or that the stream will never block.
 #GskIO
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskStreamClass ##### -->
 <para>
 Functions which may be overridden by derived classes to provide

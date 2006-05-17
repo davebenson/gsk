@@ -18,6 +18,9 @@ that comes with Gsk can manipulate any control server.
 GskControlServer.
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskControlClient ##### -->
 <para>
 

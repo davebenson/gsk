@@ -31,6 +31,9 @@ the function which returned it expects it to be used.
 GskStream.
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskBufferStreamClass ##### -->
 <para>
 The class which has the buffer methods.

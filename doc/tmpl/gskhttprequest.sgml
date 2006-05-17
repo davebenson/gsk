@@ -16,6 +16,9 @@ and the desired path, and other assorted flags.
 GskHttpHeader, GskHttpResponse
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskHttpRequest ##### -->
 <para>
 An instance of a HTTP request header.
@@ -41,7 +44,6 @@ virtual hosting.
 @proxy_auth: 
 @keep_alive_seconds: 
 @max_forwards: 
-@h: 
 @ua_height: 
 @ua_color: 
 @ua_os: 

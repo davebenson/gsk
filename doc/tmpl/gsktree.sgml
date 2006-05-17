@@ -33,6 +33,9 @@ return the new node???
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskTreeNode ##### -->
 <para>
 An opaque type representing a node of the tree.

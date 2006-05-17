@@ -17,6 +17,9 @@ gsk_stream_attach().
 gsk_stream_attach().
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskStreamConnection ##### -->
 <para>
 An opaque object representing the connection between

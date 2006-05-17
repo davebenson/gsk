@@ -14,6 +14,9 @@ A main-loop which uses signal-driven I/O.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskMainLoopSigio ##### -->
 <para>
 Signal-driven I/O main-loop object.

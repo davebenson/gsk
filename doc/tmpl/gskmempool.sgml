@@ -28,6 +28,9 @@ other reasons, but stronger evidence is welcome.</para>
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskMemPool ##### -->
 <para>
 A memory pool.

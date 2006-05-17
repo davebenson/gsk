@@ -15,6 +15,9 @@ and input.  Because of system-architectures, memory never blocks.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### FUNCTION gsk_memory_buffer_source_new ##### -->
 <para>
 

@@ -17,6 +17,9 @@ Unless the packet_queue is bound, it is unlikely to ever be readable.
 GskIO
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskPacketQueueClass ##### -->
 <para>
 Base class for an object which can input and output packets.

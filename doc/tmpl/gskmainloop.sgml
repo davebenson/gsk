@@ -25,6 +25,9 @@ appropriate to your system.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskMainLoopChange ##### -->
 <para>
 This structure is passed to the system-dependent polling
@@ -93,7 +96,6 @@ A main-loop.  This holds information about all its sources.
 @exit_status: Stored exit status which the user may
 return from main().
 @event_array_cache: 
-@s: 
 @first_context: first GMainContext in the list.
 @last_context: last GMainContext in the list.
 

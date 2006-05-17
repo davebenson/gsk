@@ -14,6 +14,9 @@ a GskStream that can be used for files and sockets.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### MACRO GSK_STREAM_FD_GET_FD ##### -->
 <para>
 Get underlying file-descriptor from a #GskStreamFd.

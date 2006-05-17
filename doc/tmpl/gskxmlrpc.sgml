@@ -16,13 +16,15 @@ It contains a generic parser that has no I/O dependencies.
 GskXmlrpcStream
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskXmlrpcArray ##### -->
 <para>
 An array of XMLRPC values.
 Each may have a different type.
 </para>
 
-@n: 
 @values: the values in the array.
 
 <!-- ##### STRUCT GskXmlrpcStruct ##### -->
@@ -30,7 +32,6 @@ Each may have a different type.
 A structure, which is a set of named members.
 </para>
 
-@s: 
 @members: 
 
 <!-- ##### STRUCT GskXmlrpcValue ##### -->
@@ -54,7 +55,6 @@ A name/value pair, appropriate as a structure member.
 An XMLRPC request (invocation).
 </para>
 
-@c: 
 @method_name: 
 @params: 
 @xmlrpc_stream: 
@@ -64,7 +64,6 @@ An XMLRPC request (invocation).
 An XMLRPC response (return).
 </para>
 
-@c: 
 @params: 
 @has_fault: 
 @fault: 

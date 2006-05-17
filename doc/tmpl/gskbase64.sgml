@@ -24,6 +24,9 @@ some fixing in light of RFC 2045.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### MACRO GSK_BASE64_GET_ENCODED_LEN ##### -->
 <para>
 Get the number of bytes needed to encode in base-64 a binary block of data of

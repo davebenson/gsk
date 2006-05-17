@@ -14,6 +14,9 @@ Structures and definitions for the FTP protocol implementation.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskFtpCommand ##### -->
 <para>
 

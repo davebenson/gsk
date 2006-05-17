@@ -20,6 +20,9 @@ get the value of the hash.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskHash ##### -->
 <para>
 An abstract hashing object.

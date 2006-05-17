@@ -19,6 +19,9 @@ to access them.
 GskHook, GskStream
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskIOClass ##### -->
 <para>
 Methods which derived classes should overload to

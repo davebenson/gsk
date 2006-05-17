@@ -19,6 +19,9 @@ since the default name resolver uses DNS.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskDnsClient ##### -->
 <para>
 An instance of the DNS client.

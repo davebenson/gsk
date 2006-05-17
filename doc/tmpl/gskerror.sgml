@@ -19,6 +19,9 @@ GskErrorCode (gsk_error_code_from_errno())
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### VARIABLE gsk_g_error_domain_quark ##### -->
 <para>
 Quark used in all GErrors that use GskErrorCode. (private)

@@ -257,27 +257,27 @@ AC_SUBST(GSK_DEBUG_CFLAGS)
 AC_CHECK_HEADERS(unistd.h net/if.h sys/ioctl.h sys/poll.h execinfo.h)
 AC_CHECK_FUNCS(writev poll select kqueue syslog strtoll strtoq strtoull strtouq timegm gmtime_r localtime_r)
 
-AC_CACHE_CHECK(for /dev/poll support, ac_cv_dev_poll,
-    AC_TRY_COMPILE([#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/poll.h>
-#include <sys/devpoll.h>],
-[
-  struct dvpoll p;
-  p.dp_timeout = 0;
-  p.dp_nfds = 0;
-  p.dp_fds = (struct pollfd *) 0;
-  return 0;
-],
-    ac_cv_dev_poll=yes
-    [$1],
-    ac_cv_dev_poll=no
-    [$2]
-    )
-)
-AC_DEFINE_UNQUOTED(HAVE_DEVPOLL_SUPPORT, $HAVE_DEVPOLL_SUPPORT,
-                   [whether to support the /dev/poll])
+dnl AC_CACHE_CHECK(for /dev/poll support, ac_cv_dev_poll,
+dnl     AC_TRY_COMPILE([#include <sys/ioctl.h>
+dnl #include <sys/stat.h>
+dnl #include <sys/types.h>
+dnl #include <sys/poll.h>
+dnl #include <sys/devpoll.h>],
+dnl [
+dnl   struct dvpoll p;
+dnl   p.dp_timeout = 0;
+dnl   p.dp_nfds = 0;
+dnl   p.dp_fds = (struct pollfd *) 0;
+dnl   return 0;
+dnl ],
+dnl     ac_cv_dev_poll=yes
+dnl     [$1],
+dnl     ac_cv_dev_poll=no
+dnl     [$2]
+dnl     )
+dnl )
+dnl AC_DEFINE_UNQUOTED(HAVE_DEVPOLL_SUPPORT, $HAVE_DEVPOLL_SUPPORT,
+dnl                    [whether to support the /dev/poll])
 
 dnl Check for the epoll_*() library functions.
 EPOLL_LIBS=""

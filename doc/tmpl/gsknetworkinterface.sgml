@@ -29,15 +29,15 @@ ie your IP address (with port set to 0).
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskNetworkInterface ##### -->
 <para>
 Information about a single network interface.
 </para>
 
 @ifname: the name of the interface.
-@k: 
-@t: 
-@s: 
 @address: the IP address of the interface (with port set to 0).
 @hw_address: the ethernet address of the interface.
 @p2p_address: the remote IP address of a point-to-point connection.

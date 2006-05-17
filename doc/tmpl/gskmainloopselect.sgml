@@ -15,6 +15,9 @@ is select(2).
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskMainLoopSelect ##### -->
 <para>
 The main loop which uses select(2).

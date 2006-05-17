@@ -15,6 +15,9 @@ Provide various simple functions that we have found useful.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### FUNCTION gsk_g_ptr_array_foreach ##### -->
 <para>
 

@@ -19,6 +19,9 @@ will be able to invoke.
 GskControlClient, gsk-control-client.
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskControlServer ##### -->
 <para>
 Opaque class which acts as a database of virtual files and commands.

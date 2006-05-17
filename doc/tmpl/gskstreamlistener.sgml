@@ -17,6 +17,9 @@ to handle the connection.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### USER_FUNCTION GskStreamListenerAcceptFunc ##### -->
 <para>
 A method for handling a new connection.

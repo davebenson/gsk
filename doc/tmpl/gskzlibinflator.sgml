@@ -14,6 +14,9 @@ A stream which decompresses data on its input to decompressed data on its output
 GskZlibDeflator
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskZlibInflator ##### -->
 <para>
 The instance of a zlib inflator stream (a decompressor).

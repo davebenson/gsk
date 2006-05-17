@@ -15,6 +15,9 @@ formats.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### ENUM GskDateFormatMask ##### -->
 <para>
 Formats to accept when parsing with gsk_date_parse().

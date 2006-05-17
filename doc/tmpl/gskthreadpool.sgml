@@ -25,6 +25,9 @@ may be run.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskThreadPool ##### -->
 <para>
 An opaque structure which houses a number of worker threads.

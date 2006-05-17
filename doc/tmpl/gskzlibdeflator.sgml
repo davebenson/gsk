@@ -18,6 +18,9 @@ We use the implementation in a shared library -lz.
 GskZlibInflator
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskZlibDeflator ##### -->
 <para>
 A zlib deflator (compressor) object.

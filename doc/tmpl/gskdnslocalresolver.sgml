@@ -15,6 +15,9 @@ This can be used to provide a backend for a server.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskDnsLocalResolverClass ##### -->
 <para>
 Class for local DNS resolvers.

@@ -15,6 +15,9 @@ for a fixed duration, or to quit / exit the program.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### FUNCTION gsk_main_run ##### -->
 <para>
 

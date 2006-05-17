@@ -16,6 +16,9 @@ obsolete resource records automatically.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskDnsRRCache ##### -->
 <para>
 A cache of resource records and related information.

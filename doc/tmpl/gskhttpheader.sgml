@@ -15,6 +15,9 @@ examime HTTP requests and responses.
 GskHttpRequest, GskHttpResponse
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskHttpAuthorization ##### -->
 <para>
   A response to a Authenticate: challenge.
@@ -1201,7 +1204,6 @@ A string, if the header has an unknown transfer encoding.
 @unrecognized_content_encoding: 
 A string, if the header has an unknown content encoding.
 @content_encoding: 
-@e: 
 @content_type: major type of the content.
 Typical examples are 'text' or 'image'.
 Types beginning with 'x-' are for unstandardized extensions.

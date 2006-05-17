@@ -17,6 +17,9 @@ This format is often encountered parsing form data from webpages.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### USER_FUNCTION GskMimeMultipartDecoderHook ##### -->
 <para>
 Function to invoke when a new piece is available.

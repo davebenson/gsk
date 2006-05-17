@@ -23,6 +23,9 @@ GSK's configure script.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### ENUM GskDebugFlags ##### -->
 <para>
 Flags which may be turned on to print debugging messages about

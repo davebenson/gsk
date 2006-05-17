@@ -61,6 +61,9 @@ will only be run after gsk_hook_notify_shutdown() is called in that case.
 #GskIO, #GskStream
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskHook ##### -->
 <para>
 A structure which you can embed in a GObject.

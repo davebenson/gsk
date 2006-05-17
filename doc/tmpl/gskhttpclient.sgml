@@ -15,6 +15,9 @@ and the handling of incoming responses.
 
 </para>
 
+<!-- ##### SECTION Stability_Level ##### -->
+
+
 <!-- ##### STRUCT GskHttpClientRequest ##### -->
 <para>
 An opaque object representing a request that may be made
