@@ -1,0 +1,339 @@
+#include "../http/gskhttprequest.h"
+#include "../http/gskhttpresponse.h"
+#include "../gskinit.h"
+#include <string.h>
+
+GskHttpHeader *
+header_copy_through_buffers (GskHttpHeader *header)
+{
+  gboolean is_request = GSK_IS_HTTP_REQUEST (header);
+  GskBuffer buffer1, buffer2;
+  gpointer data1, data2;
+  gsize len1, len2;
+  GskHttpHeader *header1, *header2;
+  GError *error = NULL;
+
+  gsk_buffer_construct (&buffer1);
+  gsk_buffer_construct (&buffer2);
+
+  gsk_http_header_to_buffer (header, &buffer1);
+  len1 = buffer1.size;
+  data1 = g_malloc (len1);
+  gsk_buffer_peek (&buffer1, data1, len1);
+
+  header1 = gsk_http_header_from_buffer (&buffer1, is_request, GSK_HTTP_PARSE_STRICT, &error);
+  g_assert (header1);
+  g_assert (buffer1.size == 0);
+
+  gsk_http_header_to_buffer (header1, &buffer2);
+  len2 = buffer2.size;
+  data2 = g_malloc (len2);
+  gsk_buffer_peek (&buffer2, data2, len2);
+
+  header2 = gsk_http_header_from_buffer (&buffer2, is_request, GSK_HTTP_PARSE_STRICT, &error);
+  g_assert (header2);
+  g_assert (buffer2.size == 0);
+
+  g_assert (len1 == len2);
+  g_assert (memcmp (data1, data2, len1) == 0);
+  g_object_unref (header1);
+  g_free (data1);
+  g_free (data2);
+  return header2;
+}
+
+static GskHttpHeader *
+maybe_header_from_string(gboolean is_request, const char *str)
+{
+  GskBuffer buffer;
+  GskHttpHeader *header;
+  gsk_buffer_construct (&buffer);
+  gsk_buffer_append_foreign (&buffer, str, strlen(str), NULL, NULL);
+  header = gsk_http_header_from_buffer (&buffer, is_request, 0, NULL);
+  gsk_buffer_destruct (&buffer);
+  return header;
+}
+
+static GskHttpHeader *
+header_from_string(gboolean is_request, const char *str)
+{
+  GskHttpHeader *header = maybe_header_from_string(is_request,str);
+  g_assert (header != NULL);
+  return header;
+}
+
+static gboolean
+headers_equal (GskHttpHeader *h1, GskHttpHeader *h2)
+{
+  if ( ( (GSK_IS_HTTP_REQUEST (h1) ? 1 : 0)
+       ^ (GSK_IS_HTTP_REQUEST (h2) ? 1 : 0) ) != 0)
+    return FALSE;
+
+  return TRUE;
+}
+
+int main(int argc, char **argv)
+{
+  GskHttpHeader *header0, *header1;
+  GValue value;
+
+  gsk_init_without_threads (&argc, &argv);
+
+  header0 = header_from_string (TRUE,
+				"GET / HTTP/1.0\r\n"
+				"User-Agent: foo\r\n"
+				"\n");
+  header1 = header_copy_through_buffers (header0);
+  memset (&value, 0, sizeof(value));
+  g_value_init (&value, G_TYPE_UINT);
+  g_object_get_property (G_OBJECT (header1), "major-version", &value);
+  g_assert (g_value_get_uint (&value) == 1);
+  g_object_get_property (G_OBJECT (header1), "minor-version", &value);
+  g_assert (g_value_get_uint (&value) == 0);
+  g_value_unset (&value);
+  g_value_init (&value, G_TYPE_STRING);
+  g_object_get_property (G_OBJECT (header1), "user-agent", &value);
+  g_assert (strcmp (g_value_get_string (&value), "foo") == 0);
+  g_object_get_property (G_OBJECT (header1), "referrer", &value);
+  g_assert (g_value_get_string (&value) == NULL);
+  g_value_unset (&value);
+  g_value_init (&value, GSK_TYPE_HTTP_CONNECTION);
+  g_object_get_property (G_OBJECT (header1), "connection", &value);
+  g_assert (g_value_get_enum (&value) == GSK_HTTP_CONNECTION_NONE);
+  g_value_unset (&value);
+  g_assert (headers_equal (header0, header1));
+  g_assert (header1->http_major_version == 1
+         && header1->http_minor_version == 0);
+  g_assert (gsk_http_header_get_connection (header1) == GSK_HTTP_CONNECTION_CLOSE);
+  g_assert (gsk_http_header_get_connection_type (header1) == GSK_HTTP_CONNECTION_NONE);
+  g_object_unref (header0);
+  g_object_unref (header1);
+
+  header0 = header_from_string (TRUE,
+				"GET / HTTP/1.1\r\n"
+				"Referer: http://whatever.com\r\n"
+				"User-Agent: foo\r\n"
+				"Transfer-Encoding: chunked\r\n"
+				"\n");
+  header1 = header_copy_through_buffers (header0);
+  g_assert (headers_equal (header0, header1));
+  g_assert (header1->http_major_version == 1
+         && header1->http_minor_version == 1);
+
+  g_value_init (&value, G_TYPE_UINT);
+  g_object_get_property (G_OBJECT (header1), "major-version", &value);
+  g_assert (g_value_get_uint (&value) == 1);
+  g_object_get_property (G_OBJECT (header1), "minor-version", &value);
+  g_assert (g_value_get_uint (&value) == 1);
+  g_value_unset (&value);
+  g_value_init (&value, G_TYPE_STRING);
+  g_object_get_property (G_OBJECT (header1), "user-agent", &value);
+  g_assert (strcmp (g_value_get_string (&value), "foo") == 0);
+  g_object_get_property (G_OBJECT (header1), "referrer", &value);
+  g_assert (strcmp (g_value_get_string (&value), "http://whatever.com") == 0);
+  g_value_unset (&value);
+  g_value_init (&value, GSK_TYPE_HTTP_CONNECTION);
+  g_object_get_property (G_OBJECT (header1), "connection", &value);
+  g_assert (g_value_get_enum (&value) == GSK_HTTP_CONNECTION_NONE);
+  g_value_unset (&value);
+  g_value_init (&value, GSK_TYPE_HTTP_TRANSFER_ENCODING);
+  g_object_get_property (G_OBJECT (header1), "transfer-encoding", &value);
+  g_assert (g_value_get_enum (&value) == GSK_HTTP_TRANSFER_ENCODING_CHUNKED);
+  g_value_unset (&value);
+  g_assert (gsk_http_header_get_connection (header1) == GSK_HTTP_CONNECTION_KEEPALIVE);
+  g_assert (gsk_http_header_get_connection_type (header1) == GSK_HTTP_CONNECTION_NONE);
+  g_object_unref (header0);
+  g_object_unref (header1);
+
+  {
+    GskHttpRequest *request;
+    header0 = header_from_string (TRUE,
+				  "GET / HTTP/1.1\r\n"
+				  "Accept-Language: swahili;q=4, cherokee;q=2, estonian\r\n"
+				  "\n");
+    header1 = header_copy_through_buffers (header0);
+    g_assert (GSK_IS_HTTP_REQUEST (header0));
+    g_assert (headers_equal (header0, header1));
+    request = GSK_HTTP_REQUEST (header1);
+    g_assert (request->accept_languages != NULL);
+    g_assert (request->accept_languages->next != NULL);
+    g_assert (request->accept_languages->next->next != NULL);
+    g_assert (request->accept_languages->next->next->next == NULL);
+    g_assert (strcmp (request->accept_languages->language, "swahili") == 0);
+    g_assert (request->accept_languages->quality == 4);
+    g_assert (strcmp (request->accept_languages->next->language, "cherokee") == 0);
+    g_assert (request->accept_languages->next->quality == 2);
+    g_assert (strcmp (request->accept_languages->next->next->language, "estonian") == 0);
+    g_assert (request->accept_languages->next->next->quality == -1);
+    g_object_unref (header0);
+    g_object_unref (header1);
+  }
+  {
+    GskHttpRequest *request;
+    header0 = header_from_string (TRUE,
+				  "GET / HTTP/1.1\r\n"
+				  "Accept-Language: en-us\r\n"
+				  "\n");
+    header1 = header_copy_through_buffers (header0);
+    g_assert (GSK_IS_HTTP_REQUEST (header0));
+    g_assert (headers_equal (header0, header1));
+    request = GSK_HTTP_REQUEST (header1);
+    g_assert (request->accept_languages->quality == -1.0);
+    g_assert (request->accept_languages != NULL);
+    g_assert (request->accept_languages->next == NULL);
+    g_assert (strcmp (request->accept_languages->language, "en-us") == 0);
+    g_object_unref (header0);
+    g_object_unref (header1);
+  }
+  {
+    GskHttpRequest *request;
+    header0 = header_from_string (TRUE,
+				  "GET / HTTP/1.1\r\n"
+				  "Accept-Language: en-us,en;q=0.5\r\n"
+				  "\n");
+    header1 = header_copy_through_buffers (header0);
+    g_assert (GSK_IS_HTTP_REQUEST (header0));
+    g_assert (headers_equal (header0, header1));
+    request = GSK_HTTP_REQUEST (header1);
+    g_assert (request->accept_languages != NULL);
+    g_assert (request->accept_languages->quality == -1.0);
+    g_assert (request->accept_languages->next != NULL);
+    g_assert (request->accept_languages->next->quality == 0.5);
+    g_assert (request->accept_languages->next->next == NULL);
+    g_assert (strcmp (request->accept_languages->language, "en-us") == 0);
+    g_object_unref (header0);
+    g_object_unref (header1);
+  }
+  /* test cache-control in request */
+ {
+    GskHttpRequest *request;
+    header0 = header_from_string (TRUE,
+				  "GET / HTTP/1.1\r\n"
+				  "Accept-Language: en-us\r\n"
+                                  "Cache-Control: no-cache, no-store, "
+                                  "no-transform, max-age=120, max-stale=120, "
+                                  "min-fresh=120, only-if-cached\r\n"
+				  "\n");
+    header1 = header_copy_through_buffers (header0);
+    g_assert (GSK_IS_HTTP_REQUEST (header0));
+    g_assert (headers_equal (header0, header1));
+    request = GSK_HTTP_REQUEST (header1);
+    g_assert (request->accept_languages->quality == -1.0);
+    g_assert (request->accept_languages != NULL);
+    g_assert (request->accept_languages->next == NULL);
+    g_assert (strcmp (request->accept_languages->language, "en-us") == 0);
+    g_object_unref (header0);
+    g_object_unref (header1);
+  }
+
+  {
+    guint iter;
+    header0 = header_from_string (FALSE,
+            "HTTP/1.0 200 OK\r\n"
+            "Cache-Control: private=private-field, no-cache=no-cache-field, "
+            "no-store, no-transform, must-revalidate, proxy-revalidate, "
+            "max-age=120, s-maxage=120\r\n"
+            "Content-Type: text/html\r\n"
+            "Set-Cookie: PREF=ID=2c9b2e3669d1d5eb:TM=1110491972:"
+            "LM=1110491972:S=JiXMvg60fPhnf8Ow; expires=Sun, 17-Jan-2038 "
+            "19:14:07 GMT; path=/; domain=.google.com\r\n"
+            "Server: GWS/2.1\r\n"
+            "Date: Thu, 10 Mar 2005 21:59:32 GMT\r\n"
+            "Connection: Close\r\n"
+            "\n");
+    header1 = header_copy_through_buffers (header0);
+    for (iter = 0; iter < 2; iter++)
+      {
+        GskHttpHeader *header = iter ? header1 : header0;
+        GskHttpResponse *response = GSK_HTTP_RESPONSE (header);
+        GskHttpCookie *set_cookie;
+        g_assert (GSK_IS_HTTP_RESPONSE (header));
+        g_assert (header->http_major_version == 1);
+        g_assert (header->http_minor_version == 0);
+        g_assert (header->connection_type == GSK_HTTP_CONNECTION_CLOSE);
+        g_assert (strcmp (header->content_type, "text") == 0);
+        g_assert (strcmp (header->content_subtype, "html") == 0);
+        //g_assert (header->has_content_body);
+        g_assert (response->allowed_verbs == 0);
+
+        g_assert (response->cache_control != NULL);
+        g_assert (response->cache_control->is_private);
+        g_assert (!response->cache_control->is_public);
+        g_assert (NULL != response->cache_control->private_name);
+        g_assert (strcmp (response->cache_control->private_name, "private-field") == 0);
+        g_assert (NULL != response->cache_control->no_cache_name);
+        g_assert (strcmp (response->cache_control->no_cache_name, "no-cache-field") == 0);
+        g_assert (response->cache_control->no_cache);
+        g_assert (response->cache_control->no_store);
+        g_assert (response->cache_control->no_transform);
+        g_assert (response->cache_control->must_revalidate);
+        g_assert (response->cache_control->proxy_revalidate);
+        g_assert (response->cache_control->max_age == 120);
+        g_assert (response->cache_control->s_max_age == 120);
+
+        g_assert (g_slist_length (response->set_cookies) == 1);
+        set_cookie = response->set_cookies->data;
+        g_assert (strcmp (set_cookie->key, "PREF") == 0);
+        g_assert (strcmp (set_cookie->value, "ID=2c9b2e3669d1d5eb:TM=1110491972:LM=1110491972:S=JiXMvg60fPhnf8Ow") == 0);
+        g_assert (strcmp (set_cookie->expire_date, "Sun, 17-Jan-2038 19:14:07 GMT") == 0);
+        g_assert (strcmp (set_cookie->path, "/") == 0);
+        g_assert (strcmp (set_cookie->domain, ".google.com") == 0);
+        g_assert (set_cookie->comment == NULL);
+        g_assert (set_cookie->max_age == -1);
+      }
+    g_object_unref (header0);
+    g_object_unref (header1);
+  }
+
+  /* random parsing bug */
+  {
+    header0 = maybe_header_from_string (FALSE,
+            "HTTP/1.0 200 OK\r\n"
+            "Accept-Ranges: bytes\r\n"
+            /*                               v- malformed response.. doesn't matter if we handle it */
+            "Content-Type: text/html; charset!UTF-8\r\n");
+    if (header0)
+      g_object_unref (header0);
+  }
+
+  {
+    guint iter;
+    header0 = header_from_string (FALSE,
+            "HTTP/1.0 200 OK\r\n"
+            "Accept-Ranges: bytes\r\n"
+            "Vary: *\r\n"
+            "P3P: policyref=\"http://www.lycos.com/w3c/p3p.xml\", CP=\"IDC DSP COR CURa ADMa DEVa CUSa PSAa IVAa CONo OUR IND UNI STA\"\r\n"
+            "Cache-Expires: Thu, 24 Mar 2005 13:11:58 GMT\r\n"
+            "Connection: Close\r\n"
+            "PICS-Label: (PICS-1.0 \"http://www.rsac.org/ratingsv01.html\" l on \"2003.09.02T11:37-0700\" exp \"2004.09.02T12:00-0700\" r (v 0 s 0 n 0 l 0))\r\n"
+            "X-Powered-By: ASP.NET\r\n"
+            "Pragma: no-cache\r\n"
+            "X-Cache: HIT from eserver.org\r\n"
+            "\n");
+    header1 = header_copy_through_buffers (header0);
+    for (iter = 0; iter < 2; iter++)
+      {
+        GskHttpHeader *header = iter ? header1 : header0;
+        GskHttpResponse *response = GSK_HTTP_RESPONSE (header);
+        g_assert (GSK_IS_HTTP_RESPONSE (header));
+        g_assert (header->http_major_version == 1);
+        g_assert (header->http_minor_version == 0);
+        g_assert (header->connection_type == GSK_HTTP_CONNECTION_CLOSE);
+        //g_assert (header->has_content_body);
+        g_assert (response->status_code == 200);
+        g_assert (g_slist_length (header->pragmas) == 1);
+        g_assert (strcmp ((char *)(header->pragmas->data), "no-cache") == 0);
+        g_assert (gsk_http_header_lookup_misc (header, "X-Cache") != NULL);
+        g_assert (gsk_http_header_lookup_misc (header, "X-Powered-By") != NULL);
+        g_assert (strcmp (gsk_http_header_lookup_misc (header, "X-Cache"), "HIT from eserver.org") == 0);
+        g_assert (strcmp (gsk_http_header_lookup_misc (header, "X-Powered-By"), "ASP.NET") == 0);
+        g_assert (gsk_http_header_lookup_misc (header, "PICS-Label") != NULL);
+      }
+    g_object_unref (header0);
+    g_object_unref (header1);
+  }
+
+
+
+  return 0;
+}

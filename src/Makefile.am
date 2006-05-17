@@ -1,0 +1,145 @@
+if HAVE_OPENSSL
+ssl_dirs = ssl
+ssl_libs = ssl/libgsk-ssl.la
+else
+ssl_dirs = 
+ssl_libs =
+endif
+
+composite_headers = \
+gsk.h \
+gskhttp.h \
+gskzlib.h \
+gskdns.h
+
+SUBDIRS = main-loops common dns zlib $(ssl_dirs) hash mime http xml xmlrpc url store control . programs tests
+INCLUDES = @GLIB_CFLAGS@ @GSK_DEBUG_CFLAGS@
+gskincludedir = $(includedir)/gsk-1.0/gsk
+gskinclude_HEADERS = \
+$(composite_headers) \
+gskbuffer.h \
+gskbufferstream.h \
+gskdaemonize.h \
+gskdebug.h \
+gskdebugalloc.h \
+gskmainloop.h \
+gskerrno.h \
+gskerror.h \
+gskfork.h \
+gskghelpers.h \
+gskhook.h \
+gskinit.h \
+gskio.h \
+gskipv4.h \
+gsklistmacros.h \
+gsklog.h \
+gsklogringbuffer.h \
+gskmacros.h \
+gskmain.h \
+gskmemory.h \
+gskmempool.h \
+gsknameresolver.h \
+gsknetworkinterface.h \
+gskpacket.h \
+gskpacketqueue.h \
+gskpacketqueuefd.h \
+gskpersistentconnection.h \
+gskprocessinfo.h \
+gskqsortmacro.h \
+gskrequest.h \
+gsksocketaddress.h \
+gskshutdown.h \
+gsksimplefilter.h \
+gskstdio.h \
+gskstreamqueue.h \
+gskstreamconcat.h \
+gskstream.h \
+gskstreamclient.h \
+gskstreamconnection.h \
+gskstreamexternal.h \
+gskstreamfd.h \
+gskstreamlistener.h \
+gskstreamlistenersocket.h \
+gskstreamtransferrequest.h \
+gskthreadpool.h \
+gsktree.h \
+gsktypes.h \
+gskutils.h
+
+lib_LTLIBRARIES = libgsk-1.0.la
+libgsk_1_0_la_SOURCES = \
+inlines.c \
+gskbuffer.c \
+gskbufferstream.c \
+gskdaemonize.c \
+gskdebug.c \
+gskdebugalloc.c \
+gskerrno.c \
+gskerror.c \
+gskfork.c \
+gskghelpers.c \
+gskhook.c \
+gskinit.c \
+gskio.c \
+gskipv4.c \
+gsklog.c \
+gsklogringbuffer.c \
+gskmain.c \
+gskmainloop.c \
+gskmemory.c \
+gskmempool.c \
+gsknameresolver.c \
+gsknetworkinterface.c \
+gskpacket.c \
+gskpacketqueue.c \
+gskpacketqueuefd.c \
+gskpersistentconnection.c \
+gskprocessinfo.c \
+gskrequest.c \
+gskshutdown.c \
+gsksimplefilter.c \
+gsksocketaddress.c \
+gsksocketaddress-connect.c \
+gskstdio.c \
+gskstream.c \
+gskstreamqueue.c \
+gskstreamconcat.c \
+gskstreamconnection.c \
+gskstreamclient.c \
+gskstreamexternal.c \
+gskstreamfd.c \
+gskstreamlistener.c \
+gskstreamlistenersocket.c \
+gskstreamtransferrequest.c \
+gskthreadpool.c \
+gsktree.c \
+gsktypes.c \
+gskutils.c
+
+noinst_HEADERS = \
+debug.h
+
+gskerror.lo: gskerror.inc
+
+libgsk_1_0_la_LDFLAGS = @GLIB_LIBS@
+libgsk_1_0_la_LIBADD = \
+main-loops/libgsk-mainloops.la \
+dns/libgsk-dns.la \
+common/libgsk-common.la \
+http/libgsk-http.la \
+mime/libgsk-mime.la \
+$(ssl_libs) \
+url/libgsk-url.la \
+xmlrpc/libgsk-xmlrpc.la \
+xml/libgsk-xml.la \
+zlib/libgsk-zlib.la \
+hash/libgsk-hash.la \
+control/libgsk-control.la \
+store/libgsk-store.la
+
+gskerror.inc: $(srcdir)/gskerror.h
+	glib-mkenums  --vprod '{@VALUENAME@, "@VALUENAME@", "@valuenick@"},' $(srcdir)/gskerror.h > gskerror.inc
+
+# HACK
+missing-refs:
+	$(MAKE) all 2>&1 | grep 'undefined reference' | sed -e 's/.*`//;' -e "s/'.*//" | sort -u

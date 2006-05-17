@@ -1,0 +1,116 @@
+<!-- ##### SECTION Title ##### -->
+GskStreamQueue
+
+<!-- ##### SECTION Short_Description ##### -->
+
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+<!-- ##### FUNCTION gsk_stream_queue_new ##### -->
+<para>
+
+</para>
+
+@is_readable: 
+@is_writable: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_stream_queue_append_read_stream ##### -->
+<para>
+
+</para>
+
+@queue: 
+@substream: 
+
+
+<!-- ##### FUNCTION gsk_stream_queue_append_write_stream ##### -->
+<para>
+
+</para>
+
+@queue: 
+@substream: 
+
+
+<!-- ##### FUNCTION gsk_stream_queue_no_more_read_streams ##### -->
+<para>
+
+</para>
+
+@queue: 
+
+
+<!-- ##### FUNCTION gsk_stream_queue_no_more_write_streams ##### -->
+<para>
+
+</para>
+
+@queue: 
+
+
+<!-- ##### MACRO GSK_STREAM_QUEUE_READ_EMPTY_HOOK ##### -->
+<para>
+
+</para>
+
+@queue: 
+
+
+<!-- ##### MACRO gsk_stream_queue_trap_read_empty ##### -->
+<para>
+
+</para>
+
+@queue: 
+@func: 
+@shutdown: 
+@data: 
+@destroy: 
+
+
+<!-- ##### MACRO gsk_stream_queue_untrap_read_empty ##### -->
+<para>
+
+</para>
+
+@queue: 
+
+
+<!-- ##### MACRO GSK_STREAM_QUEUE_WRITE_EMPTY_HOOK ##### -->
+<para>
+
+</para>
+
+@queue: 
+
+
+<!-- ##### MACRO gsk_stream_queue_trap_write_empty ##### -->
+<para>
+
+</para>
+
+@queue: 
+@func: 
+@shutdown: 
+@data: 
+@destroy: 
+
+
+<!-- ##### MACRO gsk_stream_queue_untrap_write_empty ##### -->
+<para>
+
+</para>
+
+@queue: 
+
+

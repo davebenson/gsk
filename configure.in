@@ -1,0 +1,338 @@
+AC_INIT(src/gskmainloop.c)
+GSK_VERSION=1.0.36
+
+AM_INIT_AUTOMAKE(gsk1.0, $GSK_VERSION)
+
+PACKAGE=gsk
+
+# Check for pkg-config; we'll use that to glean the rest
+# of our configuration.
+
+AC_PATH_PROG(PKG_CONFIG, pkg-config, no)
+if test "$PKG_CONFIG" = no ; then
+  echo "$0: pkg-config is required to compile gsk2" 1>&2
+  exit 1
+fi
+
+AC_PROG_CC
+dnl ###############################################################
+dnl Find whether openssl is available,
+dnl if it is,
+dnl      define HAVE_OPENSSL=1,
+dnl      and set up OPENSSL_LIBS, OPENSSL_CFLAGS appropriately.
+dnl if it is not,
+dnl      define HAVE_OPENSSL=0.
+dnl ###############################################################
+
+AC_DEFUN([GSK_CHECK_OPENSSL], [
+  AC_MSG_CHECKING(for openssl)
+  AC_ARG_ENABLE(
+    ssl,
+    [  --disable-ssl            Don't even try and detect openssl.],
+    [case "${enableval}" in
+       no)
+        CHECK_SSL=0
+        ;;
+       *)
+        CHECK_SSL=1
+        ;;
+     esac
+    ],
+    CHECK_SSL=1
+  )
+
+  if test "$CHECK_SSL" = 1 ; then
+    db_backup_libs_openssl="$LIBS"
+    HAVE_OPENSSL=0
+    for test_flag in "-L/usr/local/lib/ssl -lssl -lcrypto"  \
+		     "-L/usr/lib/ssl -lssl -lcrypto" \
+		     "-L$libdir/ssl -lssl -lcrypto" ; do 
+      OPENSSL_FLAGS=""
+      LIBS="$test_flag $db_backup_libs_openssl"
+
+      AC_TRY_LINK(,
+	SSL_new();,
+	OPENSSL_LIBS="$test_flag"
+	HAVE_OPENSSL=1
+      )
+      if test "$HAVE_OPENSSL" = "1" ; then
+	break
+      fi
+    done
+    LIBS="$db_backup_libs_openssl"
+
+    AC_TRY_COMPILE([#include <openssl/ssl.h>],
+      [ ],
+      [],
+      [if test "$HAVE_OPENSSL" = 1; then
+        echo "WARNING: you probably have a broken openssl installation" 1>&2
+        echo "You don't happen to be running redhat 9, do you?" 1>&2
+       fi;
+      HAVE_OPENSSL=0])
+
+    if test "$HAVE_OPENSSL" = "1" ; then
+      HAVE_OPENSSL=1
+      $1
+      AC_DEFINE(HAVE_OPENSSL, , Define if you have openssl support.)
+      AC_MSG_RESULT(yes)
+    else
+      HAVE_OPENSSL=0
+      $2
+      AC_MSG_RESULT(no)
+    fi
+
+  else
+    HAVE_OPENSSL=0
+    AC_MSG_RESULT(no)
+  fi
+  AM_CONDITIONAL(HAVE_OPENSSL, test $HAVE_OPENSSL = 1)
+  AC_SUBST(OPENSSL_LIBS)
+  AC_SUBST(OPENSSL_CFLAGS)
+  AC_SUBST(HAVE_OPENSSL)
+])
+GSK_CHECK_OPENSSL
+test $HAVE_OPENSSL = 1 || {
+  AC_MSG_ERROR([openssl is now required by GSK])
+  exit 1
+}
+
+##################################################
+# Check for socket library variation...
+##################################################
+
+AC_MSG_CHECKING([for socklen_t type])
+AC_TRY_COMPILE([#include <sys/types.h>]
+  [#include <sys/socket.h>],
+  [socklen_t unused_socket_length = 0;],
+  [has_socklen_t=yes],
+  [has_socklen_t=no])
+
+if test "$has_socklen_t" = "no" ; then
+  AC_DEFINE(socklen_t, unsigned, [the type to use for a socket address size])
+  AC_MSG_RESULT([no, using unsigned int])
+else
+  AC_MSG_RESULT([yes])
+fi
+
+AC_MSG_CHECKING([sockaddr has sa_len member])
+AC_TRY_COMPILE([#include <sys/types.h>]
+  [#include <sys/socket.h>],
+  [struct sockaddr address;
+  address.sa_len = 0;],
+  [has_sockaddr_sa_len=1; has_sockaddr_sa_len_yesno=yes],
+  [has_sockaddr_sa_len=0; has_sockaddr_sa_len_yesno=no])
+
+AC_DEFINE_UNQUOTED(HAS_SOCKADDR_SA_LEN, $has_sockaddr_sa_len,
+                   [whether the sockaddr structure has a length member])
+AC_MSG_RESULT($has_sockaddr_sa_len_yesno)
+
+AC_MSG_CHECKING([for PF_UNIX and AF_UNIX])
+AC_TRY_COMPILE([#include <sys/types.h>]
+  [#include <sys/socket.h>],
+  [int i = PF_UNIX; i = AF_UNIX;],
+  [HAS_PF_UNIX=1],
+  [HAS_PF_UNIX=0])
+if test "$HAS_PF_UNIX" = "0" ; then
+  AC_MSG_RESULT([no])
+else
+  AC_DEFINE(HAS_PF_UNIX, 1, [whether we have a PF_UNIX constant])
+  AC_MSG_RESULT([yes])
+fi
+AC_MSG_CHECKING([for PF_LOCAL and AF_LOCAL])
+AC_TRY_COMPILE([#include <sys/types.h>]
+  [#include <sys/socket.h>],
+  [int i = PF_LOCAL; i = AF_LOCAL;],
+  [HAS_PF_LOCAL=1],
+  [HAS_PF_LOCAL=0])
+if test "$HAS_PF_LOCAL" = "0" ; then
+  AC_MSG_RESULT([no])
+else
+  AC_DEFINE(HAS_PF_LOCAL, 1, [whether we have a PF_LOCAL constant])
+  AC_MSG_RESULT([yes])
+fi
+
+AC_MSG_CHECKING([for readline support])
+has_readline=0; readline_hdr=
+AC_CHECK_HEADERS([readline.h], [has_readline=1; readline_hdr=readline.h; readline_history_hdr=history.h])
+AC_CHECK_HEADERS([readline/readline.h],
+                 [has_readline=1 ; readline_hdr=readline/readline.h; readline_history_hdr=readline/history.h])
+AC_CHECK_LIB(termcap, tgetent,
+             [termcap_libs=-ltermcap],
+             [termcap_libs=])
+AC_CHECK_LIB(readline, readline,
+             [READLINE_LIBS="-lreadline -lhistory $termcap_libs"],
+	     [has_readline=0],
+             [$termcap_libs])
+
+AC_DEFINE_UNQUOTED(SUPPORT_READLINE, $has_readline,
+                   [0 or 1 depending on whether the readline library is available])
+AC_DEFINE_UNQUOTED(READLINE_HEADER_NAME, [<$readline_hdr>],
+                   [what header to include to get the readline functions])
+AC_DEFINE_UNQUOTED(READLINE_HISTORY_HEADER_NAME, [<$readline_history_hdr>],
+                   [what header to include to get the readline/history functions])
+AC_SUBST(READLINE_LIBS)
+if test $has_readline = 1 ; then
+  AC_MSG_RESULT([yes])
+else
+  AC_MSG_RESULT([no])
+fi
+
+# DEBUGGING ONLY
+echo "
+READLINE:
+  has_readline=$has_readline
+  READLINE_LIBS=$READLINE_LIBS
+  readline_hdr=$readline_hdr
+"
+
+##################################################
+# Check for gtk-doc.
+##################################################
+
+AC_ARG_WITH(html-dir, [  --with-html-dir=PATH path to installed docs ])
+
+if test "x$with_html_dir" = "x" ; then
+  HTML_DIR='${datadir}/gtk-doc/html'
+else
+  HTML_DIR=$with_html_dir
+fi
+
+AC_SUBST(HTML_DIR)
+
+gtk_doc_min_version=1.0
+AC_MSG_CHECKING([gtk-doc version >= $gtk_doc_min_version])
+if pkg-config --atleast-version=$gtk_doc_min_version gtk-doc; then
+  AC_MSG_RESULT(yes)
+  GTKDOC=true
+else
+  AC_MSG_RESULT(no)
+  GTKDOC=false
+fi
+
+dnl Let people disable the gtk-doc stuff.
+AC_ARG_ENABLE(gtk-doc, [  --enable-gtk-doc  Use gtk-doc to build documentation [default=auto]], enable_gtk_doc="$enableval", enable_gtk_doc=auto)
+
+if test x$enable_gtk_doc = xauto ; then
+  if test x$GTKDOC = xtrue ; then
+    enable_gtk_doc=yes
+  else
+    enable_gtk_doc=no 
+  fi
+fi
+
+AM_CONDITIONAL(ENABLE_GTK_DOC, test x$enable_gtk_doc = xyes)
+
+
+
+
+# Check for glib-2.0
+REQUIRED_GLIB_VERSION=2.6.0
+"$PKG_CONFIG" --atleast-version="$REQUIRED_GLIB_VERSION" gobject-2.0 || {
+  AC_MSG_ERROR(gobject 2.0 is required (at minimum version $REQUIRED_GLIB_VERSION))
+}
+#"$PKG_CONFIG" --exists zlib || {
+#  AC_MSG_ERROR(zlib is required )
+#}
+
+GLIB_CFLAGS=`"$PKG_CONFIG" --cflags gobject-2.0 gthread-2.0 gmodule-2.0`
+GLIB_LIBS=`"$PKG_CONFIG" --libs gobject-2.0 gthread-2.0 gmodule-2.0`
+AC_SUBST(GLIB_CFLAGS)
+AC_SUBST(GLIB_LIBS)
+AC_PATH_PROG(GLIB_MKENUMS, glib-mkenums, no)
+AC_SUBST(GLIB_MKENUMS)
+GLIB_EXTRA_LDFLAGS=`"$PKG_CONFIG" --libs-only-other gobject-2.0 gthread-2.0 gmodule-2.0`
+AC_SUBST(GLIB_EXTRA_LDFLAGS)
+
+GSK_DEBUG_MODE=0
+AC_ARG_ENABLE(gsk-debug,
+[  --enable-gsk-debug      Add additional runtime debugging code.],
+[case "${enableval}" in
+  yes) GSK_DEBUG=1 ; GSK_DEBUG_CFLAGS="-DGSK_DEBUG" ;;
+  no)  GSK_DEBUG=0 ; GSK_DEBUG_CFLAGS="" ;;
+  *) AC_MSG_ERROR(bad value ${enableval} for --enable-gsk-debug) ;;
+esac])
+AC_SUBST(GSK_DEBUG)
+AC_SUBST(GSK_DEBUG_CFLAGS)
+
+AC_CHECK_HEADERS(unistd.h net/if.h sys/ioctl.h sys/poll.h execinfo.h)
+AC_CHECK_FUNCS(writev poll select kqueue syslog strtoll strtoq strtoull strtouq timegm gmtime_r localtime_r)
+
+AC_CACHE_CHECK(for /dev/poll support, ac_cv_dev_poll,
+    AC_TRY_COMPILE([#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/poll.h>
+#include <sys/devpoll.h>],
+[
+  struct dvpoll p;
+  p.dp_timeout = 0;
+  p.dp_nfds = 0;
+  p.dp_fds = (struct pollfd *) 0;
+  return 0;
+],
+    ac_cv_dev_poll=yes
+    [$1],
+    ac_cv_dev_poll=no
+    [$2]
+    )
+)
+AC_DEFINE_UNQUOTED(HAVE_DEVPOLL_SUPPORT, $HAVE_DEVPOLL_SUPPORT,
+                   [whether to support the /dev/poll])
+
+dnl Check for the epoll_*() library functions.
+EPOLL_LIBS=""
+AC_CHECK_FUNC(epoll_create, [EPOLL_LIBS="" ; HAVE_EPOLL_SUPPORT=1], [HAVE_EPOLL_SUPPORT=0])
+AC_SUBST(EPOLL_LIBS)
+AC_DEFINE_UNQUOTED(HAVE_EPOLL_SUPPORT, $HAVE_EPOLL_SUPPORT,
+                   [whether to support the new epoll_* functions])
+
+# Test for IP v6 support. [see rfc 2553, i guess]
+AC_CACHE_CHECK(for ipv6 support,
+HAS_IPV6,
+AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>],
+[
+  struct sockaddr_in6 addr;
+  addr.sin6_family = 1;
+  addr.sin6_port = 1;
+  (void) &addr.sin6_addr.s6_addr;
+],
+[HAS_IPV6=yes],
+[HAS_IPV6=no]))
+if test $HAS_IPV6 = yes ; then
+  SUPPORTS_IPV6=1
+else
+  SUPPORTS_IPV6=0
+fi
+AC_DEFINE_UNQUOTED(SUPPORTS_IPV6, $SUPPORTS_IPV6, [ipv6 support])
+
+AM_MAINTAINER_MODE
+AC_SUBST(USE_MAINTAINER_MODE)
+AC_PROG_MAKE_SET
+AM_PROG_LIBTOOL
+
+AC_SYS_LARGEFILE
+
+AM_CONFIG_HEADER(src/config.h)
+
+AC_OUTPUT([Makefile
+	   gsk-1.0.pc
+	   pkgwriteinfo
+           src/Makefile src/tests/Makefile
+           src/main-loops/Makefile 
+	   src/common/Makefile
+           src/dns/Makefile
+	   src/mime/Makefile 
+	   src/http/Makefile 
+	   src/zlib/Makefile 
+	   src/hash/Makefile 
+	   src/ssl/Makefile
+	   src/control/Makefile
+	   src/store/Makefile
+	   src/url/Makefile
+	   src/xml/Makefile
+	   src/xmlrpc/Makefile
+	   src/programs/Makefile
+	   doc/Makefile ])

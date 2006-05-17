@@ -1,0 +1,32 @@
+<!-- ##### SECTION Title ##### -->
+GskSimpleFilter
+
+<!-- ##### SECTION Short_Description ##### -->
+
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+<!-- ##### STRUCT GskSimpleFilterClass ##### -->
+<para>
+
+</para>
+
+@stream_class: 
+@process: 
+@flush: 
+
+<!-- ##### STRUCT GskSimpleFilter ##### -->
+<para>
+
+</para>
+
+@stream: 
+

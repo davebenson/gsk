@@ -1,0 +1,157 @@
+#!/bin/sh
+
+gsk_libs="@GSK_LIBS@ @GLIB_LIBS@"
+gsk_cflags="@GSK_CFLAGS@ @GLIB_CFLAGS@"
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+exec_prefix_set=no
+lib_gskprotocol=no
+lib_gskserver=no
+lib_gskxml=no
+lib_gsklisp=no
+
+usage()
+{
+	cat <<EOF
+Usage: gsk-config [OPTIONS] [LIBRARIES]
+Options:
+	[--prefix[=DIR]]
+	[--exec-prefix[=DIR]]
+	[--version]
+	[--libs]
+	[--cflags]
+	[--main-loop-types]
+Libraries:
+	gsk
+	gskprotocol
+	gskxml
+	gskserver
+	gsklisp
+EOF
+	exit $1
+}
+
+if test $# -eq 0; then
+	usage 1 1>&2
+fi
+
+lib_gsk=yes
+
+while test $# -gt 0; do
+  case "$1" in
+  -*=*) optarg=`echo "$1" | sed 's/[-_a-zA-Z0-9]*=//'` ;;
+  *) optarg= ;;
+  esac
+
+  case $1 in
+    --prefix=*)
+      prefix=$optarg
+      if test $exec_prefix_set = no ; then
+        exec_prefix=$optarg
+      fi
+      ;;
+    --prefix)
+      echo_prefix=yes
+      ;;
+    --exec-prefix=*)
+      exec_prefix=$optarg
+      exec_prefix_set=yes
+      ;;
+    --exec-prefix)
+      echo_exec_prefix=yes
+      ;;
+    --version)
+      echo @GSK_VERSION@
+      ;;
+    --cflags)
+      echo_cflags=yes
+      ;;
+    --libs)
+      echo_libs=yes
+      ;;
+    --main-loop-types)
+      echo "@supported_main_loop_types@"
+      exit 0
+      ;;
+    gsk)
+      lib_gsk=yes
+      ;;
+    gthread)
+      lib_gthread=yes
+      ;;
+    gskprotocol)
+      lib_gskprotocol=yes
+      ;;
+    gskserver)
+      lib_gskserver=yes
+      lib_gskxml=yes
+      ;;
+    gskxml)
+      lib_gskxml=yes
+      ;;
+    gsklisp)
+      lib_gsklisp=yes
+      ;;
+    *)
+      usage 1 1>&2
+      ;;
+  esac
+  shift
+done
+
+gsk_lib_name="gsk@debug_suffix@"
+gsk_minigtk_lib_name="gsk-minigtk@debug_suffix@"
+gsk_protocol_lib_name="gsk-protocol@debug_suffix@"
+gsk_server_lib_name="gsk-server@debug_suffix@"
+gsk_xml_lib_name="gsk-xml@debug_suffix@"
+gsk_lisp_lib_name="gsk-lisp@debug_suffix@"
+
+if test "$echo_prefix" = "yes"; then
+  echo $prefix
+fi
+
+if test "$echo_exec_prefix" = "yes"; then
+  echo $exec_prefix
+fi
+
+if test "$echo_cflags" = "yes"; then
+  if test "$prefix" = "/" ||
+     test "$prefix" = "/usr" ; then
+    includes=""
+  else
+    includes="-I$prefix/include"
+  fi
+  echo $gsk_cflags $includes
+fi
+
+if test "$echo_libs" = "yes"; then
+  my_glib_libs=
+  libdirs=-L@libdir@
+  for i in $gsk_libs ; do
+    if test $i != -L@libdir@ ; then
+      if test -z "$my_glib_libs" ; then
+	my_glib_libs="$i"
+      else
+	my_glib_libs="$my_glib_libs $i"
+      fi
+    fi
+  done
+
+  my_gsk_libs="-l$gsk_lib_name -l$gsk_minigtk_lib_name"
+  if test "$lib_gskprotocol" = "yes"; then 
+    my_gsk_libs="$my_gsk_libs -l$gsk_protocol_lib_name"
+  fi
+  if test "$lib_gskxml" = "yes"; then 
+    my_gsk_libs="$my_gsk_libs -l$gsk_xml_lib_name"
+  fi
+  if test "$lib_gsklisp" = "yes"; then 
+    my_gsk_libs="$my_gsk_libs -l$gsk_lisp_lib_name"
+  fi
+  if test "$lib_gskserver" = "yes"; then 
+    my_gsk_libs="$my_gsk_libs -l$gsk_server_lib_name"
+  fi
+
+  echo $libdirs $my_gsk_libs $my_glib_libs @INTLLIBS@ -lm
+fi      
+

@@ -1,0 +1,78 @@
+<!-- ##### SECTION Title ##### -->
+gskutils
+
+<!-- ##### SECTION Short_Description ##### -->
+
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+<!-- ##### FUNCTION gsk_mkdir_p ##### -->
+<para>
+
+</para>
+
+@dir: 
+@permissions: 
+@error: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_rm_rf ##### -->
+<para>
+
+</para>
+
+@dir_or_file: 
+@error: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_escape_memory ##### -->
+<para>
+
+</para>
+
+@data: 
+@len: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_escape_memory_hex ##### -->
+<para>
+
+</para>
+
+@data: 
+@len: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_unescape_memory_hex ##### -->
+<para>
+
+</para>
+
+@str: 
+@len: 
+@length_out: 
+@error: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_fd_set_close_on_exec ##### -->
+<para>
+
+</para>
+
+@fd: 
+@close_on_exec: 
+
+

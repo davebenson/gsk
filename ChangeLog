@@ -1,0 +1,122 @@
+gsk (1.0.35)
+  * bug fix:  try the nameservers in the order listed in resolv.conf,
+    instead of the reverse of that order.
+  * Provide GSK_QSELECT()
+
+gsk (1.0.34)
+  * Provide GSK_QSORT(), a macro-based quicksort. (in gskqsortmacro.h)
+  * Provide stack, deque and list macro-based implementations.
+    (in gsklistmacros.h)
+  * Add gsk_g_error_add_prefix().
+
+gsk (1.0.33)
+  * GskMemPoolFixed bug fix.
+  * expose gsk/zlib/gskzlib.h for its helper functions.
+
+gsk (1.0.32)
+  * DNS bug fix.
+
+gsk (1.0.30)
+  * BUG: bogus assertions in gskdnsrrcache wrt to the is_deprecated flag.
+  * Make DNS warning/debugging messages go to their own log-domain. (Gsk-Dns)
+
+gsk (1.0.10)
+
+  * BUILD BUG: sometimes -lreadline requires -ltermcap;
+    in any event, test linkage.
+  * MAJOR BUG: fixes in GskDnsClient list manipulation.
+    The bug caused (under duress)
+    "useless DNS message" warnings and segfaults.
+  * add gsk_memory_source_new_vprintf()
+  * automatically delete stale unix-domain sockets if a server tries
+    to reuse the path.
+  * Change gsk_name_resolve() to be deprecated,
+    in favor of more correctly named gsk_name_resolver_task_new();
+    casual, non-cancelling users may use gsk_name_resolver_lookup().
+  * minor SSL issues
+  * Add gsk-netcat program, for debugging and as useful example code.
+
+gsk (1.0.9)
+  * BUG: gskhttpserver was creating 0-length chunks which looked
+    like EOF chunks.
+  * BUG: gskmemory was shutting down while returning nonzero.
+    i think we decided that that wasn't allowed.
+  * add a line-based ring-buffer: GskLogRingBuffer.
+  * add generic logging traps (gsk_log_trap_generic)
+  * add ring-buffer logging traps (gsk_log_trap_ring_buffer)
+  * API change: change gsk_log_trap_domain_to_file() to take
+    the set of log-levels trapped.
+  * BUG: gskmimemultipart{decoder,encoder} both had serious bugs
+  * BUG: zlibdeflator didn't properly "finish" its data.
+    zlibinflator wasn't always giving shutdown notification, nor syncing.
+
+gsk (1.0.8)
+  * allow user to set the DNS cache size
+  * build fixes
+  * BUG: GskStreamExternal was busy-looping.
+
+gsk (1.0.7)
+  * include GskControlServer/GskControlClient
+    which provide a simple to implement generic control
+    interface.  We also provide the gsk-control-client
+    program which can talk to such a server, in general.
+    Therefore, must programs will only need to implement the
+    server.  An example server has been added in src/programs.
+  * include GskHttpContent, a content database for implementing
+    normal HTTP servers, which usually want to provide different handlers
+    for various portions of the path/user-agent/virtual-host space.
+  * BUG: GskStreamExternal: re-fix bug that caused
+    stdin and stdout to be nonblocking.
+  * gskdaemonize provides --foreground and --background options,
+    as well as restart-on-segv or assertion failure support.
+
+gsk (1.0.6)
+  * compiler bug fix
+  * bug fixes to gsklog.
+  * this version was botched.  do not use it.
+
+gsk (1.0.5)
+  * API change:  GskPacket now has two addresses: a source and a destination
+    instead of a single multi-use address.
+  * change GskNetworkInterfaceSet::num_interfaces to an unsigned.
+  * gsklog.h:  gmessage-based logging to files, using many domains. (daveb)
+  * SHA-256 support in gskhash. (daveb)
+  * GskStreamListenerSocket has a parameter to remove the entry
+    from the file-system when done.
+
+gsk (1.0.4)
+  * memory leak in gskhttpclient and gskhttpserver finalize routines
+
+gsk (1.0.1)
+  * gsk_socket_address_localhost() becomes a macro,
+    and more properly named gsk_socket_address_loopback()
+    is added.  gsk_ipv4_ip_address_{any,loopback} globals
+    are added, basically fixed as 0.0.0.0 and 127.0.0.1. (mrad)
+  * Force absolute URLs to have a slash (/) after the host. (daveb)
+  * Partial shutdown problem in HTTP client, noticed by Ted Witkamp. (daveb)
+  * HTTP Download include query string (twitkamp)
+  * shutdown-in-shutdown loop noticed by mrad. (daveb)
+  * gsk_url_encode and gsk_url_encode_http weren't escaping some
+    whitespace and other "non-unreserved" characters. (mrad)
+  * various solaris fixes reported by Jeremy Leader (at Overture).
+  * add gsk_timegm() which does the opposite of gmtime() portably. (daveb)
+  * better handling of POLLHUP and POLLERR in GskMainLoop{Poll,Epoll}.
+    Now the POLLHUP flag is propagated to G_IO_IN and POLLERR
+    is propagated to G_IO_IN|G_IO_OUT.  This is roughly what
+    BSD and select(2) do, so it seems right for linux/poll,epoll as well.
+  * gsk_tree_remove wasn't removing newly inserted keys when a node
+    with the same key was already being visited. (mrad)
+  * Allow hooks to be safely untrapped/retrapped during notification. (mrad)
+  * Allow hooks to defer shutdown notification when the hook is initialized
+    with gsk_hook_mark_can_defer_shutdown, and the class's shutdown method
+    returns false. (mrad)
+
+ -- Dave Benson <daveb@ffem.org>  ???
+
+
+gsk (1.0.0)
+
+  * Completely rewritten to use 'streams' and 'hooks' instead 
+    of 'actors'.
+
+ -- Dave Benson <daveb@ffem.org>  Tues Jan 13, 2004
