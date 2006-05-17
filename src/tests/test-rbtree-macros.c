@@ -87,8 +87,22 @@ int main()
   g_assert ( del_tree  (&tree, 3));
   g_assert (tree == NULL);
 
+  GSK_RBTREE_FIRST (TREE(&tree), node);
+  g_assert (node == NULL);
+  GSK_RBTREE_LAST (TREE(&tree), node);
+  g_assert (node == NULL);
+
+  /* Construct tree with odd numbers 1..999 inclusive */
   for (i = 1; i <= 999; i += 2)
     g_assert (!add_tree (&tree, i));
+
+  GSK_RBTREE_FIRST (TREE(&tree), node);
+  g_assert (node != NULL);
+  g_assert (node->value == 1);
+  GSK_RBTREE_LAST (TREE(&tree), node);
+  g_assert (node != NULL);
+  g_assert (node->value == 999);
+
   for (i = 1; i <= 999; i += 2)
     {
       g_assert (test_tree (&tree, i));

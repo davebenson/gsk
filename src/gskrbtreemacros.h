@@ -39,6 +39,10 @@
  *   LOOKUP_COMPARATOR(tree, key, key_comparator, out)
  *         Find a node in the tree, based on a key
  *         which may not be in the same format as the node.
+ *   FIRST(tree, out)
+ *         Set 'out' to the first node in the tree.
+ *   LAST(tree, out)
+ *         Set 'out' to the last node in the tree.
  *   PREV(tree, cur, out)
  *         Set 'out' to the previous node in the tree before cur.
  *   NEXT(tree, cur, out)
@@ -60,6 +64,11 @@
   GSK_RBTREE_LOOKUP_(tree, key, out)
 #define GSK_RBTREE_LOOKUP_COMPARATOR(tree, key, key_comparator, out)          \
   GSK_RBTREE_LOOKUP_COMPARATOR_(tree, key, key_comparator, out)
+
+#define GSK_RBTREE_FIRST(tree, out)                                           \
+  GSK_RBTREE_FIRST_(tree, out)
+#define GSK_RBTREE_LAST(tree, out)                                            \
+  GSK_RBTREE_LAST_(tree, out)
 #define GSK_RBTREE_NEXT(tree, in, out)                                        \
   GSK_RBTREE_NEXT_(tree, in, out)
 #define GSK_RBTREE_PREV(tree, in, out)                                        \
@@ -451,5 +460,17 @@ G_STMT_START{                                                                 \
 /* prev is just next with left/right child reversed. */
 #define GSK_RBTREE_PREV_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, in, out)  \
   GSK_RBTREE_NEXT_(top,type,is_red,set_is_red,parent,right_child,left_child,comparator, in, out)
+
+#define GSK_RBTREE_FIRST_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, out)  \
+G_STMT_START{                                                                 \
+  type _gsk_first_at = (top);                                                 \
+  if (_gsk_first_at != NULL)                                                  \
+    while (_gsk_first_at->left_child != NULL)                                 \
+      _gsk_first_at = _gsk_first_at->left_child;                              \
+  out = _gsk_first_at;                                                        \
+}G_STMT_END
+#define GSK_RBTREE_LAST_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, out)  \
+  GSK_RBTREE_FIRST_(top,type,is_red,set_is_red,parent,right_child,left_child,comparator, out)
+
 
 #endif
