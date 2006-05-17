@@ -24,6 +24,7 @@ common_check_programs = \
 	test-stream-fd-pipe \
 	test-wait-source \
 	test-gskstreamexternal \
+	test-rbtree-macros \
 	test-serverclient \
 	test-store \
 	test-streamfd-guess-flags \
