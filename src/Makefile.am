@@ -47,6 +47,7 @@ gskpersistentconnection.h \
 gskprocessinfo.h \
 gskqsortmacro.h \
 gskrequest.h \
+gskrbtreemacros.h \
 gsksocketaddress.h \
 gskshutdown.h \
 gsksimplefilter.h \

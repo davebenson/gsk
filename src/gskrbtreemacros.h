@@ -43,6 +43,14 @@
  *         Set 'out' to the previous node in the tree before cur.
  *   NEXT(tree, cur, out)
  *         Set 'out' to the next node in the tree after cur.
+ *   INFIMUM_COMPARATOR(tree, key, key_comparator, out)
+ *         Find the last node in the tree which is before or equal to 'key'.
+ *   SUPREMUM_COMPARATOR(tree, key, key_comparator, out)
+ *         Find the first node in the tree which is after or equal to 'key'.
+ *   INFIMUM(tree, key, out)
+ *         Find the last node in the tree which is before or equal to 'key'.
+ *   SUPREMUM(tree, key, out)
+ *         Find the first node in the tree which is after or equal to 'key'.
  */
 #define GSK_RBTREE_INSERT(tree, node, collision_node)                         \
   GSK_RBTREE_INSERT_(tree, node, collision_node)
@@ -57,6 +65,21 @@
 #define GSK_RBTREE_PREV(tree, in, out)                                        \
   GSK_RBTREE_PREV_(tree, in, out)
 
+#define GSK_RBTREE_SUPREMUM(tree, key, out)                                   \
+  GSK_RBTREE_SUPREMUM_(tree, key, out)
+#define GSK_RBTREE_SUPREMUM_COMPARATOR(tree, key, key_comparator, out)        \
+  GSK_RBTREE_SUPREMUM_COMPARATOR_(tree, key, key_comparator, out)
+#define GSK_RBTREE_INFIMUM(tree, key, out)                                    \
+  GSK_RBTREE_INFIMUM_(tree, key, out)
+#define GSK_RBTREE_INFIMUM_COMPARATOR(tree, key, key_comparator, out)         \
+  GSK_RBTREE_INFIMUM_COMPARATOR_(tree, key, key_comparator, out)
+
+#if 1
+#undef G_STMT_START
+#define G_STMT_START do
+#undef G_STMT_END
+#define G_STMT_END while(0)
+#endif
 
 #define GSK_RBTREE_INSERT_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, node,collision_node) \
 G_STMT_START{                                                                 \
@@ -214,7 +237,7 @@ G_STMT_START{                                                                 \
   if (_gsk_rb_del_fixup)                                                      \
     {                                                                         \
       /* delete fixup (Algorithms, p 274) */                                  \
-      while (_gsk_rb_del_x != top && !is_red (_gsk_rb_del_x))                 \
+      while (_gsk_rb_del_x != top && !(_gsk_rb_del_x != NULL && is_red (_gsk_rb_del_x))) \
         {                                                                     \
           type _gsk_rb_del_xparent = _gsk_rb_del_x ? _gsk_rb_del_x->parent    \
                                                    : _gsk_rb_del_nullpar;     \
@@ -310,8 +333,72 @@ G_STMT_START{                                                                 \
     }                                                                         \
   out = _gsk_lookup_at;                                                       \
 }G_STMT_END
+#define GSK_RBTREE_INFIMUM_COMPARATOR_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, \
+                                      key,key_comparator,out)                 \
+G_STMT_START{                                                                 \
+  type _gsk_lookup_at = (top);                                                \
+  while (_gsk_lookup_at)                                                      \
+    {                                                                         \
+      int _gsk_compare_rv;                                                    \
+      key_comparator(key,_gsk_lookup_at,_gsk_compare_rv);                     \
+      if (_gsk_compare_rv < 0)                                                \
+        {                                                                     \
+          if (_gsk_lookup_at->left_child)                                     \
+            _gsk_lookup_at = _gsk_lookup_at->left_child;                      \
+          else                                                                \
+            {                                                                 \
+              GSK_RBTREE_PREV_ (top,type,is_red,set_is_red,parent,left_child,right_child,comparator, _gsk_lookup_at,_gsk_lookup_at); \
+              break;                                                          \
+            }                                                                 \
+        }                                                                     \
+      else if (_gsk_compare_rv > 0)                                           \
+        {                                                                     \
+          if (_gsk_lookup_at->left_child)                                     \
+            _gsk_lookup_at = _gsk_lookup_at->left_child;                      \
+          else                                                                \
+            break;                                                            \
+        }                                                                     \
+      else                                                                    \
+        break;                                                                \
+    }                                                                         \
+  out = _gsk_lookup_at;                                                       \
+}G_STMT_END
+#define GSK_RBTREE_SUPREMUM_COMPARATOR_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, \
+                                      key,key_comparator,out)                 \
+G_STMT_START{                                                                 \
+  type _gsk_lookup_at = (top);                                                \
+  while (_gsk_lookup_at)                                                      \
+    {                                                                         \
+      int _gsk_compare_rv;                                                    \
+      key_comparator(key,_gsk_lookup_at,_gsk_compare_rv);                     \
+      if (_gsk_compare_rv < 0)                                                \
+        {                                                                     \
+          if (_gsk_lookup_at->left_child)                                     \
+            _gsk_lookup_at = _gsk_lookup_at->left_child;                      \
+          else                                                                \
+            break;                                                            \
+        }                                                                     \
+      else if (_gsk_compare_rv > 0)                                           \
+        {                                                                     \
+          if (_gsk_lookup_at->right_child)                                    \
+            _gsk_lookup_at = _gsk_lookup_at->right_child;                     \
+          else                                                                \
+            {                                                                 \
+              GSK_RBTREE_NEXT_ (top,type,is_red,set_is_red,parent,left_child,right_child,comparator, _gsk_lookup_at,_gsk_lookup_at); \
+              break;                                                          \
+            }                                                                 \
+        }                                                                     \
+      else                                                                    \
+        break;                                                                \
+    }                                                                         \
+  out = _gsk_lookup_at;                                                       \
+}G_STMT_END
 #define GSK_RBTREE_LOOKUP_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, key,out) \
   GSK_RBTREE_LOOKUP_COMPARATOR_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, key,comparator,out)
+#define GSK_RBTREE_SUPREMUM_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, key,out) \
+  GSK_RBTREE_SUPREMUM_COMPARATOR_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, key,comparator,out)
+#define GSK_RBTREE_INFIMUM_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, key,out) \
+  GSK_RBTREE_INFIMUM_COMPARATOR_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, key,comparator,out)
 
 /* these macros don't need the is_red/set_is_red macros, nor the comparator,
    so omit them, to keep the lines a bit shorter. */

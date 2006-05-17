@@ -58,6 +58,8 @@ del_tree (TreeNode **ptop,
 int main()
 {
   TreeNode *tree = NULL;
+  TreeNode *node;
+  guint i;
   g_assert (!add_tree (&tree, 1));
   g_assert (!add_tree (&tree, 2));
   g_assert (!add_tree (&tree, 3));
@@ -84,6 +86,34 @@ int main()
   g_assert ( del_tree  (&tree, 2));
   g_assert ( del_tree  (&tree, 3));
   g_assert (tree == NULL);
+
+  for (i = 1; i <= 999; i += 2)
+    g_assert (!add_tree (&tree, i));
+  for (i = 1; i <= 999; i += 2)
+    {
+      g_assert (test_tree (&tree, i));
+      g_assert (!test_tree (&tree, i+1));
+    }
+  for (i = 0; i <= 999; i++)
+    {
+      GSK_RBTREE_SUPREMUM_COMPARATOR (TREE(&tree), i, COMPARE_INT_WITH_TREE_NODE, node);
+      g_assert (node);
+      g_assert (node->value == (i%2)?i:(i+1));
+    }
+  GSK_RBTREE_SUPREMUM_COMPARATOR (TREE(&tree), 1000, COMPARE_INT_WITH_TREE_NODE, node);
+  g_assert (node==NULL);
+  for (i = 1; i <= 1000; i++)
+    {
+      TreeNode *node;
+      GSK_RBTREE_INFIMUM_COMPARATOR (TREE(&tree), i, COMPARE_INT_WITH_TREE_NODE, node);
+      g_assert (node);
+      g_assert (node->value == (i%2)?i:(i-1));
+    }
+  GSK_RBTREE_INFIMUM_COMPARATOR (TREE(&tree), 0, COMPARE_INT_WITH_TREE_NODE, node);
+  g_assert (node==NULL);
+  for (i = 1; i <= 999; i += 2)
+    g_assert (del_tree (&tree, i));
+
   return 0;
 }
 
