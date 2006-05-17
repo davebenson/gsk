@@ -1,7 +1,16 @@
 #ifndef __GSK_RBTREE_MACROS_H_
 #define __GSK_RBTREE_MACROS_H_
 
-/* A tree is a tuple:
+/* Macros for construction of a red-black tree.
+ * Like our other macro-based data-structures,
+ * this doesn't allocate memory, and it doesn't
+ * use any helper functions.
+ *
+ * It supports "invasive" tree structures,
+ * for example, you can have nodes that are members
+ * of two different trees.
+ *
+ * A tree is a tuple:
  *    top
  *    type*
  *    is_red
@@ -10,6 +19,8 @@
  *    left_child
  *    right_child
  *    comparator
+ * that should be defined by a macro like "GET_TREE()".
+ * See tests/test-rbtree-macros.
  *
  * The methods are:
  *   INSERT(tree, node, collision_node) 
@@ -33,117 +44,118 @@
  *   NEXT(tree, cur, out)
  *         Set 'out' to the next node in the tree after cur.
  */
-#define GSK_RBTREE_INSERT(tree, node, collision_node)                \
+#define GSK_RBTREE_INSERT(tree, node, collision_node)                         \
   GSK_RBTREE_INSERT_(tree, node, collision_node)
-#define GSK_RBTREE_REMOVE(tree, node)                                \
+#define GSK_RBTREE_REMOVE(tree, node)                                         \
   GSK_RBTREE_REMOVE_(tree, node)
-#define GSK_RBTREE_LOOKUP(tree, key, out)                            \
+#define GSK_RBTREE_LOOKUP(tree, key, out)                                     \
   GSK_RBTREE_LOOKUP_(tree, key, out)
-#define GSK_RBTREE_LOOKUP_COMPARATOR(tree, key, key_comparator, out) \
+#define GSK_RBTREE_LOOKUP_COMPARATOR(tree, key, key_comparator, out)          \
   GSK_RBTREE_LOOKUP_COMPARATOR_(tree, key, key_comparator, out)
-#define GSK_RBTREE_NEXT(tree, in, out)                               \
+#define GSK_RBTREE_NEXT(tree, in, out)                                        \
   GSK_RBTREE_NEXT_(tree, in, out)
-#define GSK_RBTREE_PREV(tree, in, out)                               \
+#define GSK_RBTREE_PREV(tree, in, out)                                        \
   GSK_RBTREE_PREV_(tree, in, out)
 
+
 #define GSK_RBTREE_INSERT_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, node,collision_node) \
-  G_STMT_START{                                                                \
-    type _gsk_last = NULL;                                                     \
-    type _gsk_at = (top);                                                      \
-    gboolean _gsk_last_was_left = FALSE;                                       \
-    collision_node = NULL;                                                     \
-    while (_gsk_at != NULL)                                                    \
-      {                                                                        \
-        int _gsk_compare_rv;                                                   \
-        _gsk_last = _gsk_at;                                                   \
-        comparator(_gsk_at, node, _gsk_compare_rv);                            \
-        if (_gsk_compare_rv > 0)                                               \
-          {                                                                    \
-            _gsk_last_was_left = TRUE;                                         \
-            _gsk_at = _gsk_at->left_child;                                     \
-          }                                                                    \
-        else if (_gsk_compare_rv < 0)                                          \
-          {                                                                    \
-            _gsk_last_was_left = FALSE;                                        \
-            _gsk_at = _gsk_at->right_child;                                    \
-          }                                                                    \
-        else                                                                   \
-          break;                                                               \
-     }                                                                         \
-    if (_gsk_at != NULL)                                                       \
-      {                                                                        \
-        /* collision */                                                        \
-        collision_node = _gsk_at;                                              \
-      }                                                                        \
-    else if (_gsk_last == NULL)                                                \
-      {                                                                        \
-        /* only node in tree */                                                \
-        top = node;                                                            \
-        set_is_red (node, 0);                                                  \
-      }                                                                        \
-    else                                                                       \
-      {                                                                        \
-        node->parent = _gsk_last;                                              \
-        if (_gsk_last_was_left)                                                \
-          _gsk_last->left_child = node;                                        \
-        else                                                                   \
-          _gsk_last->right_child = node;                                       \
-                                                                               \
-        /* fixup */                                                            \
-        _gsk_at = node;                                                        \
-        set_is_red (_gsk_at, 1);                                               \
-        while (top != _gsk_at && is_red(_gsk_at->parent))                      \
-          {                                                                    \
-            if (_gsk_at->parent == _gsk_at->parent->parent->left_child)        \
-              {                                                                \
-                type _gsk_y = _gsk_at->parent->parent->right_child;            \
-                if (_gsk_y != NULL && is_red (_gsk_y))                         \
-                  {                                                            \
-                    set_is_red (_gsk_at->parent, 0);                           \
-                    set_is_red (_gsk_y, 0);                                    \
-                    set_is_red (_gsk_at->parent->parent, 1);                   \
-                    _gsk_at = _gsk_at->parent->parent;                         \
-                  }                                                            \
-                else                                                           \
-                  {                                                            \
-                    if (_gsk_at == _gsk_at->parent->right_child)               \
-                      {                                                        \
-                        _gsk_at = _gsk_at->parent;                             \
-                        GSK_RBTREE_ROTATE_LEFT (top,type,parent,left_child,right_child, _gsk_at);\
-                      }                                                        \
-                    set_is_red(_gsk_at->parent, 0);                            \
-                    set_is_red(_gsk_at->parent->parent, 1);                    \
-                    GSK_RBTREE_ROTATE_RIGHT (top,type,parent,left_child,right_child, \
-                                           _gsk_at->parent->parent)            \
-                  }                                                            \
-              }                                                                \
-            else                                                               \
-              {                                                                \
-                type _gsk_y = _gsk_at->parent->parent->left_child;             \
-                if (_gsk_y != NULL && is_red (_gsk_y))                         \
-                  {                                                            \
-                    set_is_red (_gsk_at->parent, 0);                           \
-                    set_is_red (_gsk_y, 0);                                    \
-                    set_is_red (_gsk_at->parent->parent, 1);                   \
-                    _gsk_at = _gsk_at->parent->parent;                         \
-                  }                                                            \
-                else                                                           \
-                  {                                                            \
-                    if (_gsk_at == _gsk_at->parent->left_child)                \
-                      {                                                        \
-                        _gsk_at = _gsk_at->parent;                             \
-                        GSK_RBTREE_ROTATE_RIGHT (top,type,parent,left_child,right_child,\
-                                               _gsk_at);                       \
-                      }                                                        \
-                    set_is_red(_gsk_at->parent, 0);                            \
-                    set_is_red(_gsk_at->parent->parent, 1);                    \
-                    GSK_RBTREE_ROTATE_LEFT (top,type,parent,left_child,right_child, _gsk_at->parent->parent);\
-                  }                                                            \
-              }                                                                \
-          }                                                                    \
-        set_is_red((top), 0);                                                  \
-      }                                                                        \
-  }G_STMT_END
+G_STMT_START{                                                                 \
+  type _gsk_last = NULL;                                                      \
+  type _gsk_at = (top);                                                       \
+  gboolean _gsk_last_was_left = FALSE;                                        \
+  collision_node = NULL;                                                      \
+  while (_gsk_at != NULL)                                                     \
+    {                                                                         \
+      int _gsk_compare_rv;                                                    \
+      _gsk_last = _gsk_at;                                                    \
+      comparator(_gsk_at, node, _gsk_compare_rv);                             \
+      if (_gsk_compare_rv > 0)                                                \
+        {                                                                     \
+          _gsk_last_was_left = TRUE;                                          \
+          _gsk_at = _gsk_at->left_child;                                      \
+        }                                                                     \
+      else if (_gsk_compare_rv < 0)                                           \
+        {                                                                     \
+          _gsk_last_was_left = FALSE;                                         \
+          _gsk_at = _gsk_at->right_child;                                     \
+        }                                                                     \
+      else                                                                    \
+        break;                                                                \
+   }                                                                          \
+  if (_gsk_at != NULL)                                                        \
+    {                                                                         \
+      /* collision */                                                         \
+      collision_node = _gsk_at;                                               \
+    }                                                                         \
+  else if (_gsk_last == NULL)                                                 \
+    {                                                                         \
+      /* only node in tree */                                                 \
+      top = node;                                                             \
+      set_is_red (node, 0);                                                   \
+    }                                                                         \
+  else                                                                        \
+    {                                                                         \
+      node->parent = _gsk_last;                                               \
+      if (_gsk_last_was_left)                                                 \
+        _gsk_last->left_child = node;                                         \
+      else                                                                    \
+        _gsk_last->right_child = node;                                        \
+                                                                              \
+      /* fixup */                                                             \
+      _gsk_at = node;                                                         \
+      set_is_red (_gsk_at, 1);                                                \
+      while (top != _gsk_at && is_red(_gsk_at->parent))                       \
+        {                                                                     \
+          if (_gsk_at->parent == _gsk_at->parent->parent->left_child)         \
+            {                                                                 \
+              type _gsk_y = _gsk_at->parent->parent->right_child;             \
+              if (_gsk_y != NULL && is_red (_gsk_y))                          \
+                {                                                             \
+                  set_is_red (_gsk_at->parent, 0);                            \
+                  set_is_red (_gsk_y, 0);                                     \
+                  set_is_red (_gsk_at->parent->parent, 1);                    \
+                  _gsk_at = _gsk_at->parent->parent;                          \
+                }                                                             \
+              else                                                            \
+                {                                                             \
+                  if (_gsk_at == _gsk_at->parent->right_child)                \
+                    {                                                         \
+                      _gsk_at = _gsk_at->parent;                              \
+                      GSK_RBTREE_ROTATE_LEFT (top,type,parent,left_child,right_child, _gsk_at);\
+                    }                                                         \
+                  set_is_red(_gsk_at->parent, 0);                             \
+                  set_is_red(_gsk_at->parent->parent, 1);                     \
+                  GSK_RBTREE_ROTATE_RIGHT (top,type,parent,left_child,right_child, \
+                                         _gsk_at->parent->parent);            \
+                }                                                             \
+            }                                                                 \
+          else                                                                \
+            {                                                                 \
+              type _gsk_y = _gsk_at->parent->parent->left_child;              \
+              if (_gsk_y != NULL && is_red (_gsk_y))                          \
+                {                                                             \
+                  set_is_red (_gsk_at->parent, 0);                            \
+                  set_is_red (_gsk_y, 0);                                     \
+                  set_is_red (_gsk_at->parent->parent, 1);                    \
+                  _gsk_at = _gsk_at->parent->parent;                          \
+                }                                                             \
+              else                                                            \
+                {                                                             \
+                  if (_gsk_at == _gsk_at->parent->left_child)                 \
+                    {                                                         \
+                      _gsk_at = _gsk_at->parent;                              \
+                      GSK_RBTREE_ROTATE_RIGHT (top,type,parent,left_child,right_child,\
+                                             _gsk_at);                        \
+                    }                                                         \
+                  set_is_red(_gsk_at->parent, 0);                             \
+                  set_is_red(_gsk_at->parent->parent, 1);                     \
+                  GSK_RBTREE_ROTATE_LEFT (top,type,parent,left_child,right_child, _gsk_at->parent->parent);\
+                }                                                             \
+            }                                                                 \
+        }                                                                     \
+      set_is_red((top), 0);                                                   \
+    }                                                                         \
+}G_STMT_END
 
 #define GSK_RBTREE_REMOVE_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, node) \
 /* Algorithms:273. */                                                         \
@@ -158,14 +170,14 @@ G_STMT_START{                                                                 \
   else                                                                        \
     {                                                                         \
       GSK_RBTREE_NEXT_ (top,type,is_red,set_is_red,parent,left_child,right_child,comparator,\
-                        _gsk_rb_del_z, _gsk_rb_del_y);                         \
+                        _gsk_rb_del_z, _gsk_rb_del_y);                        \
     }                                                                         \
   _gsk_rb_del_x = _gsk_rb_del_y->left_child ? _gsk_rb_del_y->left_child       \
                                             : _gsk_rb_del_y->right_child;     \
   if (_gsk_rb_del_x)                                                          \
     _gsk_rb_del_x->parent = _gsk_rb_del_y->parent;                            \
   else                                                                        \
-    _gsk_rb_del_nullpar = _gsk_rb_del_y->parent;                               \
+    _gsk_rb_del_nullpar = _gsk_rb_del_y->parent;                              \
   if (!_gsk_rb_del_y->parent)                                                 \
     top = _gsk_rb_del_x;                                                      \
   else                                                                        \
@@ -282,22 +294,22 @@ G_STMT_START{                                                                 \
 }G_STMT_END
 
 #define GSK_RBTREE_LOOKUP_COMPARATOR_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, \
-                                      key,key_comparator,out)                  \
-  G_STMT_START{                                                                \
-    type _gsk_lookup_at = (top);                                               \
-    while (_gsk_lookup_at)                                                     \
-      {                                                                        \
-        int _gsk_compare_rv;                                                   \
-        key_comparator(key,_gsk_lookup_at,_gsk_compare_rv);                    \
-        if (_gsk_compare_rv < 0)                                               \
-          _gsk_lookup_at = _gsk_lookup_at->left_child;                         \
-        else if (_gsk_compare_rv > 0)                                          \
-          _gsk_lookup_at = _gsk_lookup_at->right_child;                        \
-        else                                                                   \
-          break;                                                               \
-      }                                                                        \
-    out = _gsk_lookup_at;                                                      \
-  }G_STMT_END
+                                      key,key_comparator,out)                 \
+G_STMT_START{                                                                 \
+  type _gsk_lookup_at = (top);                                                \
+  while (_gsk_lookup_at)                                                      \
+    {                                                                         \
+      int _gsk_compare_rv;                                                    \
+      key_comparator(key,_gsk_lookup_at,_gsk_compare_rv);                     \
+      if (_gsk_compare_rv < 0)                                                \
+        _gsk_lookup_at = _gsk_lookup_at->left_child;                          \
+      else if (_gsk_compare_rv > 0)                                           \
+        _gsk_lookup_at = _gsk_lookup_at->right_child;                         \
+      else                                                                    \
+        break;                                                                \
+    }                                                                         \
+  out = _gsk_lookup_at;                                                       \
+}G_STMT_END
 #define GSK_RBTREE_LOOKUP_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, key,out) \
   GSK_RBTREE_LOOKUP_COMPARATOR_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, key,comparator,out)
 
@@ -305,48 +317,48 @@ G_STMT_START{                                                                 \
    so omit them, to keep the lines a bit shorter. */
 #define GSK_RBTREE_ROTATE_RIGHT(top,type,parent,left_child,right_child, node) \
   GSK_RBTREE_ROTATE_LEFT(top,type,parent,right_child,left_child, node)
-#define GSK_RBTREE_ROTATE_LEFT(top,type,parent,left_child,right_child, node) \
-G_STMT_START{                                                              \
-  type _gsk_rot_x = (node);                                                \
-  type _gsk_rot_y = _gsk_rot_x->right_child;                               \
-                                                                           \
-  _gsk_rot_x->right_child = _gsk_rot_y->left_child;                        \
-  if (_gsk_rot_y->left_child)                                              \
-    _gsk_rot_y->left_child->parent = _gsk_rot_x;                           \
-  _gsk_rot_y->parent = _gsk_rot_x->parent;                                 \
-  if (_gsk_rot_x->parent == NULL)                                          \
-    top = _gsk_rot_y;                                                      \
-  else if (_gsk_rot_x == _gsk_rot_x->parent->left_child)                   \
-    _gsk_rot_x->parent->left_child = _gsk_rot_y;                           \
-  else                                                                     \
-    _gsk_rot_x->parent->right_child = _gsk_rot_y;                          \
-  _gsk_rot_y->left_child = _gsk_rot_x;                                     \
-  _gsk_rot_x->parent = _gsk_rot_y;                                         \
+#define GSK_RBTREE_ROTATE_LEFT(top,type,parent,left_child,right_child, node)  \
+G_STMT_START{                                                                 \
+  type _gsk_rot_x = (node);                                                   \
+  type _gsk_rot_y = _gsk_rot_x->right_child;                                  \
+                                                                              \
+  _gsk_rot_x->right_child = _gsk_rot_y->left_child;                           \
+  if (_gsk_rot_y->left_child)                                                 \
+    _gsk_rot_y->left_child->parent = _gsk_rot_x;                              \
+  _gsk_rot_y->parent = _gsk_rot_x->parent;                                    \
+  if (_gsk_rot_x->parent == NULL)                                             \
+    top = _gsk_rot_y;                                                         \
+  else if (_gsk_rot_x == _gsk_rot_x->parent->left_child)                      \
+    _gsk_rot_x->parent->left_child = _gsk_rot_y;                              \
+  else                                                                        \
+    _gsk_rot_x->parent->right_child = _gsk_rot_y;                             \
+  _gsk_rot_y->left_child = _gsk_rot_x;                                        \
+  _gsk_rot_x->parent = _gsk_rot_y;                                            \
 }G_STMT_END
 
 /* iteration */
 #define GSK_RBTREE_NEXT_(top,type,is_red,set_is_red,parent,left_child,right_child,comparator, in, out)  \
-G_STMT_START{                                                              \
-  type _gsk_next_at = (in);                                                \
-  g_assert (_gsk_next_at != NULL);                                         \
-  if (_gsk_next_at->right_child != NULL)                                   \
-    {                                                                      \
-      _gsk_next_at = _gsk_next_at->right_child;                            \
-      while (_gsk_next_at->left_child != NULL)                             \
-        _gsk_next_at = _gsk_next_at->left_child;                           \
-      out = _gsk_next_at;                                                  \
-    }                                                                      \
-  else                                                                     \
-    {                                                                      \
-      type _gsk_next_parent = (in)->parent;                                \
-      while (_gsk_next_parent != NULL                                      \
-          && _gsk_next_at == _gsk_next_parent->right_child)                \
-        {                                                                  \
-          _gsk_next_at = _gsk_next_parent;                                 \
-          _gsk_next_parent = _gsk_next_parent->parent;                     \
-        }                                                                  \
-      out = _gsk_next_parent;                                              \
-    }                                                                      \
+G_STMT_START{                                                                 \
+  type _gsk_next_at = (in);                                                   \
+  g_assert (_gsk_next_at != NULL);                                            \
+  if (_gsk_next_at->right_child != NULL)                                      \
+    {                                                                         \
+      _gsk_next_at = _gsk_next_at->right_child;                               \
+      while (_gsk_next_at->left_child != NULL)                                \
+        _gsk_next_at = _gsk_next_at->left_child;                              \
+      out = _gsk_next_at;                                                     \
+    }                                                                         \
+  else                                                                        \
+    {                                                                         \
+      type _gsk_next_parent = (in)->parent;                                   \
+      while (_gsk_next_parent != NULL                                         \
+          && _gsk_next_at == _gsk_next_parent->right_child)                   \
+        {                                                                     \
+          _gsk_next_at = _gsk_next_parent;                                    \
+          _gsk_next_parent = _gsk_next_parent->parent;                        \
+        }                                                                     \
+      out = _gsk_next_parent;                                                 \
+    }                                                                         \
 }G_STMT_END
 
 /* prev is just next with left/right child reversed. */
