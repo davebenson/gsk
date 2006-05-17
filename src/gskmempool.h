@@ -44,6 +44,9 @@ struct _GskMemPoolFixed
   gpointer free_list;
 };
 
+#define GSK_MEM_POOL_FIXED_STATIC_INIT(size) \
+                          { NULL, NULL, 0, size, NULL } 
+
 void     gsk_mem_pool_fixed_construct (GskMemPoolFixed  *pool,
                                        gsize             size);
 gpointer gsk_mem_pool_fixed_alloc     (GskMemPoolFixed  *pool);
