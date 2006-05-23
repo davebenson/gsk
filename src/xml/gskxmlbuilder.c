@@ -32,6 +32,7 @@ GskXmlBuilder *gsk_xml_builder_new (GskXmlParseFlags flags)
   GskXmlBuilder *builder = g_new (GskXmlBuilder, 1);
   builder->root = NULL;
   builder->cur = NULL;
+  builder->first_doc = builder->last_doc = NULL;
   builder->namespace_support = ((flags & GSK_XML_PARSE_WITHOUT_NAMESPACE_SUPPORT) == 0);
   return builder;
 }
@@ -212,6 +213,8 @@ void           gsk_xml_builder_start (GskXmlBuilder *builder,
   bn->attrs = g_new (GskXmlAttribute, n_attrs);
   bn->ns_by_abbrev = NULL;
   bn->default_ns = NULL;
+  bn->ns = NULL;
+  bn->to_root = NULL;
   if (builder->namespace_support)
     {
       /* look for 'xmlns' and 'xmlns:' entries. */
@@ -549,8 +552,7 @@ GskXmlNode    *gsk_xml_builder_end   (GskXmlBuilder *builder,
         builder->first_doc = builder->last_doc = g_slist_prepend (NULL, node);
       else
         {
-          g_slist_append (builder->last_doc, node);
-          builder->last_doc = builder->last_doc->next;
+          builder->last_doc = g_slist_append (builder->last_doc, node)->next;
         }
     }
   else

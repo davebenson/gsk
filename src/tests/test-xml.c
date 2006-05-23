@@ -25,7 +25,7 @@ test_basics ()
   g_assert (strcmp ((char*)node->v_element.name, "hi") == 0);
   g_assert (node->v_element.n_children == 3);
   k_str = gsk_xml_string_new ("c");
-  child = gsk_xml_node_find_child (node, NULL, str, 0);
+  child = gsk_xml_node_find_child (node, NULL, k_str, 0);
   gsk_xml_string_unref (k_str);
   g_assert (child == NULL);
   k_str = gsk_xml_string_new ("a");
