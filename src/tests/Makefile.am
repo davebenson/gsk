@@ -10,6 +10,7 @@ common_check_programs = \
 	test-debugalloc \
 	test-dnsrrcache \
 	test-gsklistmacros \
+	test-gskmodule \
 	test-hangup \
 	test-http-content \
 	test-http-header \

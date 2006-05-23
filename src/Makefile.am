@@ -38,6 +38,7 @@ gskmacros.h \
 gskmain.h \
 gskmemory.h \
 gskmempool.h \
+gskmodule.h \
 gsknameresolver.h \
 gsknetworkinterface.h \
 gskpacket.h \
@@ -89,6 +90,7 @@ gskmain.c \
 gskmainloop.c \
 gskmemory.c \
 gskmempool.c \
+gskmodule.c \
 gsknameresolver.c \
 gsknetworkinterface.c \
 gskpacket.c \

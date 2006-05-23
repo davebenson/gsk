@@ -317,6 +317,26 @@ AC_SYS_LARGEFILE
 
 AM_CONFIG_HEADER(src/config.h)
 
+GSK_CC="$CC"
+GSK_COMPILE_ONLY_FLAG="-c"
+GSK_CFLAGS="$CFLAGS $CPPFLAGS"
+GSK_LD_SHLIB="$CC"
+GSK_LD_SHLIB_FLAGS="$LDFLAGS"
+GSK_LD_PROGRAM="$CC"
+GSK_LD_PROGRAM_FLAGS="$LDFLAGS"
+
+## only if gcc, really...
+GSK_CFLAGS="$GSK_CFLAGS -fPIC -DPIC"
+GSK_LD_SHLIB_FLAGS="$GSK_LDFLAGS -shared"
+AC_SUBST(GSK_CC)
+AC_SUBST(GSK_COMPILE_ONLY_FLAG)
+AC_SUBST(GSK_CFLAGS)
+AC_SUBST(GSK_LD_SHLIB)
+AC_SUBST(GSK_LD_SHLIB_FLAGS)
+AC_SUBST(GSK_LD_PROGRAM)
+AC_SUBST(GSK_LD_PROGRAM_FLAGS)
+
+
 AC_OUTPUT([Makefile
 	   gsk-1.0.pc
 	   pkgwriteinfo
@@ -335,4 +355,5 @@ AC_OUTPUT([Makefile
 	   src/xml/Makefile
 	   src/xmlrpc/Makefile
 	   src/programs/Makefile
+	   src/compile-info.h
 	   doc/Makefile ])

@@ -144,6 +144,10 @@ typedef enum
   /* xml related errors */
   GSK_ERROR_MULTIPLE_ROOTS,
   GSK_ERROR_NO_DOCUMENT,
+
+  GSK_ERROR_COMPILE,
+  GSK_ERROR_LINK,
+  GSK_ERROR_OPEN_MODULE,
 } GskErrorCode;
 
 
