@@ -920,7 +920,7 @@ gsk_url_transfer_class_register  (GskUrlScheme            scheme,
       g_hash_table_insert (scheme_to_slist_of_classes, GUINT_TO_POINTER (scheme), list);
     }
   else
-    g_slist_append (list, transfer_class);
+    list = g_slist_append (list, transfer_class);
 }
 
 /**
@@ -975,4 +975,187 @@ gsk_url_transfer_get_state_string (GskUrlTransfer *transfer)
     default:
       return g_strdup ("gsk_url_transfer_get_state_string: INVALID state");
     }
+}
+
+
+/* --- convert a transfer to a stream --- */
+GType gsk_url_transfer_stream_get_type(void) G_GNUC_CONST;
+#define GSK_TYPE_URL_TRANSFER_STREAM              (gsk_url_transfer_stream_get_type ())
+#define GSK_URL_TRANSFER_STREAM(obj)              (G_TYPE_CHECK_INSTANCE_CAST ((obj), GSK_TYPE_URL_TRANSFER_STREAM, GskUrlTransferStream))
+#define GSK_URL_TRANSFER_STREAM_CLASS(klass)      (G_TYPE_CHECK_CLASS_CAST ((klass), GSK_TYPE_URL_TRANSFER_STREAM, GskUrlTransferStreamClass))
+#define GSK_URL_TRANSFER_STREAM_GET_CLASS(obj)    (G_TYPE_INSTANCE_GET_CLASS ((obj), GSK_TYPE_URL_TRANSFER_STREAM, GskUrlTransferStreamClass))
+#define GSK_IS_URL_TRANSFER_STREAM(obj)           (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GSK_TYPE_URL_TRANSFER_STREAM))
+#define GSK_IS_URL_TRANSFER_STREAM_CLASS(klass)   (G_TYPE_CHECK_CLASS_TYPE ((klass), GSK_TYPE_URL_TRANSFER_STREAM))
+typedef struct _UfUrlTransferStreamClass GskUrlTransferStreamClass;
+typedef struct _UfUrlTransferStream GskUrlTransferStream;
+struct _UfUrlTransferStreamClass
+{
+  GskStreamClass base_class;
+};
+struct _UfUrlTransferStream
+{
+  GskStream base_instance;
+  GskUrlTransfer *transfer;
+  GskStream *substream;
+};
+
+G_DEFINE_TYPE(GskUrlTransferStream, gsk_url_transfer_stream, GSK_TYPE_STREAM);
+
+static void
+gsk_url_transfer_stream_finalize (GObject *object)
+{
+  GskUrlTransferStream *transfer_stream = GSK_URL_TRANSFER_STREAM (object);
+  g_assert (transfer_stream->transfer == NULL);
+  if (transfer_stream->substream)
+    {
+      gsk_io_untrap_readable (transfer_stream->substream);
+      g_object_unref (transfer_stream->substream);
+    }
+  G_OBJECT_CLASS (gsk_url_transfer_stream_parent_class)->finalize (object);
+}
+static gboolean
+handle_substream_is_readable (GskIO *io, gpointer data)
+{
+  gsk_io_notify_ready_to_read (data);
+  return TRUE;
+}
+static gboolean
+handle_substream_read_shutdown (GskIO *io, gpointer data)
+{
+  GskUrlTransferStream *transfer_stream = GSK_URL_TRANSFER_STREAM (data);
+  gsk_io_notify_read_shutdown (GSK_IO (transfer_stream));
+  if (transfer_stream->substream)
+    {
+      gsk_io_untrap_readable (transfer_stream->substream);
+      g_object_unref (transfer_stream->substream);
+      transfer_stream->substream = NULL;
+    }
+  return FALSE;
+}
+
+static void
+gsk_url_transfer_stream_set_poll_read   (GskIO      *io,
+				        gboolean    do_poll)
+{
+  GskUrlTransferStream *transfer_stream = GSK_URL_TRANSFER_STREAM (io);
+  if (transfer_stream->substream == NULL)
+    return;
+  if (do_poll)
+    gsk_io_trap_readable (transfer_stream->substream,
+                          handle_substream_is_readable,
+                          handle_substream_read_shutdown,
+                          transfer_stream,
+                          NULL);
+  else
+    gsk_io_untrap_readable (transfer_stream->substream);
+}
+
+static gboolean
+gsk_url_transfer_stream_shutdown_read   (GskIO      *io,
+                                        GError    **error)
+{
+  GskUrlTransferStream *transfer_stream = GSK_URL_TRANSFER_STREAM (io);
+  if (transfer_stream->transfer != NULL)
+    gsk_url_transfer_cancel (transfer_stream->transfer);
+  if (transfer_stream->substream != NULL)
+    gsk_io_read_shutdown (GSK_IO (transfer_stream->substream), NULL);
+  return TRUE;
+}
+
+static guint
+gsk_url_transfer_stream_raw_read (GskStream     *stream,
+			 	 gpointer       data,
+			 	 guint          length,
+			 	 GError       **error)
+{
+  GskUrlTransferStream *transfer_stream = GSK_URL_TRANSFER_STREAM (stream);
+  if (transfer_stream->substream == NULL)
+    return 0;
+  return gsk_stream_read (transfer_stream->substream, data, length, error);
+}
+
+static guint
+gsk_url_transfer_stream_raw_read_buffer (GskStream     *stream,
+				        GskBuffer     *buffer,
+				        GError       **error)
+{
+  GskUrlTransferStream *transfer_stream = GSK_URL_TRANSFER_STREAM (stream);
+  if (transfer_stream->substream == NULL)
+    return 0;
+  return gsk_stream_read_buffer (transfer_stream->substream, buffer, error);
+}
+
+static void
+gsk_url_transfer_stream_class_init (GskUrlTransferStreamClass *class)
+{
+  GskIOClass *io_class = GSK_IO_CLASS (class);
+  GskStreamClass *stream_class = GSK_STREAM_CLASS (class);
+  GObjectClass *object_class = G_OBJECT_CLASS (class);
+  stream_class->raw_read = gsk_url_transfer_stream_raw_read;
+  stream_class->raw_read_buffer = gsk_url_transfer_stream_raw_read_buffer;
+  io_class->set_poll_read = gsk_url_transfer_stream_set_poll_read;
+  io_class->shutdown_read = gsk_url_transfer_stream_shutdown_read;
+  object_class->finalize = gsk_url_transfer_stream_finalize;
+}
+
+static void
+gsk_url_transfer_stream_init (GskUrlTransferStream *transfer_stream)
+{
+  gsk_stream_mark_is_readable (transfer_stream);
+}
+
+static void
+handle_transfer_done (GskUrlTransfer *transfer,
+                      gpointer        data)
+{
+  GskUrlTransferStream *transfer_stream = GSK_URL_TRANSFER_STREAM (data);
+  g_assert (transfer_stream->transfer == transfer);
+  transfer_stream->transfer = NULL;
+
+  if (transfer->error != NULL)
+    gsk_io_set_gerror (GSK_IO (transfer_stream), GSK_IO_ERROR_CONNECT,
+                       g_error_copy (transfer->error));
+  if (transfer->content != NULL)
+    {
+      transfer_stream->substream = g_object_ref (transfer->content);
+      if (gsk_io_is_polling_for_read (transfer_stream))
+        gsk_io_trap_readable (transfer_stream->substream,
+                              handle_substream_is_readable,
+                              handle_substream_read_shutdown,
+                              g_object_ref (transfer_stream),
+                              g_object_unref);
+    }
+  else
+    {
+      gsk_io_notify_read_shutdown (GSK_IO (transfer_stream));
+    }
+}
+
+/**
+ * gsk_url_transfer_stream_new:
+ * @transfer: the transfer.  must not be started.
+ * @error: optional location to store the #GError if there is a problem.
+ *
+ * This code will start the transfer,
+ * and return a stream that you can trap immediately.
+ *
+ * returns: the new stream, or NULL if an error occurred.
+ */
+GskStream *
+gsk_url_transfer_stream_new (GskUrlTransfer *transfer,
+                             GError        **error)
+{
+  GskUrlTransferStream *transfer_stream = g_object_new (GSK_TYPE_URL_TRANSFER_STREAM, NULL);
+  transfer_stream->transfer = transfer;
+  gsk_url_transfer_set_handler (transfer,
+                                handle_transfer_done,
+                                g_object_ref (transfer_stream),
+                                g_object_unref);
+  if (!gsk_url_transfer_start (transfer, error))
+    {
+      transfer_stream->transfer = NULL;
+      g_object_unref (transfer_stream);
+      return NULL;
+    }
+  return GSK_STREAM (transfer_stream);
 }

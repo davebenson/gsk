@@ -177,6 +177,10 @@ void            gsk_url_transfer_cancel     (GskUrlTransfer     *transfer);
 char *          gsk_url_transfer_get_state_string (GskUrlTransfer *transfer);
 
 
+/* --- Treating a Transfer as a Stream --- */
+GskStream     * gsk_url_transfer_stream_new      (GskUrlTransfer *transfer,
+                                                  GError        **error);
+
 /* --- Protected API --- */
 gboolean        gsk_url_transfer_has_upload      (GskUrlTransfer     *transfer);
 GskStream      *gsk_url_transfer_create_upload   (GskUrlTransfer     *transfer,
