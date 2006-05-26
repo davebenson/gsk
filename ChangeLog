@@ -1,3 +1,6 @@
+  * bug fix:  gsk_stream_write() on GskStreamExternal
+    was not handling contention properly.
+
 gsk (1.0.35)
   * bug fix:  try the nameservers in the order listed in resolv.conf,
     instead of the reverse of that order.
