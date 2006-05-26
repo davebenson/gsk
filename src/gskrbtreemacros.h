@@ -124,12 +124,12 @@ G_STMT_START{                                                                 \
       /* only node in tree */                                                 \
       top = node;                                                             \
       set_is_red (node, 0);                                                   \
-      node->left_child = node->right_child = node->parent = NULL;             \
+      node->left = node->right = node->parent = NULL;                         \
     }                                                                         \
   else                                                                        \
     {                                                                         \
       node->parent = _gsk_last;                                               \
-      node->left_child = node->right_child = NULL;                            \
+      node->left = node->right = NULL;                                        \
       if (_gsk_last_was_left)                                                 \
         _gsk_last->left = node;                                               \
       else                                                                    \
