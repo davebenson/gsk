@@ -1,3 +1,6 @@
+/* TODO: we should really be using gsk_stream_read_buffer()
+   and gsk_stream_write_buffer()!!!!!! */
+
 #include "gskstreamconnection.h"
 #include "gskerror.h"
 #include "gskghelpers.h"

@@ -16,6 +16,7 @@
 - TODO: GskStreamConnection::handle_error() needs to NOT just warn, 
   it needs to be adjustable (ie a signal or trap)
   (or a bunch of bits to suppress certain errors, EPIPE, ECONNREFUSED etc)
+- optimization: use read_buffer() and write_buffer() in gskstreamconnection
 - missing HTTP headers:
    Vary: *
    Cache-Expires: Thu, 24 Mar 2005 13:11:58 GMT
