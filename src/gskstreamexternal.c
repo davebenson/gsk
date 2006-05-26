@@ -366,6 +366,8 @@ handle_write_fd_ready (int                   fd,
 
   if (external->write_buffer.size == 0)
     gsk_source_adjust_io (external->write_source, 0);
+  if (external->write_buffer.size < external->max_write_buffer)
+    gsk_io_mark_idle_notify_write (GSK_IO (external));
   return TRUE;
 }
 
@@ -747,6 +749,7 @@ gsk_stream_external_new       (GskStreamExternalFlags      flags,
       external->write_source = gsk_main_loop_add_io (main_loop, external->write_fd, 0,
 						     handle_write_fd_ready, external, NULL);
       gsk_io_mark_is_writable (external);
+      gsk_io_mark_idle_notify_write (GSK_IO (external));
     }
   else
     {
