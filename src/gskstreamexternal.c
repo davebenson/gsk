@@ -79,6 +79,13 @@ gsk_stream_external_raw_write (GskStream     *stream,
 	to_buffer = 0;
       gsk_io_clear_idle_notify_write (external);
     }
+
+  /* If the buffer is going from empty -> nonempty,
+     request writable notification from the main-loop. */
+  if (external->write_buffer.size == 0
+   && to_buffer > 0)
+    gsk_source_adjust_io (external->write_source, G_IO_OUT);
+
   gsk_buffer_append (&external->write_buffer, data, to_buffer);
 
   return immediate_write + to_buffer;
