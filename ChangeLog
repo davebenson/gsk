@@ -1,3 +1,4 @@
+gsk (1.0.36)
   * bug fix:  gsk_stream_write() on GskStreamExternal
     was not handling contention properly.
 
