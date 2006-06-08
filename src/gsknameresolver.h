@@ -80,6 +80,7 @@ void gsk_name_resolver_task_unref (GskNameResolverTask *task);
 /* tweaking the default name resolver */
 void gsk_name_resolver_set_dns_cache_size (guint64 max_bytes,
                                            guint   max_records);
+void gsk_name_resolver_set_dns_roundrobin (gboolean do_roundrobin);
 
 
 /*< protected: for use by implementors of new families only >*/

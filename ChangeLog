@@ -1,3 +1,8 @@
+  * randomize DNS results to support roundrobin DNS;
+    enabled by default.
+    Implement gsk_dns_rr_cache_roundrobin()
+    and gsk_name_resolver_set_dns_roundrobin().
+
 gsk (1.0.36)
   * bug fix:  gsk_stream_write() on GskStreamExternal
     was not handling contention properly.

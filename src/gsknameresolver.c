@@ -400,6 +400,8 @@ gsk_name_resolver_add_family_handler (GskNameResolverFamily family,
 /* --- global initialization --- */
 static gboolean made_dns_name_resolver = FALSE;
 static GskDnsRRCache *dns_rr_cache = NULL;
+static gboolean support_roundrobin = TRUE;
+
 static GskNameResolver *
 make_dns_client (gpointer unused)
 {
@@ -465,4 +467,23 @@ gsk_name_resolver_set_dns_cache_size (guint64 max_bytes,
   g_return_if_fail (!made_dns_name_resolver);
   g_return_if_fail (dns_rr_cache == NULL);
   dns_rr_cache = gsk_dns_rr_cache_new (max_bytes, max_records);
+}
+
+
+/**
+ * gsk_name_resolver_set_dns_roundrobin:
+ * @do_roundrobin: whether to support round-robin DNS.
+ *
+ * Set the DNS support for round-robin.
+ *
+ * You must call gsk_name_resolver_set_dns_cache_size()
+ * before calling this function.
+ *
+ * Default is TRUE.
+ */
+void
+gsk_name_resolver_set_dns_roundrobin (gboolean do_roundrobin)
+{
+  g_return_if_fail (dns_rr_cache != NULL);
+  gsk_dns_rr_cache_roundrobin (dns_rr_cache, do_roundrobin);
 }

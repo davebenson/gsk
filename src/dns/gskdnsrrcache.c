@@ -124,6 +124,7 @@ struct _GskDnsRRCache
   GTree              *rr_list_by_expire_time;
 
   guint               ref_count;
+  gboolean            is_roundrobin;
 
   /* current use of all objects in this cache */
   guint64             num_bytes_used;
@@ -286,9 +287,25 @@ gsk_dns_rr_cache_new        (guint64                  max_bytes,
   rv->max_records = max_records;
   rv->lru_first = NULL;
   rv->lru_last = NULL;
+  rv->is_roundrobin = TRUE;
   ASSERT_INVARIANTS (rv);
   return rv;
 }
+
+/**
+ * gsk_dns_rr_cache_roundrobin:
+ * @rr_cache: a resource-record cache.
+ * @do_roundrobin: whether to randomize requests to support round-round DNS.
+ *
+ * Set whether to randomize returns if more than one record exists.
+ */
+void
+gsk_dns_rr_cache_roundrobin (GskDnsRRCache *rr_cache,
+                             gboolean       do_roundrobin)
+{
+  rr_cache->is_roundrobin = do_roundrobin;
+}
+
 
 static inline void
 remove_from_lru_list (GskDnsRRCache *rr_cache, RRList *at)
@@ -1005,6 +1022,9 @@ gsk_dns_rr_cache_lookup_one (GskDnsRRCache           *rr_cache,
   char *lc_owner;
   GHashTable *cname_table = NULL;
   GSList *pending_names_to_lookup;
+  RRList *rv = NULL;
+  GSList *rv_list = NULL;
+  gboolean roundrobin = rr_cache->is_roundrobin;
 
   LOWER_CASE_COPY_ON_STACK (lc_owner, owner);
   pending_names_to_lookup = g_slist_prepend (NULL, lc_owner);
@@ -1021,10 +1041,17 @@ gsk_dns_rr_cache_lookup_one (GskDnsRRCache           *rr_cache,
 	    {
 	      if (record_matches_query (&at->rr, query_type, query_class))
 		{
-		  g_slist_free (pending_names_to_lookup);
-		  if (cname_table != NULL)
-		    g_hash_table_destroy (cname_table);
-		  return &at->rr;
+                  if (!roundrobin)
+                    {
+                      g_slist_free (pending_names_to_lookup);
+                      if (cname_table != NULL)
+                        g_hash_table_destroy (cname_table);
+                      return &at->rr;
+                    }
+                  if (rv)
+                    rv_list = g_slist_prepend (rv_list, at);
+                  else
+                    rv = at;
 		}
 	      else if ((flags & GSK_DNS_RR_CACHE_LOOKUP_DEREF_CNAMES) != 0
                     && at->rr.type == GSK_DNS_RR_CANONICAL_NAME)
@@ -1046,8 +1073,19 @@ gsk_dns_rr_cache_lookup_one (GskDnsRRCache           *rr_cache,
   g_slist_free (pending_names_to_lookup);
   if (cname_table != NULL)
     g_hash_table_destroy (cname_table);
+
   ASSERT_INVARIANTS (rr_cache);
-  return NULL;
+
+  /* If there was more than one thing found,
+     choose randomly. */
+  if (rv_list != NULL)
+    {
+      guint which = g_random_int_range (0, 1 + g_slist_length (rv_list));
+      if (which > 0)
+        rv = g_slist_nth_data (rv_list, which - 1);
+      g_slist_free (rv_list);
+    }
+  return &rv->rr;
 }
 
 /**

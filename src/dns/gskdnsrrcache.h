@@ -44,6 +44,8 @@ GskDnsResourceRecord *gsk_dns_rr_cache_insert     (GskDnsRRCache     *rr_cache,
 					           const GskDnsResourceRecord    *record,
 						   gboolean                 is_authoritative,
 					           gulong                   cur_time);
+void                  gsk_dns_rr_cache_roundrobin (GskDnsRRCache           *rr_cache,
+                                                   gboolean                 do_roundrobin);
 
 
 /* Return a list of GskDnsResourceRecords.
