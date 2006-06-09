@@ -2,6 +2,7 @@
     enabled by default.
     Implement gsk_dns_rr_cache_roundrobin()
     and gsk_name_resolver_set_dns_roundrobin().
+  * bugs in redirect handling for HTTP Url transfers.
 
 gsk (1.0.36)
   * bug fix:  gsk_stream_write() on GskStreamExternal

@@ -178,8 +178,12 @@ http_client_request_destroyed (gpointer data)
   /* http invariant */
   g_assert (http->response_count <= http->request_count);
 
+  g_assert (http->undestroyed_requests > 0);
+  --(http->undestroyed_requests);
+
   if (!transfer->timed_out
    && !gsk_url_transfer_is_done (transfer)
+   && http->undestroyed_requests == 0
    && http->response_count < http->request_count)
     {
       /* transfer has been aborted for mysterious reasons */
@@ -204,6 +208,7 @@ handle_name_resolution_succeeded (GskSocketAddress *address,
   GskHttpRequest *http_request;
   GskStream *upload_stream;
   GskUrlTransferHttpModifierNode *modifier;
+  GskUrl *url = transfer->redirect_url ? transfer->redirect_url : transfer->url;
 
   if (gsk_url_transfer_is_done (transfer))
     return;
@@ -212,7 +217,7 @@ handle_name_resolution_succeeded (GskSocketAddress *address,
   {
     GskSocketAddressIpv4 *found = GSK_SOCKET_ADDRESS_IPV4 (address);
     GskSocketAddress *addr;
-    guint url_port = gsk_url_get_port (transfer->url);
+    guint url_port = gsk_url_get_port (url);
     if (http->is_proxy || found->ip_port == url_port)
       addr = g_object_ref (address);
     else
@@ -232,7 +237,7 @@ handle_name_resolution_succeeded (GskSocketAddress *address,
   }
 
   /* For SSL streams, create the ssl-transport */
-  if (transfer->url->scheme == GSK_URL_SCHEME_HTTPS)
+  if (url->scheme == GSK_URL_SCHEME_HTTPS)
     {
       transport = gsk_stream_ssl_new_client (http->ssl_cert,
                                              http->ssl_key,
@@ -258,11 +263,11 @@ handle_name_resolution_succeeded (GskSocketAddress *address,
     const char *path;
     GskHttpVerb verb;
     if (http->is_proxy)
-      path = to_free = gsk_url_to_string (transfer->url);
-    else if (transfer->url->query)
-      path = to_free = g_strdup_printf ("%s?%s", transfer->url->path, transfer->url->query);
+      path = to_free = gsk_url_to_string (url);
+    else if (url->query)
+      path = to_free = g_strdup_printf ("%s?%s", url->path, url->query);
     else
-      path = transfer->url->path;
+      path = url->path;
     verb = gsk_url_transfer_has_upload (transfer) ? GSK_HTTP_VERB_POST : GSK_HTTP_VERB_GET;
 
     /* make basic request object */
@@ -274,17 +279,17 @@ handle_name_resolution_succeeded (GskSocketAddress *address,
            gsk_http_request_set_proxy_host?
          */
       }
-    else if (transfer->url->port == 0
-     || transfer->url->port == 80)
-      gsk_http_request_set_host (http_request, transfer->url->host);
+    else if (url->port == 0
+     || url->port == 80)
+      gsk_http_request_set_host (http_request, url->host);
     else
       {
-        guint hostlen = strlen (transfer->url->host);
+        guint hostlen = strlen (url->host);
         guint hostport_len = hostlen + 20;
         char *hostport = g_alloca (hostport_len);
         g_snprintf (hostport, hostport_len,
                     "%s:%u",
-                    transfer->url->host, transfer->url->port);
+                    url->host, url->port);
         gsk_http_request_set_host (http_request, hostport);
       }
   }
@@ -317,6 +322,7 @@ handle_name_resolution_succeeded (GskSocketAddress *address,
 
   http_client = gsk_http_client_new ();
   ++(http->request_count);
+  ++(http->undestroyed_requests);
   gsk_http_client_request (http_client, http_request, upload_stream,
                            handle_http_response,
                            g_object_ref (transfer),

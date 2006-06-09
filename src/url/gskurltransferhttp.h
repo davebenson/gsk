@@ -41,6 +41,7 @@ struct _GskUrlTransferHttp
   GskStream *raw_transport;
   guint request_count;
   guint response_count;
+  guint undestroyed_requests;
 
   gboolean is_proxy;
 };
