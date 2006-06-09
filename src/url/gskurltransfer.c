@@ -1,3 +1,4 @@
+#include <string.h>
 #include "gskurltransfer.h"
 #include "../gskmemory.h"
 
@@ -662,6 +663,30 @@ gsk_url_transfer_set_address     (GskUrlTransfer     *transfer,
   transfer->address = addr;
 }
 
+static inline gboolean
+strings_equal (const char *a, const char *b)
+{
+  if (a == NULL)
+    return b == NULL;
+  else if (b == NULL)
+    return FALSE;
+  else
+    return strcmp (a, b) == 0;
+}
+
+static gboolean
+urls_equal_up_to_fragment (const GskUrl *a,
+                           const GskUrl *b)
+{
+  return a->scheme == b->scheme
+      && strings_equal (a->host, b->host)
+      && strings_equal (a->password, b->password)
+      && gsk_url_get_port (a) == gsk_url_get_port (b)
+      && strings_equal (a->user_name, b->user_name)
+      && strings_equal (a->path, b->path)
+      && strings_equal (a->query, b->query);
+}
+
 /**
  * gsk_url_transfer_add_redirect:
  * @transfer: the Transfer to affect.
@@ -681,8 +706,12 @@ gsk_url_transfer_set_address     (GskUrlTransfer     *transfer,
  *
  * This function should only be needed by implementors
  * of types of GskUrlTransfer.
+ *
+ * returns: whether the redirect was allowed (it is disallowed if
+ * it is a circular redirect. In that case, we will set 'transfer->error',
+ * and call gsk_url_transfer_notify_done().
  */
-void
+gboolean
 gsk_url_transfer_add_redirect    (GskUrlTransfer     *transfer,
                                   GObject            *request,
                                   GObject            *response,
@@ -690,8 +719,15 @@ gsk_url_transfer_add_redirect    (GskUrlTransfer     *transfer,
                                   GskUrl             *dest_url)
 {
   GskUrlTransferRedirect *redirect;
-  g_return_if_fail (transfer->transfer_state == GSK_URL_TRANSFER_STATE_STARTED);
-  g_return_if_fail (GSK_IS_URL (dest_url));
+  g_return_val_if_fail (transfer->transfer_state == GSK_URL_TRANSFER_STATE_STARTED, TRUE);
+  g_return_val_if_fail (GSK_IS_URL (dest_url), TRUE);
+
+  /* Detect circular references. */
+  if (urls_equal_up_to_fragment (dest_url, transfer->url))
+    goto circular_redirect;
+  for (redirect = transfer->first_redirect; redirect != NULL; redirect = redirect->next)
+    if (urls_equal_up_to_fragment (redirect->url, dest_url))
+      goto circular_redirect;
 
   redirect = g_new (GskUrlTransferRedirect, 1);
   redirect->is_permanent = is_permanent;
@@ -708,6 +744,16 @@ gsk_url_transfer_add_redirect    (GskUrlTransfer     *transfer,
 
   transfer->redirect_is_permanent = is_permanent;
   transfer->redirect_url = dest_url;
+  return TRUE;
+
+
+circular_redirect:
+  gsk_url_transfer_take_error (transfer,
+                               g_error_new (GSK_G_ERROR_DOMAIN,
+                                            GSK_ERROR_CIRCULAR,
+                                            "circular redirects encountered"));
+  gsk_url_transfer_notify_done (transfer, GSK_URL_TRANSFER_ERROR_REDIRECT_LOOP);
+  return FALSE;
 }
 
 /**

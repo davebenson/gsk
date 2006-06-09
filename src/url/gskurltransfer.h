@@ -194,7 +194,7 @@ gboolean        gsk_url_transfer_is_done         (GskUrlTransfer     *transfer);
 /* invoke the notification callbacks as needed */
 void            gsk_url_transfer_set_address     (GskUrlTransfer     *transfer,
                                                   GskSocketAddress   *addr);
-void            gsk_url_transfer_add_redirect    (GskUrlTransfer     *transfer,
+gboolean        gsk_url_transfer_add_redirect    (GskUrlTransfer     *transfer,
                                                   GObject            *request,
                                                   GObject            *response,
                                                   gboolean            is_permanent,
