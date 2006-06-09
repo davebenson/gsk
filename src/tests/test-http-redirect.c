@@ -170,6 +170,7 @@ int main (int argc, char **argv)
   guint port = 0;
   gint i;
   guint do_redirects;
+  gsk_init_without_threads (&argc, &argv);
   for (i = 1; i < argc; i++)
     {
       if (g_str_has_prefix (argv[i], "--port="))
@@ -181,7 +182,6 @@ int main (int argc, char **argv)
     }
   if (port == 0)
     g_error ("missing --port= argument");
-  gsk_init_without_threads (&argc, &argv);
   content = gsk_http_content_new ();
   add_redirect (content, "/a", "/b");
   add_redirect (content, "/b", "/c.html");
