@@ -189,8 +189,8 @@ gsk_io_constructor (GType                  type,
   GskIO *io = GSK_IO (rv);
   GskIOClass *class = GSK_IO_GET_CLASS (io);
   _GSK_DEBUG_PRINTF(GSK_DEBUG_LIFETIME,
-		    ("constructing %s [num_construct_properties=%d]",
-		     g_type_name (type), n_construct_properties));
+		    ("constructing %s [%p] [num_construct_properties=%d]",
+		     g_type_name (type), rv, n_construct_properties));
   if (class->open != NULL)
     {
       GError *error = NULL;
