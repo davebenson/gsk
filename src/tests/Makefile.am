@@ -14,6 +14,7 @@ common_check_programs = \
 	test-hangup \
 	test-http-content \
 	test-http-header \
+	test-http-redirect \
 	test-http-serverclient \
 	test-io-error \
 	test-mempool \
@@ -106,6 +107,7 @@ test_stream_fd_pipe_SOURCES = test-stream-fd-pipe.c
 test_http_server_SOURCES = test-http-server.c
 test_http_header_SOURCES = test-http-header.c
 test_http_content_SOURCES = test-http-content.c
+test_http_redirect_SOURCES = test-http-redirect.c
 test_http_serverclient_SOURCES = test-http-serverclient.c
 test_persistent_connection_SOURCES = test-persistent-connection.c
 test_prefix_tree_SOURCES = test-prefix-tree.c
