@@ -125,7 +125,18 @@ handle_http_response (GskHttpRequest  *request,
 	      }
             if (new_url != NULL)
               {
-                gsk_url_transfer_add_redirect (transfer, NULL, G_OBJECT (response), is_permanent, new_url);
+                if (!gsk_url_transfer_add_redirect (transfer,
+                                                    NULL,
+                                                    G_OBJECT (response),
+                                                    is_permanent,
+                                                    new_url))
+                  {
+                    if (input)
+                      gsk_io_read_shutdown (input, NULL);
+                    g_object_unref (new_url);
+                    return;
+                  }
+
                 g_object_unref (new_url);
 
                 if (transfer->follow_redirects)
@@ -225,6 +236,11 @@ handle_name_resolution_succeeded (GskSocketAddress *address,
     gsk_url_transfer_set_address (transfer, addr);
 
     /* Create a TCP connection to that address. */
+    if (http->raw_transport != NULL)
+      {
+        /* from a redirect */
+        g_object_unref (http->raw_transport);
+      }
     http->raw_transport = gsk_stream_new_connecting (addr, &error);
     if (http->raw_transport == NULL)
       {
