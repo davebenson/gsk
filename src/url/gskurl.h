@@ -129,7 +129,7 @@ GskUrl         *gsk_url_new_relative        (GskUrl          *base_url,
 
 char           *gsk_url_get_relative_path   (GskUrl          *url);
 
-guint           gsk_url_get_port            (GskUrl          *url);
+guint           gsk_url_get_port            (const GskUrl    *url);
 
 /* Url-encoding helper functions. */
 char           *gsk_url_decode              (const char      *encoded);

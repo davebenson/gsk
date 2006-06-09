@@ -776,7 +776,7 @@ gsk_url_to_string (const GskUrl *url)
  * returns: the port as an integer, or 0 if no port could be computed.
  */
 guint
-gsk_url_get_port (GskUrl *url)
+gsk_url_get_port (const GskUrl *url)
 {
   if (url->port == 0)
     {
