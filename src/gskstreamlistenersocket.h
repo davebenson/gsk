@@ -49,6 +49,10 @@ GskStreamListener *
 gsk_stream_listener_socket_new_bind     (GskSocketAddress *address,
 					 GError          **error);
 
+GskStreamListener *
+gsk_stream_listener_socket_new_from_fd (int      fd,
+                                        GError **error);
+
 
 /* --- tenative (not recommended at this point) --- */
 typedef enum

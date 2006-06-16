@@ -1,8 +1,10 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>  /* for maybe_delete_stale_socket() below */
+#include <netinet/in.h>
 #include <unistd.h>
 #include <errno.h>
+
 #include "gskstreamlistenersocket.h"
 #include "gskerrno.h"
 #include "gskerror.h"
@@ -609,6 +611,58 @@ gsk_stream_listener_socket_new_bind (GskSocketAddress   *address,
 {
   return gsk_stream_listener_socket_new_bind_full (address, 0, error);
 }
+
+/**
+ * gsk_stream_listener_socket_new_from_fd
+ *
+ * @fd: The bound socket.
+ * @error: optional location to store error at.
+ * @returns: The newly created stream-listener.
+ *
+ * Create a new listener for an already bound socket.
+ */
+GskStreamListener *
+gsk_stream_listener_socket_new_from_fd (gint     fd,
+                                        GError **error)
+{
+  GskSocketAddress    *address = NULL;
+  GskStreamListener   *rv;
+  struct sockaddr      sock_addr;
+  struct sockaddr_in  *sock_addr_in;
+  socklen_t            sock_addr_len;
+
+  sock_addr_len = sizeof (struct sockaddr);
+  if ( getsockname (fd, &sock_addr, &sock_addr_len) != 0)
+    {
+      int e = errno;
+
+      *error = g_error_new (GSK_G_ERROR_DOMAIN, gsk_error_code_from_errno (e),
+                            "error on getsockname %d: %s", fd,
+                            g_strerror (e));
+      return NULL;
+    }
+
+  /* Create the GSK address structure */
+  address = gsk_socket_address_from_native (&sock_addr, sock_addr_len);
+
+  if ( address != NULL )
+    {
+      rv = g_object_new (GSK_TYPE_STREAM_LISTENER_SOCKET,
+                         "listening-address", address,
+                         "file-descriptor", fd,
+                         NULL);
+    }
+  else
+    {
+      rv = g_object_new (GSK_TYPE_STREAM_LISTENER_SOCKET,
+                         "file-descriptor", fd,
+                         NULL);
+    }
+
+  g_object_unref (address);
+  return rv;
+}
+
 
 /**
  * gsk_stream_listener_socket_set_backlog:
