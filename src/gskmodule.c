@@ -30,25 +30,75 @@ GskCompileContext *gsk_compile_context_new ()
   rv->package_cflags = NULL;
   rv->package_ldflags = NULL;
   rv->gdb_support = FALSE;
+  rv->verbose = FALSE;
   return rv;
 }
-void               gsk_compile_context_add_cflags (GskCompileContext*context,
-                                                   const char *flags);
+
+void 
+gsk_compile_context_add_cflags (GskCompileContext *context,
+                                const char        *flags)
+{
+  g_string_append_c (context->cflags, ' ');
+  g_string_append (context->cflags, flags);
+}
+
 void               gsk_compile_context_add_ldflags(GskCompileContext*context,
-                                                   const char *flags);
-void               gsk_compile_context_add_pkgs   (GskCompileContext*context,
-                                                   const char *pkgs);
+                                                   const char *flags)
+{
+  g_string_append_c (context->ldflags, ' ');
+  g_string_append (context->ldflags, flags);
+}
+
+void               gsk_compile_context_add_pkg   (GskCompileContext*context,
+                                                  const char *pkg)
+{
+  g_ptr_array_add (context->packages, g_strdup (pkgs));
+  if (context->package_cflags)
+    {
+      g_free (context->package_cflags);
+      context->package_cflags = NULL;
+    }
+  if (context->package_ldflags)
+    {
+      g_free (context->package_ldflags);
+      context->package_ldflags = NULL;
+    }
+}
+
 void               gsk_compile_context_set_tmp_dir(GskCompileContext*context,
-                                                   const char *tmp_dir);
+                                                   const char *tmp_dir)
+{
+  char *t = g_strdup (tmp_dir);
+  g_free (context->tmp_dir);
+  context->tmp_dir = t;
+}
+
 void               gsk_compile_context_set_gdb    (GskCompileContext *context,
-                                                   gboolean           support);
+                                                   gboolean           support)
+{
+  context->gdb_support = support;
+}
+
 void               gsk_compile_context_set_verbose(GskCompileContext *context,
                                                    gboolean           support)
 {
   context->verbose = support;
 }
 
-void               gsk_compile_context_free       (GskCompileContext *);
+void
+gsk_compile_context_free       (GskCompileContext *context)
+{
+  g_free (context->tmp_dir);
+  g_free (context->cc);
+  g_free (context->ld);
+  g_string_free (context->cflags, TRUE);
+  g_string_free (context->ldflags, TRUE);
+  gsk_g_ptr_array_foreach (context->packages, (GFunc) g_free, NULL);
+  g_ptr_array_free (context->packages, TRUE);
+  g_free (context->package_cflags);
+  g_free (context->package_ldflags);
+  g_free (context);
+}
 
 struct _GskModule
 {

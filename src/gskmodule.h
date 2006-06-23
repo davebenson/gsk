@@ -14,8 +14,8 @@ void               gsk_compile_context_add_cflags (GskCompileContext*,
                                                    const char *flags);
 void               gsk_compile_context_add_ldflags(GskCompileContext*,
                                                    const char *flags);
-void               gsk_compile_context_add_pkgs   (GskCompileContext*,
-                                                   const char *pkgs);
+void               gsk_compile_context_add_pkg    (GskCompileContext*,
+                                                   const char *pkg);
 void               gsk_compile_context_set_tmp_dir(GskCompileContext*,
                                                    const char *tmp_dir);
 void               gsk_compile_context_set_gdb    (GskCompileContext *,
