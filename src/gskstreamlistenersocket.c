@@ -626,17 +626,15 @@ GskStreamListener *
 gsk_stream_listener_socket_new_from_fd (gint     fd,
                                         GError **error)
 {
-  GskSocketAddress    *address = NULL;
-  GskStreamListener   *rv;
-  struct sockaddr      sock_addr;
-  struct sockaddr_in  *sock_addr_in;
-  socklen_t            sock_addr_len;
+  GskSocketAddress *address;
+  GskStreamListener *rv;
+  struct sockaddr sock_addr;
+  socklen_t sock_addr_len;
 
   sock_addr_len = sizeof (struct sockaddr);
-  if ( getsockname (fd, &sock_addr, &sock_addr_len) != 0)
+  if (getsockname (fd, &sock_addr, &sock_addr_len) != 0)
     {
       int e = errno;
-
       *error = g_error_new (GSK_G_ERROR_DOMAIN, gsk_error_code_from_errno (e),
                             "error on getsockname %d: %s", fd,
                             g_strerror (e));
@@ -645,13 +643,13 @@ gsk_stream_listener_socket_new_from_fd (gint     fd,
 
   /* Create the GSK address structure */
   address = gsk_socket_address_from_native (&sock_addr, sock_addr_len);
-
-  if ( address != NULL )
+  if (address != NULL)
     {
       rv = g_object_new (GSK_TYPE_STREAM_LISTENER_SOCKET,
                          "listening-address", address,
                          "file-descriptor", fd,
                          NULL);
+      g_object_unref (address);
     }
   else
     {
@@ -660,7 +658,6 @@ gsk_stream_listener_socket_new_from_fd (gint     fd,
                          NULL);
     }
 
-  g_object_unref (address);
   return rv;
 }
 
