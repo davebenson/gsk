@@ -1,7 +1,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>  /* for maybe_delete_stale_socket() below */
-#include <netinet/in.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -445,6 +444,8 @@ gsk_stream_listener_socket_constructor (GType                  type,
       if (!try_init_fd (socket))
 	return rv;
     }
+  if (socket->fd >= 0)
+    gsk_fd_set_nonblocking (socket->fd);
   add_poll (socket);
   return rv;
 }
