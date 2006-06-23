@@ -1,6 +1,7 @@
 #include <unistd.h>             /* getpid() */
 #include <stdio.h>
 
+#include "gskghelpers.h"
 #include "gskerror.h"
 #include "gskmodule.h"
 #include "compile-info.h"
@@ -52,7 +53,7 @@ void               gsk_compile_context_add_ldflags(GskCompileContext*context,
 void               gsk_compile_context_add_pkg   (GskCompileContext*context,
                                                   const char *pkg)
 {
-  g_ptr_array_add (context->packages, g_strdup (pkgs));
+  g_ptr_array_add (context->packages, g_strdup (pkg));
   if (context->package_cflags)
     {
       g_free (context->package_cflags);
@@ -107,16 +108,18 @@ struct _GskModule
   char **files_to_kill;
 };
 
-static void
+static gboolean
 run_pkg_config       (GskCompileContext *context,
                       const char        *prg_option,
-                      char             **flags_out)
+                      char             **flags_out,
+                      GError           **error)
 {
   GString *cmd_str;
   GString *str;
   guint i;
   FILE *fp;
   char buf[4096];
+  int pclose_rv;
 
   cmd_str = g_string_new (GSK_PKGCONFIG);
   g_string_append_printf (cmd_str, " --cflags");
@@ -127,16 +130,29 @@ run_pkg_config       (GskCompileContext *context,
   fp = popen (cmd_str->str, "r");
   while (fgets (buf, sizeof (buf), fp) != NULL)
     g_string_append (str, buf);
-  if (pclose (fp) < 0)
+  pclose_rv = pclose (fp);
+  if (pclose_rv < 0)
     g_error ("error running pkg-config");
+  if (pclose_rv != 0)
+    {
+      if (pclose_rv < 255)
+        g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_COMPILE,
+                     "pkg-config died with signal %u", pclose_rv);
+      else
+        g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_COMPILE,
+                     "pkg-config returned exit status %u", pclose_rv);
+      return FALSE;
+    }
   g_strstrip (str->str);
   *flags_out = g_strdup (str->str);
   g_string_free (str, TRUE);
   g_string_free (cmd_str, TRUE);
+  return TRUE;
 }
 
-static void
-ensure_pkg_info_ok (GskCompileContext *context)
+static gboolean
+ensure_pkg_info_ok (GskCompileContext *context,
+                    GError           **error)
 {
   if (context->package_ldflags == NULL)
     {
@@ -147,10 +163,12 @@ ensure_pkg_info_ok (GskCompileContext *context)
         }
       else
         {
-          run_pkg_config (context, "--cflags", &context->package_cflags);
-          run_pkg_config (context, "--libs", &context->package_ldflags);
+          if (!run_pkg_config (context, "--cflags", &context->package_cflags, error)
+           || !run_pkg_config (context, "--libs", &context->package_ldflags, error))
+            return FALSE;
         }
     }
+  return TRUE;
 }
 
 GskModule *
@@ -187,7 +205,10 @@ gsk_module_compile  (GskCompileContext *context,
       }
   }
 
-  ensure_pkg_info_ok (context);
+  if (!ensure_pkg_info_ok (context, error))
+    {
+      return NULL;              /* TODO: cleanup */
+    }
 
   linker_cmd = g_string_new (context->ld);
   g_string_append_printf (linker_cmd, " %s %s -o '%s'",
@@ -205,12 +226,14 @@ gsk_module_compile  (GskCompileContext *context,
                                        sources[i], sources[i]);
 
       FILE *fp;
+      int pclose_rv;
       if (context->verbose)
         g_printerr ("compiling: %s\n", command);
       fp = popen (command, "r");
       while (fgets (buf, sizeof (buf), fp) != NULL)
         g_string_append (output, buf);
-      if (pclose (fp) < 0)
+      pclose_rv = pclose (fp);
+      if (pclose_rv != 0)
         {
           g_set_error (error,
                        GSK_G_ERROR_DOMAIN,
@@ -220,8 +243,10 @@ gsk_module_compile  (GskCompileContext *context,
             *program_output = g_string_free (output, FALSE);
           else
             g_string_free (output, TRUE);
+          g_free (command);
           return NULL;
         }
+      g_free (command);
       g_string_append_printf (linker_cmd, " '%s.o'", sources[i]);
     }
 
@@ -231,8 +256,11 @@ gsk_module_compile  (GskCompileContext *context,
     if (context->verbose)
       g_printerr ("linking: %s\n", linker_cmd->str);
     fp = popen (linker_cmd->str, "r");
+    g_string_free (linker_cmd, TRUE);
+    linker_cmd = NULL;
     while (fgets (buf, sizeof (buf), fp) != NULL)
       g_string_append (output, buf);
+
     if (pclose (fp) < 0)
       {
         g_set_error (error,
