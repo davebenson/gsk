@@ -127,8 +127,6 @@ gsk_stream_external_raw_write_buffer (GskStream    *stream,
 	  return 0;
 	}
 
-      gsk_buffer_discard (buffer, rv);
-
       if (buffer->size > 0)
 	gsk_source_adjust_io (external->write_source, G_IO_OUT);
     }
