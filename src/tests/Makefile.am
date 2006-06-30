@@ -14,7 +14,6 @@ common_check_programs = \
 	test-hangup \
 	test-http-content \
 	test-http-header \
-	test-http-redirect \
 	test-http-serverclient \
 	test-io-error \
 	test-mempool \
@@ -70,6 +69,7 @@ diagnostic_programs = \
 	url-download \
 	test-http-server \
 	test-persistent-connection \
+	test-http-redirect \
 	time-0 \
  	$(ssl_tests)
 
