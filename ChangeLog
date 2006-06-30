@@ -1,3 +1,4 @@
+gsk (1.0.37)
   * randomize DNS results to support roundrobin DNS;
     enabled by default.
     Implement gsk_dns_rr_cache_roundrobin()
