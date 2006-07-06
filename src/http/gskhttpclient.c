@@ -151,6 +151,23 @@ set_state_to_reading_response (GskHttpClientRequest *request)
    gsk_io_notify_read_shutdown (request->client);
 }
 
+static void
+flush_done_requests (GskHttpClient *client)
+{
+  while (client->first_request != NULL
+     &&  client->first_request->state == DONE)
+    {
+      GskHttpClientRequest *request = client->first_request;
+      client->first_request = request->next;
+      if (client->first_request == NULL)
+        client->last_request = NULL;
+
+      /* destroy request */
+      request->next = NULL;		/* unnecesssary */
+      gsk_http_client_request_destroy (request);
+    }
+}
+
 /* --- POST/PUT data handling --- */
 /* XXX: need Transfer-Encoding chunked support here! */
 static gboolean
@@ -485,12 +502,14 @@ gsk_http_client_raw_write      (GskStream     *stream,
 		       _("got data from server before request had been issued "
 			 "(request->state = %d)"),
 		       request->state);
+          flush_done_requests (client);
 	  return length;
 	}
       if (request->state == POSTING
        || request->state == POSTING_WRITING)
         {
           //g_warning ("need to block writes til post done?");
+          flush_done_requests (client);
           return length;
         }
       if (request->state == READING_RESPONSE_HEADER_FIRST_LINE)
@@ -517,6 +536,7 @@ gsk_http_client_raw_write      (GskStream     *stream,
 	      g_set_error (error, GSK_G_ERROR_DOMAIN,
 			   GSK_ERROR_HTTP_PARSE,
 			   _("error parsing first line of response"));
+              flush_done_requests (client);
 	      return length;
 	    }
 	}
@@ -615,19 +635,9 @@ chunk_start:
 	  goto chunk_start;
 	}
 
-      if (request->state == DONE)
-	{
-	  g_return_val_if_fail (request == client->first_request, length);
-	  client->first_request = request->next;
-	  if (client->first_request == NULL)
-	    client->last_request = NULL;
-
-	  /* destroy request */
-	  request->next = NULL;		/* unnecesssary */
-	  gsk_http_client_request_destroy (request);
-	}
     }
 done:
+  flush_done_requests (client);
   if (client->first_request == NULL
    && TEST_CLIENT_USER_FLAG (client, DEFERRED_SHUTDOWN))
     {
@@ -712,6 +722,8 @@ gsk_http_client_shutdown_write (GskIO      *io,
 
   if (gsk_io_get_is_readable (client))
     gsk_io_read_shutdown (GSK_IO (client), NULL);
+
+  flush_done_requests (client);
 
 #if 0   /* XXX */
   while (request != NULL)
@@ -1001,7 +1013,10 @@ gsk_http_client_content_stream_shutdown_read   (GskIO      *io,
   GskHttpClientContentStream *content_stream = GSK_HTTP_CLIENT_CONTENT_STREAM  (io);
   if (content_stream->http_client != NULL
    && (content_stream->http_client->last_request == NULL
-    || content_stream->http_client->last_request->content_stream == content_stream))
+    || content_stream->http_client->last_request->content_stream == content_stream)
+   && TEST_CLIENT_USER_FLAGS (content_stream->http_client,
+                              GSK_HTTP_CLIENT_DEFERRED_SHUTDOWN
+                            | GSK_HTTP_CLIENT_REQUIRES_READ_SHUTDOWN))
     {
       gsk_io_notify_shutdown (GSK_IO (content_stream->http_client));
     }

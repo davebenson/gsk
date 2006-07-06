@@ -168,6 +168,32 @@ path_vhost_table_new (void)
 }
 
 static void
+server_respond_printf (GskHttpServer *server,
+                       GskHttpRequest *request,
+                       GskHttpStatus   status_code,
+                       const char     *format,
+                       ...)
+{
+  va_list args;
+  GskHttpResponse *response;
+  GskStream *stream;
+  guint str_len;
+  char *str;
+  va_start (args,format);
+  str = g_strdup_printf (format, args);
+  va_end (args);
+  str_len = strlen (str);
+  stream = gsk_memory_slab_source_new (str, str_len, g_free, str);
+  response = gsk_http_response_from_request (request, status_code, str_len);
+  gsk_http_response_set_content_type (response, "text");
+  gsk_http_response_set_content_subtype (response, "html");
+  gsk_http_server_respond (server, request, response, stream);
+  g_object_unref (stream);
+  g_object_unref (response);
+}
+
+
+static void
 default_error_handler (GskHttpContent          *content,
                        GError                  *error,
                        GskHttpServer           *server,
@@ -178,22 +204,16 @@ default_error_handler (GskHttpContent          *content,
 {
   GEnumClass *class = g_type_class_ref (GSK_TYPE_HTTP_STATUS);
   GEnumValue *value = g_enum_get_value (class, code);
-  GskHttpResponse *response;
-  GskStream *failure_text = gsk_memory_source_new_printf
-                             ("<html>\n"
-                               " <head><title>%u: %s</title></head>\n"
-                               " <body><h1>%s</h1>\n"
-                               " </body>\n"
-                               "</html>\n",
-                               code,
-                               value ? value->value_nick : "unknown error",
-                               value ? value->value_name : "Unknown Error");
-  response = gsk_http_response_from_request (request, code, -1);
-  gsk_http_response_set_content_type (response, "text");
-  gsk_http_response_set_content_subtype (response, "html");
-  gsk_http_server_respond (server, request, response, failure_text);
-  g_object_unref (failure_text);
-  g_object_unref (response);
+  server_respond_printf (server, request, code,
+                         "<html>\n"
+                          " <head><title>%u: %s</title></head>\n"
+                          " <body><h1>%s</h1>\n"
+                          " </body>\n"
+                          "</html>\n",
+                          code,
+                          value ? value->value_nick : "unknown error",
+                          value ? value->value_name : "Unknown Error");
+  g_type_class_unref (class);
 }
 
 
@@ -1134,27 +1154,18 @@ handle_file_request (GskHttpContent        *content,
    || g_str_has_suffix (end, "/.."))
     {
       /* security error */
-      GskStream *msg = gsk_memory_source_new_printf ("<html><head><title>Security Error</title></head>\n"
-                                                     "<body>\n"
-                                                     "<h1>Security Error</h1>\n"
-                                                     "Attempting to access the path:\n"
-                                                     "<pre>\n"
-                                                     "  %s\n"
-                                                     "</pre>\n"
-                                                     "is not allowed: it may not contain '..'"
-                                                     "</body>\n"
-                                                     "</html>\n"
-                                                     ,
-                                                     request->path);
-      GskHttpResponse *response;
-      response = gsk_http_response_from_request (request,
-                                                 GSK_HTTP_STATUS_BAD_REQUEST,
-                                                 -1);
-      gsk_http_response_set_content_type (response, "text");
-      gsk_http_response_set_content_subtype (response, "html");
-      gsk_http_server_respond (server, request, response, msg);
-      g_object_unref (msg);
-      g_object_unref (response);
+      server_respond_printf (server, request, GSK_HTTP_STATUS_BAD_REQUEST,
+                             "<html><head><title>Security Error</title></head>\n"
+                             "<body>\n"
+                             "<h1>Security Error</h1>\n"
+                             "Attempting to access the path:\n"
+                             "<pre>\n"
+                             "  %s\n"
+                             "</pre>\n"
+                             "is not allowed: it may not contain '..'"
+                             "</body>\n"
+                             "</html>\n"
+                           , request->path);
       return GSK_HTTP_CONTENT_OK;
     }
 
@@ -1167,32 +1178,23 @@ handle_file_request (GskHttpContent        *content,
   if (stream == NULL)
     {
       /* serve 404 page */
-      GskStream *msg = gsk_memory_source_new_printf ("<html><head><title>Not Found</title></head>\n"
-                                                     "<body>\n"
-                                                     "<h1>Not Found</h1>\n"
-                                                     "Unable to find the file '%s'\n"
-                                                     "which was requested as the uri '%s'\n"
-                                                     "</body>\n"
-                                                     "</html>\n",
-                                                     path, request->path);
-      GskHttpResponse *response;
-      response = gsk_http_response_from_request (request,
-                                                 GSK_HTTP_STATUS_BAD_REQUEST,
-                                                 -1);
-      gsk_http_response_set_content_type (response, "text");
-      gsk_http_response_set_content_subtype (response, "html");
-      gsk_http_server_respond (server, request, response, msg);
-      g_object_unref (msg);
-      g_object_unref (response);
+      server_respond_printf (server, request,
+                             GSK_HTTP_STATUS_BAD_REQUEST,
+                             "<html><head><title>Not Found</title></head>\n"
+                             "<body>\n"
+                             "<h1>Not Found</h1>\n"
+                             "Unable to find the file '%s'\n"
+                             "which was requested as the uri '%s'\n"
+                             "</body>\n"
+                             "</html>\n",
+                             path, request->path);
       g_free (path);
       return GSK_HTTP_CONTENT_OK;
     }
 
   if (fstat (GSK_STREAM_FD (stream)->fd, &stat_buf) == 0)
     size = stat_buf.st_size;
-  response = gsk_http_response_from_request (request,
-                                             GSK_HTTP_STATUS_OK,
-                                             size);
+  response = gsk_http_response_from_request (request, GSK_HTTP_STATUS_OK, size);
   try_add_content_type (content, request, response);
   gsk_http_server_respond (server, request, response, stream);
   g_object_unref (response);
