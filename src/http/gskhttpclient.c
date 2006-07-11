@@ -493,8 +493,7 @@ gsk_http_client_raw_write      (GskStream     *stream,
     {
       GskHttpClientRequest *request = client->first_request;
       if (request->state == INIT
-       || request->state == WRITING_HEADER
-       || request->state == DONE)
+       || request->state == WRITING_HEADER)
 	{
 	  /* invalid request state. */
 	  g_set_error (error, GSK_G_ERROR_DOMAIN,
@@ -505,6 +504,11 @@ gsk_http_client_raw_write      (GskStream     *stream,
           flush_done_requests (client);
 	  return length;
 	}
+      if (request->state == DONE)
+        {
+          flush_done_requests (client);
+          continue;
+        }
       if (request->state == POSTING
        || request->state == POSTING_WRITING)
         {
