@@ -32,6 +32,14 @@
 - need list of commmon extensions that we don't want to be warned
   about:  P3P, MicrosoftOfficeWebServer, Page-Completion-Status,
   IISExport, test, MS-Author-Via
+
+
+- split gskrbtreemacros subparts into gsktreemacros.
+  the trick is that gsk_tree_insert() needs hooks to 
+  implement gsk_rbtree_insert(); likewise
+  for "remove".  otherwise, all other methods don't use the redness,
+  hence gsk_tree_XXX and gsk_rbtree_XXX are equivalent.
+- gsk_tree_replace_node() [and rbtree variant]
   
 - url_check_is_valid() needs conformance review
 - url_check_is_valid() must be called in all the constructor-pathways:
