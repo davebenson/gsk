@@ -180,7 +180,7 @@ server_respond_printf (GskHttpServer *server,
   guint str_len;
   char *str;
   va_start (args,format);
-  str = g_strdup_printf (format, args);
+  str = g_strdup_vprintf (format, args);
   va_end (args);
   str_len = strlen (str);
   stream = gsk_memory_slab_source_new (str, str_len, g_free, str);
