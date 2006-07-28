@@ -790,8 +790,14 @@ gsk_http_parse_cgi_query_string  (const char     *query_string,
   while (at)
     {
       at = strchr (at, '&');
+
       if (at == NULL)
         break;
+
+      /* skip extra ampersands */
+      while (*(at+1) == '&')
+	at++;
+
       amp_count++;
       at++;
     }
@@ -801,8 +807,18 @@ gsk_http_parse_cgi_query_string  (const char     *query_string,
   at = q + 1;
   for (i = 0; i < n_pieces; i++)
     {
-      const char *equals = strchr (at, '=');
-      const char *amp = strchr (at, '&');
+      const char *equals = strchr (at, '=');     
+      const char *amp;
+      char *tmp = strchr (at, '&');
+
+      if (tmp != NULL) 
+	{
+	  /* skip extra ampersands */
+	  while (*(tmp+1) == '&')
+	    tmp++;
+	}
+      amp = tmp;
+
       if (equals == NULL)
         {
           rv[i*2] = NULL;
