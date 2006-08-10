@@ -1223,7 +1223,7 @@ gsk_url_encode_http (const char *decoded)
  * given as hexidecimal.  (warning: the resulting string is not UTF-8)
  *
  * returns: a newly allocated encoded string that the caller
- * must free.
+ * must free (the empty string "" when unable to decode hex).
  */
 char *
 gsk_url_decode_http (const char *encoded)
@@ -1238,10 +1238,10 @@ gsk_url_decode_http (const char *encoded)
 	{
 	  at++;
 	  if (!isxdigit(*at))
-	    return NULL;
+	    return g_strdup ("");
 	  at++;
 	  if (!isxdigit(*at))
-	    return NULL;
+	    return g_strdup ("");
 	  len++;
 	}
       else
