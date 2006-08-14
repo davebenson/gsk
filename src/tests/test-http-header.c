@@ -76,6 +76,31 @@ headers_equal (GskHttpHeader *h1, GskHttpHeader *h2)
 #define EMPTY_OR_NULL_TOKEN     ((const char *)1)
 #define NOT_FOUND_TOKEN         ((const char *)2)
 
+
+static void
+corruption_test (gboolean is_request,
+                 const char *header_text)
+{
+  guint len = strlen (header_text);
+  guint test;
+  for (test = 0; test < 100; test++)
+    {
+      guint n_changes = g_random_int_range (0, 100);
+      char *txt = g_malloc (len + 1);
+      GskBuffer buffer = GSK_BUFFER_STATIC_INIT;
+      guint i;
+      GskHttpHeader *header;
+      strcpy (txt, header_text);
+      for (i = 0; i < n_changes; i++)
+        txt[g_random_int_range (0, len)] = g_random_int_range (0,256);
+      gsk_buffer_append_foreign (&buffer, txt, len, g_free, txt);
+      header = gsk_http_header_from_buffer (&buffer, is_request, 0, NULL);
+      if (header)
+        g_object_unref (header);
+      gsk_buffer_destruct (&buffer);
+    }
+}
+
 static void
 test_cgi_parsing (const char *query_string,
                   gboolean    may_be_null,
@@ -445,5 +470,38 @@ int main(int argc, char **argv)
                     "d", NOT_FOUND_TOKEN,
                     NULL);
 
+  corruption_test (TRUE,
+                   "GET /foo.txt HTTP/1.0\r\n"
+                   "Host: foo.com\r\n"
+                   "\n");
+  corruption_test (TRUE,
+                   "GET /foo.txt HTTP/1.0\r\n"
+                   "Host: foo.com\r\n"
+                   "Accept-Ranges: bytes\r\n"
+                   "Content-length: 1231\r\n"
+                   "Transfer-Encoding: chunked\r\n"
+                   "Connection: close\r\n"
+                   "Pragma: dfasdfasdsadfasd\r\n"
+                   "Max-forwards: 10\r\n"
+                   "Keep-alive: 3\r\n"
+  //DATE_LINE_PARSER ("if-modified-since", GskHttpRequest, if_modified_since),
+  //DATE_LINE_PARSER ("date", GskHttpRequest, date),
+                   "From: hi@mom.com\r\n"
+                   "UA-Pixels: 320x200\r\n"
+                   "Cookie: Cookie: $Version=\"1\"; Customer=\"WILE_E_COYOTE\"; $Path=\"/acme\"\r\n"
+                   "Accept-Charset: iso-8859-5, unicode-1-1;q=0.8\r\n"
+                   "Accept-Encoding: compress;q=0.5, gzip;q=1.0\r\n"
+                   "TE: \r\n"
+                   "Cache-Control: private, community=\"UCI\"\r\n"
+                   "\n");
+  corruption_test (FALSE,
+                   "HTTP/1.0 200 OK\r\n"
+                   "Last-Modified: Thu, 11 Mar 2004 23:31:11 GMT\r\n"
+                   "ETag: \"220062-35b-4050f6bf\"\r\n"
+                   "Accept-Ranges: bytes\r\n"
+                   "Content-length: 1231\r\n"
+                   "Content-Type:  text/html; charset=iso-8859-1\r\n"
+                   "Connection: close\r\n"
+                   "\n");
   return 0;
 }
