@@ -743,7 +743,7 @@ gsk_http_request_parse_cgi_query_string  (const char     *query_string)
     return NULL;
   table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
   pieces = g_strsplit (q + 1, "&", 0);
-  for (i = 0; pieces[i] != NULL; i++)\
+  for (i = 0; pieces[i] != NULL; i++)
     {
       const char *equals = strchr (pieces[i], '=');
       if (equals != NULL)
@@ -810,6 +810,7 @@ gsk_http_parse_cgi_query_string  (const char     *query_string,
       const char *equals = strchr (at, '=');     
       const char *amp;
       char *tmp = strchr (at, '&');
+      const char *end = tmp;
 
       if (tmp != NULL) 
 	{
@@ -830,7 +831,7 @@ gsk_http_parse_cgi_query_string  (const char     *query_string,
         }
 
       rv[i*2+0] = g_strndup (at, equals - at);
-      rv[i*2+1] = amp ? unescape_cgi_n (equals + 1, amp - (equals + 1), error)
+      rv[i*2+1] = amp ? unescape_cgi_n (equals + 1, end - (equals + 1), error)
                       : unescape_cgi (equals + 1, error);
       if (rv[i*2+1] == NULL)
         {

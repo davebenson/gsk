@@ -72,6 +72,101 @@ headers_equal (GskHttpHeader *h1, GskHttpHeader *h2)
   return TRUE;
 }
 
+
+#define EMPTY_OR_NULL_TOKEN     ((const char *)1)
+#define NOT_FOUND_TOKEN         ((const char *)2)
+
+static void
+test_cgi_parsing (const char *query_string,
+                  gboolean    may_be_null,
+                  const char *first_key,
+                  ...)
+{
+  va_list args;
+  GHashTable *table;
+  char **list;
+
+#define CGI_ASSERT_NO_KEY(cond)                                 \
+  G_STMT_START{                                                 \
+    if (!(cond))                                                \
+      g_error ("error in %s, line %d (%s) (query-string='%s')", \
+               __FILE__, __LINE__, #cond, query_string);        \
+  }G_STMT_END
+#define CGI_ASSERT(cond)                                        \
+  G_STMT_START{                                                 \
+    if (!(cond))                                                \
+      g_error ("error in %s, line %d (%s) (query-string='%s', key='%s')", \
+               __FILE__, __LINE__, #cond, query_string, key);   \
+  }G_STMT_END
+
+  /* --- Hash-table test --- */
+  va_start (args, first_key);
+  table = gsk_http_request_parse_cgi_query_string (query_string);
+  CGI_ASSERT_NO_KEY (may_be_null || table != NULL);
+
+  if (table != NULL)
+    {
+      const char *key;
+      for (key = first_key; key != NULL; key = va_arg (args, const char *))
+        {
+          const char *value = va_arg (args, const char *);
+          if (value == NOT_FOUND_TOKEN)
+            CGI_ASSERT (!g_hash_table_lookup_extended (table, key, NULL, NULL));
+          else if (value == EMPTY_OR_NULL_TOKEN)
+            {
+              const char *ht_value = g_hash_table_lookup (table, key);
+              CGI_ASSERT (ht_value == NULL || ht_value[0] == '\0');
+            }
+          else if (value == NULL)
+            CGI_ASSERT (g_hash_table_lookup (table, key) == NULL);
+          else
+            CGI_ASSERT (strcmp (g_hash_table_lookup (table, key), value) == 0);
+        }
+      g_hash_table_destroy (table);
+    }
+  va_end (args);
+
+
+  /* --- list --- */
+  va_start (args, first_key);
+  list = gsk_http_parse_cgi_query_string (query_string, NULL);
+  CGI_ASSERT_NO_KEY (may_be_null || list != NULL);
+  if (list != NULL)
+    {
+      guint n_kv = g_strv_length (list);
+      const char *key;
+      g_assert (n_kv % 2 == 0);
+      n_kv /= 2;
+      for (key = first_key; key != NULL; key = va_arg (args, const char *))
+        {
+          const char *value = va_arg (args, const char *);
+          guint index;
+          char **at = list;
+          for (index = 0; *at; index++, at += 2)
+            if (strcmp (*at, key) == 0)
+              break;
+          if (value == NOT_FOUND_TOKEN)
+            CGI_ASSERT (index == n_kv);
+          else if (value == EMPTY_OR_NULL_TOKEN)
+            {
+              CGI_ASSERT (index == n_kv
+                       || at[1] == NULL
+                       || strcmp (at[1], "") == 0);
+            }
+          else if (value == NULL)
+            CGI_ASSERT (index == n_kv || at[1] == NULL);
+          else
+            CGI_ASSERT (index < n_kv && strcmp (at[1], value) == 0);
+        }
+      g_strfreev (list);
+    }
+  va_end (args);
+
+#undef CGI_ASSERT_NO_KEY
+#undef CGI_ASSERT
+}
+
+
 int main(int argc, char **argv)
 {
   GskHttpHeader *header0, *header1;
@@ -333,7 +428,22 @@ int main(int argc, char **argv)
     g_object_unref (header1);
   }
 
-
+  test_cgi_parsing ("/whaever?a=1&b=42", FALSE,
+                    "a", "1",
+                    "b", "42",
+                    "c", NOT_FOUND_TOKEN,
+                    NULL);
+  test_cgi_parsing ("/whaever?a=1&b=42&c", TRUE,
+                    "a", "1",
+                    "b", "42",
+                    "c", EMPTY_OR_NULL_TOKEN,
+                    "d", NOT_FOUND_TOKEN,
+                    NULL);
+  test_cgi_parsing ("/whaever?a=1&&b=42", TRUE,
+                    "a", "1",
+                    //"b", "42",
+                    "d", NOT_FOUND_TOKEN,
+                    NULL);
 
   return 0;
 }
