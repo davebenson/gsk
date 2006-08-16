@@ -326,11 +326,14 @@ try_one_read_buffer  (GskStreamQueue *queue,
                       GError        **error)
 {
   GskStream *substream = GSK_STREAM (queue->read_streams->head->data);
-  *rv_inout += gsk_stream_read_buffer (substream, out, error);
+  guint subrv = gsk_stream_read_buffer (substream, out, error);
+  *rv_inout += subrv;
   if (call_count > 0             /* only retry if this is the first time through */
    || *error)                    /* don't retry if an error occurred */
     return RES_STOP_TRYING;
-  return gsk_io_get_is_readable (substream) ? RES_TRY_AGAIN : RES_DONE_WITH_STREAM;
+  return gsk_io_get_is_readable (substream)
+       ? (subrv == 0 ? RES_STOP_TRYING : RES_TRY_AGAIN)
+       : RES_DONE_WITH_STREAM;
 }
 
 static guint
@@ -482,8 +485,8 @@ gsk_stream_queue_init (GskStreamQueue *queue)
   queue->read_streams = g_queue_new ();
   queue->write_streams = g_queue_new ();
   GSK_HOOK_INIT_NO_SHUTDOWN (queue, GskStreamQueue,
-                             write_empty_hook,
-                             0, set_write_empty_poll);
+                             read_empty_hook,
+                             0, set_read_empty_poll);
   GSK_HOOK_INIT_NO_SHUTDOWN (queue, GskStreamQueue,
                              write_empty_hook,
                              0, set_write_empty_poll);
