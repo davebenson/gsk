@@ -273,7 +273,7 @@ G_STMT_START{                                                                 \
                 }                                                             \
               else                                                            \
                 {                                                             \
-                  if (!(_gsk_rb_del_w && is_red (_gsk_rb_del_w->right)))      \
+                  if (!(_gsk_rb_del_w->right && is_red (_gsk_rb_del_w->right)))\
                     {                                                         \
                       if (_gsk_rb_del_w->left)                                \
                         set_is_red (_gsk_rb_del_w->left, 0);                  \
@@ -309,7 +309,7 @@ G_STMT_START{                                                                 \
                 }                                                             \
               else                                                            \
                 {                                                             \
-                  if (!(_gsk_rb_del_w && is_red (_gsk_rb_del_w->left)))       \
+                  if (!(_gsk_rb_del_w->left && is_red (_gsk_rb_del_w->left))) \
                     {                                                         \
                       set_is_red (_gsk_rb_del_w->right, 0);                   \
                       set_is_red (_gsk_rb_del_w, 1);                          \
