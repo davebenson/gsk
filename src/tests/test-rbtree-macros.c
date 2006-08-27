@@ -1,3 +1,4 @@
+#include <string.h>
 #include "../gskrbtreemacros.h"
 #include "../gskmempool.h"
 
@@ -53,6 +54,95 @@ del_tree (TreeNode **ptop,
   GSK_RBTREE_REMOVE (TREE(ptop), found);
   gsk_mem_pool_fixed_free (&tree_node_pool, found);
   return TRUE;
+}
+
+/* --- RCB Tree Test --- */
+/* Add all integers in the range [0, N) to
+   the rbc tree, then iterate the tree
+   and compute the index for each node. */
+typedef struct _RBCTreeNode RBCTreeNode;
+struct _RBCTreeNode
+{
+  guint tn_count;
+  RBCTreeNode *tn_left, *tn_right, *tn_parent;
+  gboolean red;
+  guint value;
+};
+
+#define RBCTREENODE_GET_COUNT(n) n->tn_count
+#define RBCTREENODE_SET_COUNT(n,v) n->tn_count = v
+#define RBCTREE(tp)     (tp), RBCTreeNode*, \
+                        TREE_NODE_IS_RED, TREE_NODE_SET_IS_RED, \
+                        RBCTREENODE_GET_COUNT, RBCTREENODE_SET_COUNT, \
+                        tn_parent, tn_left, tn_right, COMPARE_TREE_NODES
+static void
+shuffle (RBCTreeNode *node_array,
+         guint n_nodes)
+{
+  guint i;
+  for (i = 0; i < n_nodes; i++)
+    {
+      guint r = g_random_int_range (i, n_nodes);
+      guint tmp = node_array[i].value;
+      node_array[i].value = node_array[r].value;
+      node_array[r].value = tmp;
+    }
+}
+
+static void
+validate_counts (RBCTreeNode *xxx)
+{
+  static guint depth = 0;
+  g_assert (xxx->tn_count == (xxx->tn_left ? xxx->tn_left->tn_count : 0)
+                       + (xxx->tn_right ? xxx->tn_right->tn_count : 0)
+                       + 1);
+  depth++;
+  if (xxx->tn_left)
+    validate_counts (xxx->tn_left);
+  if (xxx->tn_right)
+    validate_counts (xxx->tn_right);
+  depth--;
+}
+
+static void
+test_random_rbcint_tree  (guint n)
+{
+  RBCTreeNode *arr = g_new (RBCTreeNode, n);
+  RBCTreeNode *top = NULL;
+  guint i;
+
+#if 1
+  memset (arr, 0xed, sizeof (RBCTreeNode) * n);
+#endif
+
+  /* generate a random permutation
+     (from http://www.techuser.net/randpermgen.html) */
+  for (i = 0; i < n; i++)
+    arr[i].value = i;
+  shuffle (arr, n);
+
+  for (i = 0; i < n; i++)
+    {
+      RBCTreeNode *conflict;
+      GSK_RBCTREE_INSERT (RBCTREE (top), arr + i, conflict);
+      g_assert (conflict == NULL);
+      validate_counts (top);
+    }
+  for (i = 0; i < n; i++)
+    {
+      guint v = arr[i].value;
+      RBCTreeNode *n;
+      guint tv;
+      GSK_RBCTREE_LOOKUP_COMPARATOR (RBCTREE (top), v, COMPARE_INT_WITH_TREE_NODE, n);
+      g_assert (n == arr + i);
+      GSK_RBCTREE_GET_NODE_INDEX (RBCTREE (top), n, tv);
+      //g_message ("node index for value %u, index %u is apparently %u (should == value %u)", v,i,tv,v);
+      g_assert (v == tv);
+    }
+  shuffle (arr, n);
+  for (i = 0; i < n; i++)
+    GSK_RBCTREE_REMOVE (RBCTREE (top), arr + i);
+  /* XXX: we really need to test the counts DURING the removal!!!!!! */
 }
 
 int main()
@@ -127,6 +217,22 @@ int main()
   g_assert (node==NULL);
   for (i = 1; i <= 999; i += 2)
     g_assert (del_tree (&tree, i));
+
+
+  /* random rbctree test */
+  g_printerr ("Testing RBC-tree macros... ");
+  for (i = 0; i < 100; i++)
+    test_random_rbcint_tree (10);
+  g_printerr (".");
+  for (i = 0; i < 10; i++)
+    test_random_rbcint_tree (100);
+  g_printerr (".");
+  for (i = 0; i < 2; i++)
+    {
+      test_random_rbcint_tree (1000);
+      g_printerr (".");
+    }
+  g_printerr ("done.\n");
 
   return 0;
 }
