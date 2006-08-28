@@ -38,7 +38,7 @@
   the trick is that gsk_tree_insert() needs hooks to 
   implement gsk_rbtree_insert(); likewise
   for "remove".  otherwise, all other methods don't use the redness,
-  hence gsk_tree_XXX and gsk_rbtree_XXX are equivalent.
+  hence gsk_tree_XXX and gsk_rbtree_XXX are equivalent. 
 - gsk_tree_replace_node() [and rbtree variant]
   
 - url_check_is_valid() needs conformance review

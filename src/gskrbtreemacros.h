@@ -589,16 +589,16 @@ G_STMT_START{                                                                 \
     }                                                                         \
   else                                                                        \
     {                                                                         \
-      (node)->parent = _gsk_last;                                               \
-      (node)->left = (node)->right = NULL;                                        \
+      (node)->parent = _gsk_last;                                             \
+      (node)->left = (node)->right = NULL;                                    \
       if (_gsk_last_was_left)                                                 \
-        _gsk_last->left = (node);                                               \
+        _gsk_last->left = (node);                                             \
       else                                                                    \
-        _gsk_last->right = (node);                                              \
+        _gsk_last->right = (node);                                            \
                                                                               \
       /* fixup counts */                                                      \
-      set_count ((node), 1);                                                    \
-      for (_gsk_at = _gsk_last; _gsk_at; _gsk_at = _gsk_at->parent)\
+      set_count ((node), 1);                                                  \
+      for (_gsk_at = _gsk_last; _gsk_at; _gsk_at = _gsk_at->parent)           \
         {                                                                     \
           guint _gsk_new_count = get_count(_gsk_at) + 1;                      \
           set_count(_gsk_at, _gsk_new_count);                                 \
@@ -690,7 +690,7 @@ G_STMT_START{                                                                 \
 	_gsk_rb_del_y->parent->left = _gsk_rb_del_x;                          \
       else                                                                    \
 	_gsk_rb_del_y->parent->right = _gsk_rb_del_x;                         \
-      _GSK_RBCTREE_FIX_COUNT(left,right,get_count,set_count, _gsk_rb_del_y->parent);\
+      _GSK_RBCTREE_FIX_COUNT_AND_UP(type,parent,left,right,get_count,set_count, _gsk_rb_del_y->parent);\
     }                                                                         \
   _gsk_rb_del_fixup = !is_red(_gsk_rb_del_y);                                 \
   if (_gsk_rb_del_y != _gsk_rb_del_z)                                         \
@@ -705,14 +705,13 @@ G_STMT_START{                                                                 \
 	    _gsk_rb_del_y->parent->left = _gsk_rb_del_y;                      \
 	  else                                                                \
 	    _gsk_rb_del_y->parent->right = _gsk_rb_del_y;                     \
-          _GSK_RBCTREE_FIX_COUNT(left,right,get_count,set_count, _gsk_rb_del_y);\
-          _GSK_RBCTREE_FIX_COUNT(left,right,get_count,set_count, _gsk_rb_del_y->parent);\
 	}                                                                     \
       else                                                                    \
         {                                                                     \
           top = _gsk_rb_del_y;                                                \
-          _GSK_RBCTREE_FIX_COUNT(left,right,get_count,set_count, _gsk_rb_del_y);\
         }                                                                     \
+      /* TODO: look at pictures to see if "_AND_UP" is necessary */           \
+      _GSK_RBCTREE_FIX_COUNT_AND_UP(type,parent,left,right,get_count,set_count, _gsk_rb_del_y);\
                                                                               \
       if (_gsk_rb_del_y->left)                                                \
 	_gsk_rb_del_y->left->parent = _gsk_rb_del_y;                          \
@@ -924,14 +923,24 @@ G_STMT_START{                                                                 \
 }G_STMT_END
 
  /* utility: recompute node's count, based on count of its children */
-#define _GSK_RBCTREE_FIX_COUNT(left,right,get_count,set_count, node)          \
+#define _GSK_RBCTREE_FIX_COUNT(type,parent,left,right,get_count,set_count, node)          \
 G_STMT_START{                                                                 \
   guint _gsk_fixcount_count = 1;                                              \
   if ((node)->left != NULL)                                                   \
-    _gsk_fixcount_count += get_count((node));                                 \
+    _gsk_fixcount_count += get_count((node)->left);                           \
   if ((node)->right != NULL)                                                  \
-    _gsk_fixcount_count += get_count((node));                                 \
+    _gsk_fixcount_count += get_count((node)->right);                          \
   set_count((node), _gsk_fixcount_count);                                     \
+}G_STMT_END
+
+ /* utility: recompute node's count, based on count of its children */
+#define _GSK_RBCTREE_FIX_COUNT_AND_UP(type,parent,left,right,get_count,set_count, node)   \
+G_STMT_START{                                                                 \
+  type _tmp_fix_count_up;                                                     \
+  for (_tmp_fix_count_up = (node);                                            \
+       _tmp_fix_count_up != NULL;                                             \
+       _tmp_fix_count_up = _tmp_fix_count_up->parent)                         \
+    _GSK_RBCTREE_FIX_COUNT (type,parent,left,right,get_count,set_count, _tmp_fix_count_up);\
 }G_STMT_END
 
 #endif
