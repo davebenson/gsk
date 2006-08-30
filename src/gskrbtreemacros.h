@@ -380,62 +380,39 @@ G_STMT_START{                                                                 \
                                       key,key_comparator,out)                 \
 G_STMT_START{                                                                 \
   type _gsk_lookup_at = (top);                                                \
+  type _gsk_lookup_rv = NULL;                                                 \
   while (_gsk_lookup_at)                                                      \
     {                                                                         \
       int _gsk_compare_rv;                                                    \
       key_comparator(key,_gsk_lookup_at,_gsk_compare_rv);                     \
-      if (_gsk_compare_rv < 0)                                                \
+      if (_gsk_compare_rv >= 0)                                               \
         {                                                                     \
-          if (_gsk_lookup_at->left)                                           \
-            _gsk_lookup_at = _gsk_lookup_at->left;                            \
-          else                                                                \
-            {                                                                 \
-              GSK_RBTREE_PREV_ (top,type,is_red,set_is_red,parent,left,right,comparator,\
-                                _gsk_lookup_at,_gsk_lookup_at);               \
-              break;                                                          \
-            }                                                                 \
-        }                                                                     \
-      else if (_gsk_compare_rv > 0)                                           \
-        {                                                                     \
-          if (_gsk_lookup_at->left)                                           \
-            _gsk_lookup_at = _gsk_lookup_at->left;                            \
-          else                                                                \
-            break;                                                            \
+          _gsk_lookup_rv = _gsk_lookup_at;                                    \
+          _gsk_lookup_at = _gsk_lookup_at->right;                             \
         }                                                                     \
       else                                                                    \
-        break;                                                                \
+        _gsk_lookup_at = _gsk_lookup_at->left;                                \
     }                                                                         \
-  out = _gsk_lookup_at;                                                       \
+  out = _gsk_lookup_rv;                                                       \
 }G_STMT_END
 #define GSK_RBTREE_SUPREMUM_COMPARATOR_(top,type,is_red,set_is_red,parent,left,right,comparator, \
                                       key,key_comparator,out)                 \
 G_STMT_START{                                                                 \
   type _gsk_lookup_at = (top);                                                \
+  type _gsk_lookup_rv = NULL;                                                 \
   while (_gsk_lookup_at)                                                      \
     {                                                                         \
       int _gsk_compare_rv;                                                    \
       key_comparator(key,_gsk_lookup_at,_gsk_compare_rv);                     \
-      if (_gsk_compare_rv < 0)                                                \
+      if (_gsk_compare_rv <= 0)                                               \
         {                                                                     \
-          if (_gsk_lookup_at->left)                                           \
-            _gsk_lookup_at = _gsk_lookup_at->left;                            \
-          else                                                                \
-            break;                                                            \
-        }                                                                     \
-      else if (_gsk_compare_rv > 0)                                           \
-        {                                                                     \
-          if (_gsk_lookup_at->right)                                          \
-            _gsk_lookup_at = _gsk_lookup_at->right;                           \
-          else                                                                \
-            {                                                                 \
-              GSK_RBTREE_NEXT_ (top,type,is_red,set_is_red,parent,left,right,comparator, _gsk_lookup_at,_gsk_lookup_at); \
-              break;                                                          \
-            }                                                                 \
+          _gsk_lookup_rv = _gsk_lookup_at;                                    \
+          _gsk_lookup_at = _gsk_lookup_at->left;                              \
         }                                                                     \
       else                                                                    \
-        break;                                                                \
+        _gsk_lookup_at = _gsk_lookup_at->right;                               \
     }                                                                         \
-  out = _gsk_lookup_at;                                                       \
+  out = _gsk_lookup_rv;                                                       \
 }G_STMT_END
 #define GSK_RBTREE_LOOKUP_(top,type,is_red,set_is_red,parent,left,right,comparator, key,out) \
   GSK_RBTREE_LOOKUP_COMPARATOR_(top,type,is_red,set_is_red,parent,left,right,comparator, key,comparator,out)
