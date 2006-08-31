@@ -376,6 +376,8 @@ G_STMT_START{                                                                 \
     }                                                                         \
   out = _gsk_lookup_at;                                                       \
 }G_STMT_END
+ /* see comments for 'SUPREMUM'; it is the same with the sense of the comparators
+  * and left,right reversed. */
 #define GSK_RBTREE_INFIMUM_COMPARATOR_(top,type,is_red,set_is_red,parent,left,right,comparator, \
                                       key,key_comparator,out)                 \
 G_STMT_START{                                                                 \
@@ -395,6 +397,40 @@ G_STMT_START{                                                                 \
     }                                                                         \
   out = _gsk_lookup_rv;                                                       \
 }G_STMT_END
+/* see introductory comments for a less mathematical
+ * definition.  but what 'supremum' computes is:
+ * sup(tree, key) = min S(tree,key) or NULL if S(tree, key)
+ * is empty, where S(tree,key) = { t | t \in tree && t >= key }.
+ * The 'min' is determined by the 'comparator',
+ * and the 't >= key' is determined by the 'key_comparator'.
+ * But they must be consistent.
+ *
+ * so, here's a recursive description.  suppose we wish to compute
+ * the supremum sup(a, key), where 'a' is the node in the tree shown:
+ *                    a       
+ *                   / \      
+ *                  b   c     
+ * Is 'a >= key'?  Then 'a' is in S(a, key),                
+ * and hence sup(a,key) exists.  But a "better" supremum,   
+ * in terms of being the 'min' in the tree,                 
+ * may lie in 'b'. Nothing better may lie in 'c', since it
+ * is larger, and we are computing a minimum of S.
+ * 
+ * But if 'a < key', then 'a' is not in S.  hence 'b' and its children
+ * are not in S.  Hence sup(a) = sup(c), including the possibility that
+ * sup(C) = NULL.
+ *
+ * Therefore,
+ *    
+ *              sup(b)     if 'a >= key', and sub(b) exists,         [case0]
+ *     sup(a) = a          if 'a >= key', and sub(b) does not exist, [case1]
+ *              sup(c)     if 'a < key' and sub(c) exists,           [case2]
+ *              NULL       if 'a < key' and sub(c) does not exist.   [case3]
+ *
+ * the non-recursive algo follows once you realize that its just
+ * a tree descent, keeping track of the best candidate you've found.
+ * TODO: there's got to be a better way to describe it.
+ */
 #define GSK_RBTREE_SUPREMUM_COMPARATOR_(top,type,is_red,set_is_red,parent,left,right,comparator, \
                                       key,key_comparator,out)                 \
 G_STMT_START{                                                                 \
