@@ -72,6 +72,9 @@ struct _GskSource
   /* are we allowed to recursively invoke this source? */
   guint                  is_reentrant : 1;
 
+  /* only for timers */
+  guint                  timer_adjusted_while_running : 1;
+
   GskMainLoop           *main_loop;
 
   gpointer               user_data;
@@ -88,9 +91,8 @@ struct _GskSource
     struct
     {
       GTimeVal               expire_time;
-      int                    milli_period;
+      gint64                 milli_period;
       GskMainLoopTimeoutFunc func;
-      gboolean               adjusted_while_running;
     } timer;
     struct
     {
@@ -305,10 +307,40 @@ gsk_main_loop_run_process_sources (GskMainLoop     *main_loop,
 
 static inline void
 g_time_val_add_millis (GTimeVal  *in_out,
-		       guint      millis)
+		       guint64    millis)
 {
-  in_out->tv_sec += millis / 1000;
-  in_out->tv_usec += millis % 1000 * 1000;
+  /* the two cases in this if() statement are
+     equivalent, if millis is really a 32-bit number.
+     but on x86 which lacks good 64-bit divides,
+     the first branch is much faster.
+
+     1<<32 milliseconds is about 50 days,
+     so MOST timeouts are in the first case. */
+
+  /* TODO: we should really decide at compile
+     time if we have fast 64-bit int support,
+     and if so, only use the second branch,
+     to save code space.  Of course, i have
+     no idea how to detect it, but it could be based 
+     on "cpu".
+     
+     TODO: another nice thing would be support for
+     microsecond precision timers. */
+#ifndef HAVE_FAST_64BIT_INT_SUPPORT     /* TODO: define this on non-x86 */
+  if (G_LIKELY ((millis>>32) == 0))
+    {
+      guint ms = (guint) millis;
+      in_out->tv_sec += ms / 1000;
+      in_out->tv_usec += (guint)(ms % 1000) * 1000;
+    }
+  else
+#endif
+    {
+      in_out->tv_sec += millis / 1000;
+      in_out->tv_usec += (guint)(millis % 1000) * 1000;
+    }
+
+  /* check for overflow of the microseconds column. */
   if (in_out->tv_usec > 1000 * 1000)
     {
       in_out->tv_usec -= 1000 * 1000;
@@ -574,8 +606,8 @@ retry_query:
 	gsk_source_remove (at);
       else
 	{
-          if (at->data.timer.adjusted_while_running)
-	    at->data.timer.adjusted_while_running = 0;
+          if (at->timer_adjusted_while_running)
+	    at->timer_adjusted_while_running = 0;
 	  else
 	    g_time_val_add_millis (&at->data.timer.expire_time, 
 				   at->data.timer.milli_period);
@@ -954,23 +986,36 @@ gsk_source_remove_io_events (GskSource *source,
  *
  * returns: #GskSource which can be removed or altered.
  */
+#undef gsk_main_loop_add_timer
 GskSource *
-gsk_main_loop_add_timer    (GskMainLoop       *main_loop,
+gsk_main_loop_add_timer64  (GskMainLoop       *main_loop,
 			    GskMainLoopTimeoutFunc timer_func,
 			    gpointer           timer_data,
 			    GDestroyNotify     timer_destroy,
-			    int                millis_expire,
-			    int                milli_period)
+			    gint64             millis_expire,
+			    gint64             milli_period)
 {
   GskSource *source = gsk_source_new (GSK_SOURCE_TYPE_TIMER, main_loop, timer_data, timer_destroy);
   source->data.timer.expire_time = main_loop->current_time;
   g_time_val_add_millis (&source->data.timer.expire_time, millis_expire);
   source->data.timer.milli_period = milli_period;
   source->data.timer.func = timer_func;
-  source->data.timer.adjusted_while_running = FALSE;
+  source->timer_adjusted_while_running = FALSE;
   g_tree_insert (main_loop->timers, source, source);
   main_loop->num_sources++;
   return source;
+}
+GskSource *
+gsk_main_loop_add_timer    (GskMainLoop       *main_loop,
+			    GskMainLoopTimeoutFunc timer_func,
+			    gpointer           timer_data,
+			    GDestroyNotify     timer_destroy,
+			    gint               millis_expire,
+			    gint               milli_period)
+{
+  return gsk_main_loop_add_timer64 (main_loop,
+                                    timer_func, timer_data, timer_destroy,
+                                    millis_expire, milli_period);
 }
 
 /**
@@ -1004,7 +1049,7 @@ gsk_main_loop_add_timer_absolute (GskMainLoop       *main_loop,
   source->data.timer.expire_time.tv_usec = unixtime_micro;
   source->data.timer.milli_period = -1;
   source->data.timer.func = timer_func;
-  source->data.timer.adjusted_while_running = FALSE;
+  source->timer_adjusted_while_running = 0;
   g_tree_insert (main_loop->timers, source, source);
   main_loop->num_sources++;
   return source;
@@ -1020,10 +1065,12 @@ gsk_main_loop_add_timer_absolute (GskMainLoop       *main_loop,
  * Adjust the timeout and period for an already existing timer source.
  * (You may only call this on timer sources.)
  */
+#undef gsk_source_adjust_timer                              /* compatibility hack */
+#define gsk_source_adjust_timer gsk_source_adjust_timer64   /* compatibility hack */
 void
-gsk_source_adjust_timer (GskSource         *timer_source,
-			 int                millis_expire,
-			 int                milli_period)
+gsk_source_adjust_timer   (GskSource         *timer_source,
+			   gint64             millis_expire,
+			   gint64             milli_period)
 {
   GskMainLoop *main_loop = timer_source->main_loop;
   g_return_if_fail (timer_source->type == GSK_SOURCE_TYPE_TIMER);
@@ -1035,7 +1082,15 @@ gsk_source_adjust_timer (GskSource         *timer_source,
   if (timer_source->run_count == 0)
     g_tree_insert (main_loop->timers, timer_source, timer_source);
   else
-    timer_source->data.timer.adjusted_while_running = 1;
+    timer_source->timer_adjusted_while_running = 1;
+}
+#undef gsk_source_adjust_timer                  /* compatibility hack */
+void                                            /* compatibility hack */
+gsk_source_adjust_timer   (GskSource         *timer_source,
+			   gint               millis_expire,
+			   gint               milli_period)
+{
+  gsk_source_adjust_timer64 (timer_source, millis_expire, milli_period);
 }
 
 static inline void

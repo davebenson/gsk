@@ -232,12 +232,14 @@ void             gsk_source_add_io_events   (GskSource         *source,
                                              guint              events);
 void             gsk_source_remove_io_events(GskSource         *source,
                                              guint              events);
+#define gsk_main_loop_add_timer gsk_main_loop_add_timer64
+#define gsk_source_adjust_timer gsk_source_adjust_timer64
 GskSource       *gsk_main_loop_add_timer    (GskMainLoop       *main_loop,
                                              GskMainLoopTimeoutFunc timer_func,
                                              gpointer           timer_data,
                                              GDestroyNotify     timer_destroy,
-                                             int                millis_expire,
-                                             int                milli_period);
+                                             gint64             millis_expire,
+                                             gint64             milli_period);
 GskSource       *gsk_main_loop_add_timer_absolute
                                             (GskMainLoop       *main_loop,
                                              GskMainLoopTimeoutFunc timer_func,
@@ -246,8 +248,8 @@ GskSource       *gsk_main_loop_add_timer_absolute
                                              int                unixtime,
                                              int                unixtime_micro);
 void             gsk_source_adjust_timer    (GskSource         *timer_source,
-                                             int                millis_expire,
-                                             int                milli_period);
+                                             gint64             millis_expire,
+                                             gint64             milli_period);
 void             gsk_source_remove          (GskSource         *source);
 void             gsk_main_loop_add_context  (GskMainLoop       *main_loop,
 					     GMainContext      *context);
@@ -269,6 +271,18 @@ gboolean gsk_main_loop_do_waitpid (int                  pid,
 /*< private >*/
 void _gsk_main_loop_init ();
 void _gsk_main_loop_fork_notify ();
+
+/* for binary-compatibility, the library defines gsk_main_loop_add_timer()
+   with native-int timeouts.  but people compiling with the latest version
+   will use gsk_main_loop_add_timer64.  eventually, we can get rid of this hack,
+   and just define gsk_main_loop_add_timer() as the 64-bit function. */
+#undef gsk_main_loop_add_timer
+#undef gsk_source_adjust_timer
+GskSource *gsk_main_loop_add_timer (GskMainLoop*,GskMainLoopTimeoutFunc,gpointer,GDestroyNotify,int,int);
+void gsk_source_adjust_timer (GskSource*,int,int);
+#define gsk_main_loop_add_timer gsk_main_loop_add_timer64
+#define gsk_source_adjust_timer gsk_source_adjust_timer64
+
 G_END_DECLS
 
 #endif
