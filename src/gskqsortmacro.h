@@ -4,15 +4,23 @@
 typedef struct _GskQsortStackNode GskQsortStackNode;
 typedef struct _GskQsortStack GskQsortStack;
 
-/* Amount of stack to allocate: should be log2(max_array_size)+1 */
+/* Amount of stack to allocate: should be log2(max_array_size)+1.
+   on 32-bit, this uses 33*8=264 bytes;
+   on 64-bit it uses 65*16=1040 bytes. */
+#if (GLIB_SIZEOF_SIZE_T == 8)
+#define GSK_QSORT_STACK_MAX_SIZE  (65)
+#elif (GLIB_SIZEOF_SIZE_T == 4)
 #define GSK_QSORT_STACK_MAX_SIZE  (33)
+#else
+#error "sizeof(size_t) is neither 4 nor 8: need GSK_QSORT_STACK_MAX_SIZE def"
+#endif
 
 /* Maximum number of elements to sort with insertion sort instead of qsort */
 #define GSK_INSERTION_SORT_THRESHOLD	4
 
 struct _GskQsortStackNode
 {
-  guint start, len;
+  gsize start, len;
 };
 
 
