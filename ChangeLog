@@ -3,6 +3,10 @@
     so that we can handle really long timeouts.
     (the old limit was 2^32 ms == 48.5 days)
     (Additionally hacks were added for binary compatibility)
+  * gsk_socket_address_new_local() is deprecated in favor of
+    gsk_socket_address_local_new().  Likewise,
+    gsk_socket_address_new_ethernet() is deprecated by
+    gsk_socket_address_ethernet_new().
 
 gsk (1.0.40)
   * minor bug fix (in rbtreemacros)
