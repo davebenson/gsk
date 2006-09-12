@@ -181,7 +181,7 @@ static void
 add_socket (GskControlServer *server,
             const char       *path)
 {
-  GskSocketAddress *addr = gsk_socket_address_new_local (path);
+  GskSocketAddress *addr = gsk_socket_address_local_new (path);
   GError *error = NULL;
   g_assert (addr);
   if (!gsk_control_server_listen (server, addr, &error))

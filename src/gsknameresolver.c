@@ -400,7 +400,6 @@ gsk_name_resolver_add_family_handler (GskNameResolverFamily family,
 /* --- global initialization --- */
 static gboolean made_dns_name_resolver = FALSE;
 static GskDnsRRCache *dns_rr_cache = NULL;
-static gboolean support_roundrobin = TRUE;
 
 static GskNameResolver *
 make_dns_client (gpointer unused)

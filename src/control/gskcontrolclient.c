@@ -260,7 +260,7 @@ set_server_address (GskControlClient *client,
       g_warning ("already had address");
       return;
     }
-  client->address = gsk_socket_address_new_local (path);
+  client->address = gsk_socket_address_local_new (path);
 }
 
 static void

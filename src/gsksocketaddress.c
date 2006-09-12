@@ -424,7 +424,7 @@ GType gsk_socket_address_local_get_type()
 }
 
 /**
- * gsk_socket_address_new_local:
+ * gsk_socket_address_local_new:
  * @path: path in filesystem to hook this socket up.
  *
  * Create a socket-address which is associated with a path
@@ -438,7 +438,7 @@ GType gsk_socket_address_local_get_type()
  * returns: the newly allocated socket address.
  */
 GskSocketAddress *
-gsk_socket_address_new_local (const char *path)
+gsk_socket_address_local_new (const char *path)
 {
   GskSocketAddressLocalClass *class = g_type_class_ref (GSK_TYPE_SOCKET_ADDRESS_LOCAL);
   guint path_len = strlen (path);
@@ -558,7 +558,7 @@ GType gsk_socket_address_ethernet_get_type()
 }
 
 /**
- * gsk_socket_address_new_ethernet:
+ * gsk_socket_address_ethernet_new:
  * @mac_addr: the 6-byte unique address of this ethernet device.
  *
  * Allocate a new socket address corresponding to an
@@ -567,7 +567,7 @@ GType gsk_socket_address_ethernet_get_type()
  * returns: the newly allocated socket-address.
  */
 GskSocketAddress *
-gsk_socket_address_new_ethernet (const guint8 *mac_addr)
+gsk_socket_address_ethernet_new (const guint8 *mac_addr)
 {
   GskSocketAddressEthernet *eth = g_object_new (GSK_TYPE_SOCKET_ADDRESS_ETHERNET, NULL);
   memcpy (eth->mac_address, mac_addr, 6);
@@ -827,3 +827,16 @@ gsk_socket_address_get_local_quark()
     rv = g_quark_from_static_string ("gsk-socket-address-local-quark");
   return rv;
 }
+
+/* Deprecated.  included for binary compatibility */
+#undef gsk_socket_address_new_local
+GskSocketAddress *gsk_socket_address_new_local (const char       *path)
+{
+  return gsk_socket_address_local_new (path);
+}
+#undef gsk_socket_address_new_ethernet
+GskSocketAddress *gsk_socket_address_new_ethernet  (const guint8     *mac_addr)
+{
+  return gsk_socket_address_ethernet_new (mac_addr);
+}
+

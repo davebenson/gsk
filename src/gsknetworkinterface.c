@@ -192,7 +192,7 @@ gsk_network_interface_set_new(GskNetworkInterfaceFlags  flags)
 			 tmp_req.ifr_name);
 	      continue;
 	    }
-	  interface.hw_address = gsk_socket_address_new_ethernet ((guint8*)tmp_req.ifr_addr.sa_data);
+	  interface.hw_address = gsk_socket_address_ethernet_new ((guint8*)tmp_req.ifr_addr.sa_data);
 	}
 #else
       interface.hw_address = NULL;

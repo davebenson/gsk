@@ -1006,7 +1006,7 @@ DECLARE_PARSER (socket_address)
       gint ip_int[4], ip_port;
       if (memcmp (text, "unix:", 5) == 0)
         {
-          GskSocketAddress *addr = gsk_socket_address_new_local (text + 5);
+          GskSocketAddress *addr = gsk_socket_address_local_new (text + 5);
           g_value_set_object (value, G_OBJECT (addr));
           g_object_unref (addr);
           return TRUE;

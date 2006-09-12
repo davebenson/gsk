@@ -103,7 +103,7 @@ int main (int argc, char **argv)
 
   g_printerr ("Local-socket server/client... ");
 #define TEST_LOCAL_SOCKET_FNAME	"./test-socket-sc"
-  addr = gsk_socket_address_new_local (TEST_LOCAL_SOCKET_FNAME);
+  addr = gsk_socket_address_local_new (TEST_LOCAL_SOCKET_FNAME);
   create_server (addr);
   client_count = 0;
   create_client (addr);

@@ -51,7 +51,6 @@ typedef struct _GskSocketAddressEthernetClass GskSocketAddressEthernetClass;
 #define GSK_IS_SOCKET_ADDRESS_ETHERNET_CLASS(klass)   (G_TYPE_CHECK_CLASS_TYPE ((klass), GSK_TYPE_SOCKET_ADDRESS_ETHERNET))
 
 
-
 /* Useful quarks (for g_object_get_qdata) */
 #define GSK_SOCKET_ADDRESS_REMOTE_QUARK	(gsk_socket_address_get_remote_quark())
 #define GSK_SOCKET_ADDRESS_LOCAL_QUARK	(gsk_socket_address_get_local_quark())
@@ -157,10 +156,15 @@ GskSocketAddress *gsk_socket_address_ipv6_new      (const guint8     *address,
 						    guint16           port);
 
 /* local (unix) specific */
-GskSocketAddress *gsk_socket_address_new_local     (const char       *path);
+GskSocketAddress *gsk_socket_address_local_new     (const char       *path);
 
 /* ethernet specific */
-GskSocketAddress *gsk_socket_address_new_ethernet  (const guint8     *mac_addr);
+GskSocketAddress *gsk_socket_address_ethernet_new  (const guint8     *mac_addr);
+
+#ifndef GSK_DISABLE_DEPRECATED
+#define gsk_socket_address_new_ethernet gsk_socket_address_ethernet_new
+#define gsk_socket_address_new_local    gsk_socket_address_local_new
+#endif
 
 /* --- implementing new sock-addr types --- */
 /* call from the relevant class's class_init */
