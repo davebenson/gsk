@@ -189,10 +189,17 @@ cookie_to_string (GskHttpCookie *cookie,
 		  "; Expires=%s", cookie->expire_date);
       buf_at = strchr (buf_at, 0);
     }
-  {
-    strcpy (buf_at, "; Path=/");
-    buf_at = strchr (buf_at, 0);
-  }
+  if (cookie->path)
+    {
+      g_snprintf (buf_at, remaining - (buf_at - start),
+                  "; Path=%s", cookie->path);
+      buf_at = strchr (buf_at, 0);
+    }
+  else
+    {
+      strcpy (buf_at, "; Path=/");
+      buf_at = strchr (buf_at, 0);
+    }
   if (cookie->version)
     {
       g_snprintf (buf_at, remaining - (buf_at - start),

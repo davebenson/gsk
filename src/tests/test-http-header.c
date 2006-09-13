@@ -405,6 +405,131 @@ int main(int argc, char **argv)
     g_object_unref (header1);
   }
 
+  {
+    guint iter;
+    header0 = header_from_string (FALSE,
+            "HTTP/1.0 200 OK\r\n"
+            "Cache-Control: private=private-field, no-cache=no-cache-field, "
+            "no-store, no-transform, must-revalidate, proxy-revalidate, "
+            "max-age=120, s-maxage=120\r\n"
+            "Content-Type: text/html\r\n"
+            "Set-Cookie: PREF=ID=2c9b2e3669d1d5eb:TM=1110491972:"
+            "LM=1110491972:S=JiXMvg60fPhnf8Ow; expires=Sun, 17-Jan-2038 "
+            "19:14:07 GMT; path=/abcd/efgh/ijkl/mnop; domain=.google.com\r\n"
+            "Server: GWS/2.1\r\n"
+            "Date: Thu, 10 Mar 2005 21:59:32 GMT\r\n"
+            "Connection: Close\r\n"
+            "\n");
+    header1 = header_copy_through_buffers (header0);
+    for (iter = 0; iter < 2; iter++)
+      {
+        GskHttpHeader *header = iter ? header1 : header0;
+        GskHttpResponse *response = GSK_HTTP_RESPONSE (header);
+        GskHttpCookie *set_cookie;
+        g_assert (GSK_IS_HTTP_RESPONSE (header));
+        g_assert (header->http_major_version == 1);
+        g_assert (header->http_minor_version == 0);
+        g_assert (header->connection_type == GSK_HTTP_CONNECTION_CLOSE);
+        g_assert (strcmp (header->content_type, "text") == 0);
+        g_assert (strcmp (header->content_subtype, "html") == 0);
+        //g_assert (header->has_content_body);
+        g_assert (response->allowed_verbs == 0);
+
+        g_assert (response->cache_control != NULL);
+        g_assert (response->cache_control->is_private);
+        g_assert (!response->cache_control->is_public);
+        g_assert (NULL != response->cache_control->private_name);
+        g_assert (strcmp (response->cache_control->private_name, "private-field") == 0);
+        g_assert (NULL != response->cache_control->no_cache_name);
+        g_assert (strcmp (response->cache_control->no_cache_name, "no-cache-field") == 0);
+        g_assert (response->cache_control->no_cache);
+        g_assert (response->cache_control->no_store);
+        g_assert (response->cache_control->no_transform);
+        g_assert (response->cache_control->must_revalidate);
+        g_assert (response->cache_control->proxy_revalidate);
+        g_assert (response->cache_control->max_age == 120);
+        g_assert (response->cache_control->s_max_age == 120);
+
+        g_assert (g_slist_length (response->set_cookies) == 1);
+        set_cookie = response->set_cookies->data;
+        g_assert (strcmp (set_cookie->key, "PREF") == 0);
+        g_assert (strcmp (set_cookie->value, "ID=2c9b2e3669d1d5eb:TM=1110491972:LM=1110491972:S=JiXMvg60fPhnf8Ow") == 0);
+        g_assert (strcmp (set_cookie->expire_date, "Sun, 17-Jan-2038 19:14:07 GMT") == 0);
+        g_assert (strcmp (set_cookie->path, "/abcd/efgh/ijkl/mnop") == 0);
+        g_assert (strcmp (set_cookie->domain, ".google.com") == 0);
+        g_assert (set_cookie->comment == NULL);
+        g_assert (set_cookie->max_age == -1);
+      }
+    g_object_unref (header0);
+    g_object_unref (header1);
+  }
+
+  {
+    guint iter;
+    header0 = header_from_string (FALSE,
+            "HTTP/1.0 200 OK\r\n"
+            "Cache-Control: private=private-field, no-cache=no-cache-field, "
+            "no-store, no-transform, must-revalidate, proxy-revalidate, "
+            "max-age=120, s-maxage=120\r\n"
+            "Content-Type: text/html\r\n"
+            "Set-Cookie: PREF=ID=2c9b2e3669d1d5eb:TM=1110491972:"
+            "LM=1110491972:S=JiXMvg60fPhnf8Ow; expires=Sun, 17-Jan-2038 "
+            "19:14:07 GMT; domain=.google.com\r\n"
+            "Server: GWS/2.1\r\n"
+            "Date: Thu, 10 Mar 2005 21:59:32 GMT\r\n"
+            "Connection: Close\r\n"
+            "\n");
+    header1 = header_copy_through_buffers (header0);
+    for (iter = 0; iter < 2; iter++)
+      {
+        GskHttpHeader *header = iter ? header1 : header0;
+        GskHttpResponse *response = GSK_HTTP_RESPONSE (header);
+        GskHttpCookie *set_cookie;
+        g_assert (GSK_IS_HTTP_RESPONSE (header));
+        g_assert (header->http_major_version == 1);
+        g_assert (header->http_minor_version == 0);
+        g_assert (header->connection_type == GSK_HTTP_CONNECTION_CLOSE);
+        g_assert (strcmp (header->content_type, "text") == 0);
+        g_assert (strcmp (header->content_subtype, "html") == 0);
+        //g_assert (header->has_content_body);
+        g_assert (response->allowed_verbs == 0);
+
+        g_assert (response->cache_control != NULL);
+        g_assert (response->cache_control->is_private);
+        g_assert (!response->cache_control->is_public);
+        g_assert (NULL != response->cache_control->private_name);
+        g_assert (strcmp (response->cache_control->private_name, "private-field") == 0);
+        g_assert (NULL != response->cache_control->no_cache_name);
+        g_assert (strcmp (response->cache_control->no_cache_name, "no-cache-field") == 0);
+        g_assert (response->cache_control->no_cache);
+        g_assert (response->cache_control->no_store);
+        g_assert (response->cache_control->no_transform);
+        g_assert (response->cache_control->must_revalidate);
+        g_assert (response->cache_control->proxy_revalidate);
+        g_assert (response->cache_control->max_age == 120);
+        g_assert (response->cache_control->s_max_age == 120);
+
+        g_assert (g_slist_length (response->set_cookies) == 1);
+        set_cookie = response->set_cookies->data;
+        g_assert (strcmp (set_cookie->key, "PREF") == 0);
+        g_assert (strcmp (set_cookie->value, "ID=2c9b2e3669d1d5eb:TM=1110491972:LM=1110491972:S=JiXMvg60fPhnf8Ow") == 0);
+        g_assert (strcmp (set_cookie->expire_date, "Sun, 17-Jan-2038 19:14:07 GMT") == 0);
+        if (iter == 1)
+          {
+            g_assert (strcmp (set_cookie->path, "/") == 0);
+          }
+        else
+          {
+            g_assert (set_cookie->path == NULL);
+          }
+        g_assert (strcmp (set_cookie->domain, ".google.com") == 0);
+        g_assert (set_cookie->comment == NULL);
+        g_assert (set_cookie->max_age == -1);
+      }
+    g_object_unref (header0);
+    g_object_unref (header1);
+  }
+
   /* random parsing bug */
   {
     header0 = maybe_header_from_string (FALSE,
