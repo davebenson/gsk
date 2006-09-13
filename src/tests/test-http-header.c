@@ -514,14 +514,7 @@ int main(int argc, char **argv)
         g_assert (strcmp (set_cookie->key, "PREF") == 0);
         g_assert (strcmp (set_cookie->value, "ID=2c9b2e3669d1d5eb:TM=1110491972:LM=1110491972:S=JiXMvg60fPhnf8Ow") == 0);
         g_assert (strcmp (set_cookie->expire_date, "Sun, 17-Jan-2038 19:14:07 GMT") == 0);
-        if (iter == 1)
-          {
-            g_assert (strcmp (set_cookie->path, "/") == 0);
-          }
-        else
-          {
-            g_assert (set_cookie->path == NULL);
-          }
+        g_assert (set_cookie->path == NULL);
         g_assert (strcmp (set_cookie->domain, ".google.com") == 0);
         g_assert (set_cookie->comment == NULL);
         g_assert (set_cookie->max_age == -1);
