@@ -1,18 +1,34 @@
 #include "gsksocketaddresssymbolic.h"
+#include "gsknameresolver.h"
 
 G_DEFINE_ABSTRACT_TYPE(GskSocketAddressSymbolic,
                        gsk_socket_address_symbolic,
 		       GSK_TYPE_SOCKET_ADDRESS);
-G_DEFINE_TYPE         (GskSocketAddress,
-                       gsk_socket_address,
+G_DEFINE_TYPE         (GskSocketAddressSymbolicIpv4,
+                       gsk_socket_address_symbolic_ipv4,
 		       GSK_TYPE_SOCKET_ADDRESS_SYMBOLIC);
 
 /* GskSocketAddressSymbolic */
-typedef enum
+enum
 {
   SYMBOLIC_PROP_0,
   SYMBOLIC_PROP_NAME,
 };
+static gboolean
+gsk_socket_address_symbolic_to_native(GskSocketAddress *address,
+			              gpointer          output)
+{
+  return FALSE;
+}
+
+static gboolean
+gsk_socket_address_symbolic_from_native (GskSocketAddress *address,
+			                 gconstpointer     sockaddr_data,
+			                 gsize             sockaddr_length)
+{
+  return FALSE;
+}
+
 static void
 gsk_socket_address_symbolic_set_property (GObject        *object,
                                           guint           property_id,
@@ -27,7 +43,7 @@ gsk_socket_address_symbolic_set_property (GObject        *object,
       symbolic->name = g_value_dup_string (value);
       break;
     default:
-      G_OBJECT_WARN_INVALID_PROPERTY (object, property_id, pspec);
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     }
 }
 
@@ -44,7 +60,7 @@ gsk_socket_address_symbolic_get_property (GObject        *object,
       g_value_set_string (value, symbolic->name);
       break;
     default:
-      G_OBJECT_WARN_INVALID_PROPERTY (object, property_id, pspec);
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     }
 }
 static void
@@ -59,6 +75,9 @@ static void
 gsk_socket_address_symbolic_class_init (GskSocketAddressSymbolicClass *class)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (class);
+  GskSocketAddressClass *address_class = GSK_SOCKET_ADDRESS_CLASS (class);
+  address_class->to_native = gsk_socket_address_symbolic_to_native;
+  address_class->from_native = gsk_socket_address_symbolic_from_native;
   object_class->set_property = gsk_socket_address_symbolic_set_property;
   object_class->get_property = gsk_socket_address_symbolic_get_property;
   object_class->finalize = gsk_socket_address_symbolic_finalize;
@@ -69,6 +88,33 @@ gsk_socket_address_symbolic_class_init (GskSocketAddressSymbolicClass *class)
 static void
 gsk_socket_address_symbolic_init (GskSocketAddressSymbolic *symbolic)
 {
+}
+
+/* Public API */
+gpointer
+gsk_socket_address_symbolic_create_name_resolver (GskSocketAddressSymbolic *symbolic)
+{
+  GskSocketAddressSymbolicClass *class = GSK_SOCKET_ADDRESS_SYMBOLIC_GET_CLASS (symbolic);
+  return class->create_name_resolver (symbolic);
+}
+
+void
+gsk_socket_address_symbolic_start_resolution (GskSocketAddressSymbolic *symbolic,
+                                              gpointer                  name_resolver,
+                                              GskSocketAddressSymbolicResolveFunc r,
+                                              GskSocketAddressSymbolicErrorFunc e,
+                                              gpointer                  user_data,
+                                              GDestroyNotify            destroy)
+{
+  GskSocketAddressSymbolicClass *class = GSK_SOCKET_ADDRESS_SYMBOLIC_GET_CLASS (symbolic);
+  class->start_resolution (symbolic, name_resolver, r, e, user_data, destroy);
+}
+void
+gsk_socket_address_symbolic_cancel_resolution (GskSocketAddressSymbolic *symbolic,
+                                               gpointer                  name_resolver)
+{
+  GskSocketAddressSymbolicClass *class = GSK_SOCKET_ADDRESS_SYMBOLIC_GET_CLASS (symbolic);
+  class->cancel_resolution (symbolic, name_resolver);
 }
 
 /* GskSocketAddressSymbolicIpv4 */
@@ -93,7 +139,7 @@ static gpointer
 gsk_socket_address_symbolic_ipv4_create_name_resolver (GskSocketAddressSymbolic *symbolic)
 {
   Ipv4NameResolver *resolver = g_new0 (Ipv4NameResolver, 1);
-  resolver->ipv4 = GSK_SOCKET_ADDRESS_IPV4 (g_object_ref (symbolic));
+  resolver->ipv4 = GSK_SOCKET_ADDRESS_SYMBOLIC_IPV4 (g_object_ref (symbolic));
   return resolver;
 }
 
@@ -126,9 +172,9 @@ ipv4_handle_failure (GError           *error,
 {
   Ipv4NameResolver *resolver = func_data;
   if (resolver->error_func != NULL)
-    (*error_func->error_func) (GSK_SOCKET_ADDRESS_SYMBOLIC (resolver->ipv4),
-                               error,
-                               resolver->data);
+    (*resolver->error_func) (GSK_SOCKET_ADDRESS_SYMBOLIC (resolver->ipv4),
+                             error,
+                             resolver->data);
 
   /* cancellation no longer allowed */
   resolver->task = NULL;
@@ -196,7 +242,7 @@ gsk_socket_address_symbolic_ipv4_set_property (GObject        *object,
       symbolic_ipv4->port = g_value_get_uint (value);
       break;
     default:
-      G_OBJECT_WARN_INVALID_PROPERTY (object, property_id, pspec);
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     }
 }
 
@@ -213,7 +259,7 @@ gsk_socket_address_symbolic_ipv4_get_property (GObject        *object,
       g_value_set_uint (value, symbolic_ipv4->port);
       break;
     default:
-      G_OBJECT_WARN_INVALID_PROPERTY (object, property_id, pspec);
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     }
 }
 
@@ -242,4 +288,13 @@ gsk_socket_address_symbolic_ipv4_class_init (GskSocketAddressSymbolicIpv4Class *
 static void
 gsk_socket_address_symbolic_ipv4_init (GskSocketAddressSymbolicIpv4 *symbolic_ipv4)
 {
+}
+GskSocketAddress *
+gsk_socket_address_symbolic_ipv4_new (const char *name,
+                                      guint16     port)
+{
+  return g_object_new (GSK_TYPE_SOCKET_ADDRESS_SYMBOLIC_IPV4,
+                       "name", name,
+                       "port", port,
+                       NULL);
 }

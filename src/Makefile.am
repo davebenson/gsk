@@ -50,6 +50,7 @@ gskqsortmacro.h \
 gskrequest.h \
 gskrbtreemacros.h \
 gsksocketaddress.h \
+gsksocketaddresssymbolic.h \
 gskshutdown.h \
 gsksimplefilter.h \
 gskstdio.h \
@@ -102,6 +103,7 @@ gskrequest.c \
 gskshutdown.c \
 gsksimplefilter.c \
 gsksocketaddress.c \
+gsksocketaddresssymbolic.c \
 gsksocketaddress-connect.c \
 gskstdio.c \
 gskstream.c \

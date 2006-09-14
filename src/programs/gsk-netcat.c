@@ -73,54 +73,6 @@ host_port_init (HostPort *hp)
 }
 
 static void
-handle_name_resolution_succeeded (GskSocketAddress *address,
-                                  gpointer          func_data)
-{
-  HostPort *hp = func_data;
-  hp->doing_name_lookup = FALSE;
-  g_assert (GSK_IS_SOCKET_ADDRESS_IPV4 (address));
-  hp->address = gsk_socket_address_ipv4_new (GSK_SOCKET_ADDRESS_IPV4 (address)->ip_address, hp->port);
-  g_hook_list_invoke (&hp->traps, FALSE);
-  g_hook_list_clear (&hp->traps);
-}
-
-static void
-handle_name_resolution_failed  (GError           *error,
-                                gpointer          func_data)
-{
-  HostPort *hp = func_data;
-  hp->doing_name_lookup = FALSE;
-  g_error ("error looking up %s:%u: %s", hp->host, hp->port, error->message);
-}
-
-static void
-host_port_trap (HostPort *hp, GHookFunc func, gpointer data)
-{
-  g_assert (hp->host != NULL);
-  g_assert (hp->port != 0);
-  if (hp->address)
-    func (data);
-  else
-    {
-      GHook *hook = g_hook_alloc (&hp->traps);
-      hook->func = func;
-      hook->data = data;
-      g_hook_append (&hp->traps, hook);
-
-      if (!hp->doing_name_lookup)
-        {
-          hp->doing_name_lookup = TRUE;
-          gsk_name_resolver_lookup (GSK_NAME_RESOLVER_FAMILY_IPV4,
-                                    hp->host,
-                                    handle_name_resolution_succeeded,
-                                    handle_name_resolution_failed,
-                                    hp,
-                                    NULL);
-        }
-    }
-}
-
-static void
 connect_to_stdio (GskStream *str, gboolean terminate_on_input_death)
 {
   GskStream *in, *out;
@@ -139,10 +91,16 @@ connect_to_stdio (GskStream *str, gboolean terminate_on_input_death)
 }
 
 /* --- Client --- */
-static void handle_client_name_lookup (gpointer data)
+void
+setup_client (void)
 {
   GError *error = NULL;
-  GskStream *str = gsk_stream_new_connecting (client_hostport.address, &error);
+  GskStream *str;
+  if (client_hostport.port == 0 || client_hostport.host == NULL)
+    g_error ("client usage error: you must specify a host and port");
+  client_hostport.address = gsk_socket_address_symbolic_ipv4_new (client_hostport.host,
+                                                                  client_hostport.port);
+  str = gsk_stream_new_connecting (client_hostport.address, &error);
   if (str == NULL)
     g_error ("client: error connecting to %s, port %u: %s",
              client_hostport.host, client_hostport.port, error->message);
@@ -162,14 +120,6 @@ static void handle_client_name_lookup (gpointer data)
   connect_to_stdio (str, TRUE);
   g_object_weak_ref (G_OBJECT (str), (GWeakNotify) gsk_main_quit, NULL);
   g_object_unref (str);
-}
-
-void
-setup_client (void)
-{
-  if (client_hostport.port == 0 || client_hostport.host == NULL)
-    g_error ("client usage error: you must specify a host and port");
-  host_port_trap (&client_hostport, handle_client_name_lookup, NULL);
 }
 
 /* --- Server --- */

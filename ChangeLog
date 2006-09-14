@@ -7,6 +7,10 @@
     gsk_socket_address_local_new().  Likewise,
     gsk_socket_address_new_ethernet() is deprecated by
     gsk_socket_address_ethernet_new().
+  * GskSocketAddressSymbolic, a symbolic address
+    which can be used with gsk_stream_fd_new_from_symbolic_address()
+    or gsk_stream_new_connecting(), which will handle a
+    native or symbolic address without burdening the user.
 
 gsk (1.0.40)
   * minor bug fix (in rbtreemacros)

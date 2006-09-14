@@ -14,7 +14,14 @@ gsk_stream_new_connecting (GskSocketAddress  *address,
 			   GError           **error)
 {
   gboolean is_connected;
-  int fd = gsk_socket_address_connect_fd (address, &is_connected, error);
+  int fd;
+
+  /* symbolic addresses are handled internally to GskStreamFd */
+  if (GSK_IS_SOCKET_ADDRESS_SYMBOLIC (address))
+    return gsk_stream_fd_new_from_symbolic_address (GSK_SOCKET_ADDRESS_SYMBOLIC (address), error);
+
+  /* try connecting to the (presumably native) address */
+  fd = gsk_socket_address_connect_fd (address, &is_connected, error);
   if (fd < 0)
     return NULL;
 

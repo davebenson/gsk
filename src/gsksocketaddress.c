@@ -11,8 +11,11 @@
 #include "gskghelpers.h"
 #include "gskmacros.h"
 
-static GObjectClass *object_class = NULL;
-static GObjectClass *socket_address_class = NULL;
+G_DEFINE_ABSTRACT_TYPE(GskSocketAddress, gsk_socket_address, G_TYPE_OBJECT);
+G_DEFINE_TYPE(GskSocketAddressIpv4, gsk_socket_address_ipv4, GSK_TYPE_SOCKET_ADDRESS);
+G_DEFINE_TYPE(GskSocketAddressIpv6, gsk_socket_address_ipv6, GSK_TYPE_SOCKET_ADDRESS);
+G_DEFINE_TYPE(GskSocketAddressEthernet, gsk_socket_address_ethernet, GSK_TYPE_SOCKET_ADDRESS);
+G_DEFINE_TYPE(GskSocketAddressLocal, gsk_socket_address_local, GSK_TYPE_SOCKET_ADDRESS);
 
 /* Macro to initialize the sa_len-like member of
    sockaddr, if it exists. */
@@ -43,34 +46,6 @@ gsk_socket_address_init (GskSocketAddress *socket_address)
 static void
 gsk_socket_address_class_init (GskSocketAddressClass *class)
 {
-  object_class = g_type_class_peek_parent (class);
-}
-
-GType gsk_socket_address_get_type()
-{
-  static GType socket_address_type = 0;
-  if (!socket_address_type)
-    {
-      static const GTypeInfo socket_address_info =
-      {
-	sizeof(GskSocketAddressClass),
-	(GBaseInitFunc) NULL,
-	(GBaseFinalizeFunc) NULL,
-	(GClassInitFunc) gsk_socket_address_class_init,
-	NULL,		/* class_finalize */
-	NULL,		/* class_data */
-	sizeof (GskSocketAddress),
-	0,		/* n_preallocs */
-	(GInstanceInitFunc) gsk_socket_address_init,
-	NULL		/* value_table */
-      };
-      GType parent = G_TYPE_OBJECT;
-      socket_address_type = g_type_register_static (parent,
-                                                    "GskSocketAddress",
-						    &socket_address_info, 
-						    G_TYPE_FLAG_ABSTRACT);
-    }
-  return socket_address_type;
 }
 
 /* --- GskSocketAddressIpv4 implementation --- */
@@ -155,9 +130,9 @@ gsk_socket_address_ipv4_init (GskSocketAddressIpv4 *socket_address_ipv4)
 }
 
 static void
-gsk_socket_address_ipv4_class_init (GskSocketAddressClass *class)
+gsk_socket_address_ipv4_class_init (GskSocketAddressIpv4Class *ipv4_class)
 {
-  socket_address_class = g_type_class_peek_parent (class);
+  GskSocketAddressClass *class = GSK_SOCKET_ADDRESS_CLASS (ipv4_class);
   class->address_family = AF_INET;
   class->protocol_family = PF_INET;
   class->sizeof_native_address = sizeof (struct sockaddr_in);
@@ -167,32 +142,6 @@ gsk_socket_address_ipv4_class_init (GskSocketAddressClass *class)
   class->hash = gsk_socket_address_ipv4_hash;
   class->equals = gsk_socket_address_ipv4_equals;
   gsk_socket_address_register_subclass (class);
-}
-
-GType gsk_socket_address_ipv4_get_type()
-{
-  static GType socket_address_ipv4_type = 0;
-  if (!socket_address_ipv4_type)
-    {
-      static const GTypeInfo socket_address_ipv4_info =
-      {
-	sizeof(GskSocketAddressIpv4Class),
-	(GBaseInitFunc) NULL,
-	(GBaseFinalizeFunc) NULL,
-	(GClassInitFunc) gsk_socket_address_ipv4_class_init,
-	NULL,		/* class_finalize */
-	NULL,		/* class_data */
-	sizeof (GskSocketAddressIpv4),
-	0,		/* n_preallocs */
-	(GInstanceInitFunc) gsk_socket_address_ipv4_init,
-	NULL		/* value_table */
-      };
-      GType parent = GSK_TYPE_SOCKET_ADDRESS;
-      socket_address_ipv4_type = g_type_register_static (parent,
-                                                  "GskSocketAddressIpv4",
-						  &socket_address_ipv4_info, 0);
-    }
-  return socket_address_ipv4_type;
 }
 
 /* --- ipv6 implementation --- */
@@ -271,9 +220,9 @@ gsk_socket_address_ipv6_init (GskSocketAddressIpv6 *socket_address_ipv6)
 }
 
 static void
-gsk_socket_address_ipv6_class_init (GskSocketAddressClass *class)
+gsk_socket_address_ipv6_class_init (GskSocketAddressIpv6Class *ipv6_class)
 {
-  socket_address_class = g_type_class_peek_parent (class);
+  GskSocketAddressClass *class = GSK_SOCKET_ADDRESS_CLASS (ipv6_class);
 #if SUPPORTS_IPV6
   class->address_family = AF_INET6;
   class->protocol_family = PF_INET6;
@@ -285,32 +234,6 @@ gsk_socket_address_ipv6_class_init (GskSocketAddressClass *class)
   class->hash = gsk_socket_address_ipv6_hash;
   class->equals = gsk_socket_address_ipv6_equals;
   gsk_socket_address_register_subclass (class);
-}
-
-GType gsk_socket_address_ipv6_get_type()
-{
-  static GType type = 0;
-  if (!type)
-    {
-      static const GTypeInfo socket_address_ipv6_info =
-      {
-	sizeof(GskSocketAddressIpv6Class),
-	(GBaseInitFunc) NULL,
-	(GBaseFinalizeFunc) NULL,
-	(GClassInitFunc) gsk_socket_address_ipv6_class_init,
-	NULL,		/* class_finalize */
-	NULL,		/* class_data */
-	sizeof (GskSocketAddressIpv6),
-	0,		/* n_preallocs */
-	(GInstanceInitFunc) gsk_socket_address_ipv6_init,
-	NULL		/* value_table */
-      };
-      type = g_type_register_static (GSK_TYPE_SOCKET_ADDRESS,
-				     "GskSocketAddressIpv6",
-				     &socket_address_ipv6_info,
-				     SUPPORTS_IPV6 ? 0 : G_TYPE_FLAG_ABSTRACT);
-    }
-  return type;
 }
 
 /* --- local (aka unix) socket address implementation --- */
@@ -384,7 +307,6 @@ static void
 gsk_socket_address_local_class_init (GskSocketAddressLocalClass *class)
 {
   GskSocketAddressClass *address_class = GSK_SOCKET_ADDRESS_CLASS (class);
-  socket_address_class = g_type_class_peek_parent (class);
   class->max_path_length = GSK_STRUCT_MEMBER_SIZE (struct sockaddr_un, sun_path);
   address_class->sizeof_native_address = sizeof (struct sockaddr_un);
   address_class->address_family = GSK_AF_LOCAL;
@@ -395,32 +317,6 @@ gsk_socket_address_local_class_init (GskSocketAddressLocalClass *class)
   address_class->equals = gsk_socket_address_local_equals;
   address_class->hash = gsk_socket_address_local_hash;
   gsk_socket_address_register_subclass (address_class);
-}
-
-GType gsk_socket_address_local_get_type()
-{
-  static GType socket_address_local_type = 0;
-  if (!socket_address_local_type)
-    {
-      static const GTypeInfo socket_address_local_info =
-      {
-	sizeof(GskSocketAddressLocalClass),
-	(GBaseInitFunc) NULL,
-	(GBaseFinalizeFunc) NULL,
-	(GClassInitFunc) gsk_socket_address_local_class_init,
-	NULL,		/* class_finalize */
-	NULL,		/* class_data */
-	sizeof (GskSocketAddressLocal),
-	16,		/* n_preallocs */
-	(GInstanceInitFunc) gsk_socket_address_local_init,
-	NULL		/* value_table */
-      };
-      GType parent = GSK_TYPE_SOCKET_ADDRESS;
-      socket_address_local_type = g_type_register_static (parent,
-                                                  "GskSocketAddressLocal",
-						  &socket_address_local_info, 0);
-    }
-  return socket_address_local_type;
 }
 
 /**
@@ -517,7 +413,6 @@ static void
 gsk_socket_address_ethernet_class_init (GskSocketAddressEthernetClass *eth_class)
 {
   GskSocketAddressClass *class = GSK_SOCKET_ADDRESS_CLASS (eth_class);
-  socket_address_class = g_type_class_peek_parent (eth_class);
   class->hash = gsk_socket_address_ethernet_hash;
   class->to_string = gsk_socket_address_ethernet_to_string;
   class->equals = gsk_socket_address_ethernet_equals;
@@ -530,31 +425,6 @@ gsk_socket_address_ethernet_class_init (GskSocketAddressEthernetClass *eth_class
   class->sizeof_native_address = sizeof (struct sockaddr_??? );
   gsk_socket_address_register_subclass (class);
 #endif
-}
-
-GType gsk_socket_address_ethernet_get_type()
-{
-  static GType socket_address_ethernet_type = 0;
-  if (!socket_address_ethernet_type)
-    {
-      static const GTypeInfo socket_address_ethernet_info =
-      {
-	sizeof(GskSocketAddressEthernetClass),
-	(GBaseInitFunc) NULL,
-	(GBaseFinalizeFunc) NULL,
-	(GClassInitFunc) gsk_socket_address_ethernet_class_init,
-	NULL,		/* class_finalize */
-	NULL,		/* class_data */
-	sizeof (GskSocketAddressEthernet),
-	0,		/* n_preallocs */
-	(GInstanceInitFunc) gsk_socket_address_ethernet_init,
-	NULL		/* value_table */
-      };
-      socket_address_ethernet_type = g_type_register_static (GSK_TYPE_SOCKET_ADDRESS,
-                                                  "GskSocketAddressEthernet",
-						  &socket_address_ethernet_info, 0);
-    }
-  return socket_address_ethernet_type;
 }
 
 /**

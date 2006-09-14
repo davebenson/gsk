@@ -72,6 +72,13 @@ struct _GskSocketAddressClass
   gboolean (*equals)     (GskSocketAddress *addr1,
 			  GskSocketAddress *addr2);
   guint    (*hash)       (GskSocketAddress *addr);
+
+  /* returns whether the socket has a native representation.
+
+     if not, to_native() and from_native() will not be implemented,
+     and special handling will be required by code that uses
+     those functions. see GskSocketAddressSymbolic. */
+  gboolean (*is_native)  (GskSocketAddress *);
 };
 struct _GskSocketAddress 
 {

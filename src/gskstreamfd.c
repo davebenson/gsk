@@ -41,6 +41,16 @@ enum
   PROP_IS_WRITABLE
 };
 
+typedef struct _GskStreamFdPrivate GskStreamFdPrivate;
+struct _GskStreamFdPrivate
+{
+  GskSocketAddressSymbolic *symbolic;
+  gpointer name_resolver;
+};
+#define GET_PRIVATE(stream_fd) \
+  G_TYPE_INSTANCE_GET_PRIVATE(stream_fd, GSK_TYPE_STREAM_FD, GskStreamFdPrivate)
+
+
 static GObjectClass *parent_class = NULL;
 
 static void
@@ -247,7 +257,8 @@ gsk_stream_fd_set_poll_event  (GskStreamFd   *stream_fd,
 			       gushort        event_mask,
 			       gboolean       do_poll)
 {
-  if (gsk_io_get_is_connecting (stream_fd))
+  if (stream_fd->is_resolving_name
+   || gsk_io_get_is_connecting (stream_fd))
     {
       if (do_poll)
 	stream_fd->post_connecting_events |= event_mask;
@@ -558,17 +569,33 @@ gsk_stream_fd_set_property (GObject        *object,
     }
 }
 
+static void
+gsk_stream_fd_finalize (GObject *object)
+{
+  GskStreamFd *stream_fd = GSK_STREAM_FD (object);
+  if (stream_fd->is_resolving_name)
+    {
+      GskStreamFdPrivate *priv = GET_PRIVATE (stream_fd);
+      if (priv->name_resolver != NULL)
+        {
+          gsk_socket_address_symbolic_cancel_resolution (priv->symbolic, priv->name_resolver);
+          priv->name_resolver = NULL;
+        }
+      stream_fd->is_resolving_name = 0;
+      g_object_unref (priv->symbolic);
+      priv->symbolic = NULL;
+    }
+  G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+
 static gboolean
 gsk_stream_fd_open (GskIO     *io,
 		    GError   **error)
 {
   GskStreamFd *stream_fd = GSK_STREAM_FD (io);
   if (stream_fd->fd < 0)
-    {
-      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_OPEN_FAILED,
-		   _("must specify valid file-descriptor"));
-      return FALSE;
-    }
+    return TRUE;                /* permit postponed fd assignment */
   return add_poll (stream_fd);
 }
 
@@ -598,6 +625,9 @@ gsk_stream_fd_class_init (GskStreamClass *class)
   io_class->close = gsk_stream_fd_close;
   object_class->get_property = gsk_stream_fd_get_property;
   object_class->set_property = gsk_stream_fd_set_property;
+  object_class->finalize = gsk_stream_fd_finalize;
+
+  g_type_class_add_private (class, sizeof (GskStreamFdPrivate));
 
   pspec = gsk_param_spec_fd ("file-descriptor",
 			     _("File Descriptor"),
@@ -757,11 +787,107 @@ gsk_stream_fd_new_connecting (gint fd)
   stream_fd->is_pollable = 1;
   set_events (stream_fd, G_IO_CONNECT);
 
-  /* assume that anything which is connecting is not a simple file. */
-  //stream_fd->is_socket = 1;
-
   return rv;
 }
+
+/* address which requires a name resolution */
+/**
+ * gsk_stream_fd_new_from_symbolic_address:
+ * @symbolic: a symbolic address.  name resolution will begin immediately.
+ * @error: optional error return value.
+ *
+ * Create a stream connecting to a symbolic socket-address.
+ *
+ * returns: a new GskStream
+ */
+static void
+done_resolving_name (GskStreamFd *stream_fd)
+{
+  GskStreamFdPrivate *priv = GET_PRIVATE (stream_fd);
+  stream_fd->is_resolving_name = 0;
+  priv->name_resolver = NULL;
+  g_object_unref (priv->symbolic);
+  priv->symbolic = NULL;
+}
+
+static void
+handle_name_lookup_success  (GskSocketAddressSymbolic *orig,
+                             GskSocketAddress         *resolved,
+                             gpointer                  user_data)
+{
+  GskStreamFd *stream_fd = GSK_STREAM_FD (user_data);
+  GError *error = NULL;
+  gboolean is_connected;
+
+  g_message ("handle_name_lookup_success");
+
+  g_object_ref (stream_fd);
+
+  done_resolving_name (stream_fd);
+  stream_fd->fd = gsk_socket_address_connect_fd (resolved, &is_connected, &error);
+  if (stream_fd->fd < 0)
+    {
+      gsk_io_set_gerror (GSK_IO (stream_fd), GSK_IO_ERROR_CONNECT, error);
+      gsk_io_notify_shutdown (GSK_IO (stream_fd));
+      goto cleanup;
+    }
+  stream_fd->is_shutdownable = 1;
+  gsk_fork_add_cleanup_fd (stream_fd->fd);
+  add_poll (stream_fd);
+  if (is_connected)
+    {
+      g_message ("is_connected...");
+      set_events (stream_fd, stream_fd->post_connecting_events);
+    }
+  else
+    {
+      g_message ("not is_connected...");
+      set_events (stream_fd, G_IO_CONNECT);
+      gsk_stream_mark_is_connecting (stream_fd);
+    }
+
+cleanup:
+  g_object_unref (stream_fd);
+}
+
+static void
+handle_name_lookup_failure  (GskSocketAddressSymbolic *orig,
+                             const GError             *error,
+                             gpointer                  user_data)
+{
+  GskStreamFd *stream_fd = GSK_STREAM_FD (user_data);
+
+  g_message ("handle_name_lookup_failure");
+
+  g_object_ref (stream_fd);
+  done_resolving_name (stream_fd);
+  gsk_io_set_gerror (GSK_IO (stream_fd), GSK_IO_ERROR_CONNECT, g_error_copy (error));
+  gsk_io_notify_shutdown (GSK_IO (stream_fd));
+  g_object_unref (stream_fd);
+}
+
+GskStream *
+gsk_stream_fd_new_from_symbolic_address (GskSocketAddressSymbolic *symbolic,
+                                         GError                  **error)
+{
+  GskStreamFd *stream_fd = g_object_new (GSK_TYPE_STREAM_FD, NULL);
+  GskStreamFdPrivate *priv = GET_PRIVATE (stream_fd);
+  stream_fd->is_resolving_name = 1;
+  stream_fd->is_pollable = 1;
+  gsk_stream_mark_is_readable (stream_fd);
+  gsk_stream_mark_is_writable (stream_fd);
+  priv->symbolic = g_object_ref (symbolic);
+  priv->name_resolver = gsk_socket_address_symbolic_create_name_resolver (symbolic);
+  g_message ("gsk_stream_fd_new_from_symbolic_address");
+  gsk_socket_address_symbolic_start_resolution (symbolic,
+                                                priv->name_resolver,
+                                                handle_name_lookup_success,
+                                                handle_name_lookup_failure,
+                                                stream_fd,
+                                                NULL);
+  return GSK_STREAM (stream_fd);
+}
+
 
 /* more constructors */
 

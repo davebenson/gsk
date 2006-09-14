@@ -2,6 +2,7 @@
 #define __GSK_STREAM_FD_H_
 
 #include "gskstream.h"
+#include "gsksocketaddresssymbolic.h"
 
 G_BEGIN_DECLS
 
@@ -38,6 +39,7 @@ struct _GskStreamFd
   /* read-only */
   guint is_pollable : 1;
   guint is_shutdownable : 1;
+  guint is_resolving_name : 1;
 
   int fd;
   gushort post_connecting_events;
@@ -70,6 +72,8 @@ GskStream   *gsk_stream_fd_new_auto        (gint            fd);
 
 
 GskStream   *gsk_stream_fd_new_connecting  (gint            fd);
+GskStream   *gsk_stream_fd_new_from_symbolic_address (GskSocketAddressSymbolic *,
+                                                      GError                  **error);
 
 /* reading/writing from/to a file */
 GskStream   *gsk_stream_fd_new_read_file   (const char     *filename,
