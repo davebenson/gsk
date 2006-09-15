@@ -9,7 +9,6 @@
 - mailto: URIs
 - basic tutorials need serious work. [simple-http-server is very misleading, should use gskhttpcontent]
 - BUILD: should check for zlib
-- GskPersistentConnection should use a symbolic socket-address
 - GskUrlTransferHttp should use a symbolic socket-address
 - HTTP client doesn't call the request's destroy function
   sometimes until it is finalized. ?

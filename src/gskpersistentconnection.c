@@ -18,13 +18,7 @@ maybe_message (GskPersistentConnection *connection,
 {
   if (connection->debug_connection)
     {
-      char *location;
-      if (connection->address)
-        location = gsk_socket_address_to_string (connection->address);
-      else
-        location = g_strdup_printf ("%s:%u",
-                                    connection->host,
-                                    connection->port);
+      char *location = gsk_socket_address_to_string (connection->address);
       g_message ("%s %s", verb, location);
       g_free (location);
     }
@@ -284,7 +278,8 @@ retry_connection (GskPersistentConnection *connection,
       return;
     }
   connection->transport = transport;
-  if (gsk_io_get_is_connecting (transport))
+  if (GSK_STREAM_FD (transport)->is_resolving_name
+   || gsk_io_get_is_connecting (transport))
     {
       connection->state = GSK_PERSISTENT_CONNECTION_CONNECTING;
       connection->transport_on_connect_signal_handler
@@ -351,37 +346,6 @@ static void gsk_persistent_connection_set_poll_write (GskIO    *io,
     }
 }
 
-static void
-handle_name_resolver_success (GskSocketAddress *address,
-                              gpointer          func_data)
-{
-  GskPersistentConnection *connection = GSK_PERSISTENT_CONNECTION (func_data);
-  GskSocketAddress *real_addr = gsk_socket_address_ipv4_new (GSK_SOCKET_ADDRESS_IPV4 (address)->ip_address, connection->port);
-  retry_connection (connection, real_addr);
-  g_object_unref (real_addr);
-}
-
-static void
-handle_name_resolver_failure (GError           *error,
-                              gpointer          func_data)
-{
-  GskPersistentConnection *connection = GSK_PERSISTENT_CONNECTION (func_data);
-  g_warning ("error looking up hostname %s", connection->host);
-  setup_timeout (connection);
-}
-
-static void
-retry_name_lookup (GskPersistentConnection *connection)
-{
-  connection->state = GSK_PERSISTENT_CONNECTION_DOING_NAME_LOOKUP;
-  gsk_name_resolver_lookup (GSK_NAME_RESOLVER_FAMILY_IPV4,
-                            connection->host,
-                            handle_name_resolver_success,
-                            handle_name_resolver_failure,
-                            g_object_ref (connection),
-                            g_object_unref);
-}
-
 static gboolean
 handle_retry_timeout_expired (gpointer data)
 {
@@ -389,10 +353,8 @@ handle_retry_timeout_expired (gpointer data)
   connection->retry_timeout_source = NULL;
   if (connection->address != NULL)
     retry_connection (connection, connection->address);
-  else if (connection->host != NULL)
-    retry_name_lookup (connection);
   else
-    g_warning ("no address nor host???");
+    g_warning ("no address???");
   return FALSE;
 }
 
@@ -412,12 +374,10 @@ gsk_persistent_connection_new_lookup (const char *host,
                                       guint       port,
                                       guint       retry_timeout_ms)
 {
-  GskPersistentConnection *connection = g_object_new (GSK_TYPE_PERSISTENT_CONNECTION, NULL);
-  connection->host = g_strdup (host);
-  connection->port = port;
-  connection->retry_timeout_ms = retry_timeout_ms;
-  retry_name_lookup (connection);
-  return GSK_STREAM (connection);
+  GskSocketAddress *symbolic = gsk_socket_address_symbolic_ipv4_new (host, port);
+  GskStream *pc = gsk_persistent_connection_new (symbolic, retry_timeout_ms);
+  g_object_unref (symbolic);
+  return pc;
 }
 
 void gsk_persistent_connection_restart (GskPersistentConnection *connection,
@@ -425,8 +385,6 @@ void gsk_persistent_connection_restart (GskPersistentConnection *connection,
 {
   if (connection->transport != NULL)
     shutdown_transport (connection);
-  if (connection->state == GSK_PERSISTENT_CONNECTION_DOING_NAME_LOOKUP)
-    return;
   if (connection->retry_timeout_source != NULL)
     {
       gsk_source_remove (connection->retry_timeout_source);

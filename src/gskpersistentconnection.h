@@ -20,10 +20,15 @@ GType gsk_persistent_connection_get_type(void) G_GNUC_CONST;
 #define GSK_IS_PERSISTENT_CONNECTION_CLASS(klass)   (G_TYPE_CHECK_CLASS_TYPE ((klass), GSK_TYPE_PERSISTENT_CONNECTION))
 
 /* --- structures --- */
+/* NOTE: the "DOING_NAME_RESOLUTION" state is now obsolete,
+   but it is retained for backward compatibility.
+   Use the gsk_persistent_connection_is_doing_name_resolution()
+   macro, and know that when doing name-resolution,
+   state == CONNECTING. */
 typedef enum
 {
   GSK_PERSISTENT_CONNECTION_INIT,
-  GSK_PERSISTENT_CONNECTION_DOING_NAME_LOOKUP,
+  GSK_PERSISTENT_CONNECTION_DOING_NAME_RESOLUTION,
   GSK_PERSISTENT_CONNECTION_CONNECTING,
   GSK_PERSISTENT_CONNECTION_CONNECTED,
   GSK_PERSISTENT_CONNECTION_WAITING
@@ -52,16 +57,17 @@ struct _GskPersistentConnection
   /* by socket address */
   GskSocketAddress *address;
 
-  /* by host:port pair */
-  char *host;
-  guint port;
-
   /*< private >*/
   GskStream        *transport;
   GskSource        *retry_timeout_source;
   gulong transport_on_connect_signal_handler;
   gulong transport_on_error_signal_handler;
 };
+
+/* note: you will have to #include streamfd.h for this to work. */
+#define gsk_persistent_connection_is_doing_name_resolution(pc) \
+  ((pc)->state == GSK_PERSISTENT_CONNECTION_CONNECTING         \
+   && GSK_STREAM_FD ((pc)->transport)->is_resolving_name)
 
 /* --- prototypes --- */
 GskStream *gsk_persistent_connection_new (GskSocketAddress *address,
