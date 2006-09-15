@@ -265,7 +265,10 @@ gsk_stream_fd_set_poll_event  (GskStreamFd   *stream_fd,
       else
 	stream_fd->post_connecting_events &= ~event_mask;
     }
-
+  else if (stream_fd->failed_name_resolution)
+    {
+      /* do nothing, about to shutdown */
+    }
   else
     {
 #if USE_GLIB_MAIN_LOOP
@@ -434,7 +437,16 @@ gsk_stream_fd_shutdown_read   (GskIO         *io,
 			       GError       **error)
 {
   GskStreamFd *stream_fd = GSK_STREAM_FD (io);
-  if (stream_fd->is_shutdownable)
+  if (stream_fd->is_resolving_name)
+    {
+      if (!gsk_io_get_is_writable (io))
+        {
+          GskStreamFdPrivate *priv = GET_PRIVATE (stream_fd);
+          gsk_socket_address_symbolic_cancel_resolution (priv->symbolic,
+                                                         priv->name_resolver);
+        }
+    }
+  else if (stream_fd->is_shutdownable)
     {
       if (shutdown (stream_fd->fd, SHUT_RD) < 0)
 	{
@@ -471,7 +483,16 @@ gsk_stream_fd_shutdown_write  (GskIO         *io,
 			       GError       **error)
 {
   GskStreamFd *stream_fd = GSK_STREAM_FD (io);
-  if (stream_fd->is_shutdownable)
+  if (stream_fd->is_resolving_name)
+    {
+      if (!gsk_io_get_is_readable (io))
+        {
+          GskStreamFdPrivate *priv = GET_PRIVATE (stream_fd);
+          gsk_socket_address_symbolic_cancel_resolution (priv->symbolic,
+                                                         priv->name_resolver);
+        }
+    }
+  else if (stream_fd->is_shutdownable)
     {
       if (shutdown (stream_fd->fd, SHUT_WR) < 0)
 	{
@@ -819,8 +840,6 @@ handle_name_lookup_success  (GskSocketAddressSymbolic *orig,
   GError *error = NULL;
   gboolean is_connected;
 
-  g_message ("handle_name_lookup_success");
-
   g_object_ref (stream_fd);
 
   done_resolving_name (stream_fd);
@@ -836,12 +855,10 @@ handle_name_lookup_success  (GskSocketAddressSymbolic *orig,
   add_poll (stream_fd);
   if (is_connected)
     {
-      g_message ("is_connected...");
       set_events (stream_fd, stream_fd->post_connecting_events);
     }
   else
     {
-      g_message ("not is_connected...");
       set_events (stream_fd, G_IO_CONNECT);
       gsk_stream_mark_is_connecting (stream_fd);
     }
@@ -857,7 +874,7 @@ handle_name_lookup_failure  (GskSocketAddressSymbolic *orig,
 {
   GskStreamFd *stream_fd = GSK_STREAM_FD (user_data);
 
-  g_message ("handle_name_lookup_failure");
+  stream_fd->failed_name_resolution = 1;
 
   g_object_ref (stream_fd);
   done_resolving_name (stream_fd);
@@ -878,7 +895,6 @@ gsk_stream_fd_new_from_symbolic_address (GskSocketAddressSymbolic *symbolic,
   gsk_stream_mark_is_writable (stream_fd);
   priv->symbolic = g_object_ref (symbolic);
   priv->name_resolver = gsk_socket_address_symbolic_create_name_resolver (symbolic);
-  g_message ("gsk_stream_fd_new_from_symbolic_address");
   gsk_socket_address_symbolic_start_resolution (symbolic,
                                                 priv->name_resolver,
                                                 handle_name_lookup_success,
