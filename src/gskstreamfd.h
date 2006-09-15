@@ -40,6 +40,7 @@ struct _GskStreamFd
   guint is_pollable : 1;
   guint is_shutdownable : 1;
   guint is_resolving_name : 1;
+  guint failed_name_resolution : 1;
 
   int fd;
   gushort post_connecting_events;
