@@ -1,3 +1,4 @@
+#include <string.h>
 #include "gsksocketaddresssymbolic.h"
 #include "gsknameresolver.h"
 
@@ -27,6 +28,25 @@ gsk_socket_address_symbolic_from_native (GskSocketAddress *address,
 			                 gsize             sockaddr_length)
 {
   return FALSE;
+}
+
+static char *
+gsk_socket_address_symbolic_to_string  (GskSocketAddress *address)
+{
+  return g_strdup (GSK_SOCKET_ADDRESS_SYMBOLIC (address)->name);
+}
+
+static gboolean
+gsk_socket_address_symbolic_equals     (GskSocketAddress *addr1,
+                                        GskSocketAddress *addr2)
+{
+  return strcmp (GSK_SOCKET_ADDRESS_SYMBOLIC (addr1)->name,
+                 GSK_SOCKET_ADDRESS_SYMBOLIC (addr2)->name) == 0;
+}
+static guint
+gsk_socket_address_symbolic_hash       (GskSocketAddress *addr)
+{
+  return g_str_hash (GSK_SOCKET_ADDRESS_SYMBOLIC (addr)->name) + 100000;
 }
 
 static void
@@ -78,6 +98,9 @@ gsk_socket_address_symbolic_class_init (GskSocketAddressSymbolicClass *class)
   GskSocketAddressClass *address_class = GSK_SOCKET_ADDRESS_CLASS (class);
   address_class->to_native = gsk_socket_address_symbolic_to_native;
   address_class->from_native = gsk_socket_address_symbolic_from_native;
+  address_class->to_string = gsk_socket_address_symbolic_to_string;
+  address_class->hash = gsk_socket_address_symbolic_hash;
+  address_class->equals = gsk_socket_address_symbolic_equals;
   object_class->set_property = gsk_socket_address_symbolic_set_property;
   object_class->get_property = gsk_socket_address_symbolic_get_property;
   object_class->finalize = gsk_socket_address_symbolic_finalize;
@@ -133,6 +156,7 @@ struct _Ipv4NameResolver
   gpointer data;
   GDestroyNotify destroy;
   GskNameResolverTask *task;
+  gboolean resolved;
 };
 
 static gpointer 
@@ -149,10 +173,14 @@ ipv4_handle_success (GskSocketAddress *address,
 {
   Ipv4NameResolver *resolver = func_data;
 
-  /* prepare new socket address */
   GskSocketAddressIpv4 *host_only = GSK_SOCKET_ADDRESS_IPV4 (address);
-  GskSocketAddress *real = gsk_socket_address_ipv4_new (host_only->ip_address,
-                                                        resolver->ipv4->port);
+  GskSocketAddress *real;
+
+  resolver->resolved = 1;
+
+  /* prepare new socket address */
+  real = gsk_socket_address_ipv4_new (host_only->ip_address,
+                                      resolver->ipv4->port);
 
   /* invoke user's callback */
   (*resolver->resolve_func) (GSK_SOCKET_ADDRESS_SYMBOLIC (resolver->ipv4),
@@ -161,9 +189,6 @@ ipv4_handle_success (GskSocketAddress *address,
 
   /* cleanup */
   g_object_unref (real);
-
-  /* cancellation no longer allowed */
-  resolver->task = NULL;
 }
 
 static void
@@ -171,21 +196,21 @@ ipv4_handle_failure (GError           *error,
                      gpointer          func_data)
 {
   Ipv4NameResolver *resolver = func_data;
+  resolver->resolved = 1;
+
+  /* invoke user's callback */
   if (resolver->error_func != NULL)
     (*resolver->error_func) (GSK_SOCKET_ADDRESS_SYMBOLIC (resolver->ipv4),
                              error,
                              resolver->data);
-
-  /* cancellation no longer allowed */
-  resolver->task = NULL;
 }
 
 static void
 ipv4_handle_destroy (gpointer          func_data)
 {
   Ipv4NameResolver *resolver = func_data;
-  g_assert (resolver->task == NULL);
-  if (resolver->destroy)
+  g_assert (resolver->resolved);
+  if (resolver->destroy != NULL)
     resolver->destroy (resolver->data);
   g_object_unref (resolver->ipv4);
   g_free (resolver);
@@ -204,7 +229,7 @@ gsk_socket_address_symbolic_ipv4_start_resolution (GskSocketAddressSymbolic *sym
   resolver->error_func = e;
   resolver->data = user_data;
   resolver->destroy = destroy;
-  //resolver->is_starting = TRUE;
+  resolver->resolved = 0;
   resolver->task = gsk_name_resolver_task_new (GSK_NAME_RESOLVER_FAMILY_IPV4,
                                                symbolic->name,
                                                ipv4_handle_success,
@@ -221,6 +246,18 @@ gsk_socket_address_symbolic_ipv4_cancel_resolution (GskSocketAddressSymbolic *sy
                                                     gpointer                  name_resolver)
 {
   Ipv4NameResolver *resolver = name_resolver;
+
+  /* if this triggers, i guess that we are in
+     the start_resolution() callback,
+     and name resolution hasn't blocked,
+     so that either "success" or "failure" 
+     callback is being invoked.  but then,
+     how did the user get the pointer "resolver"?
+     it's impossible. */
+  g_return_if_fail (resolver->task != NULL);
+
+  if (resolver->resolved)
+    return;
   if (resolver->task != NULL)
     {
       GskNameResolverTask *task = resolver->task;
@@ -229,6 +266,30 @@ gsk_socket_address_symbolic_ipv4_cancel_resolution (GskSocketAddressSymbolic *sy
     }
 }
 
+
+static char *
+gsk_socket_address_symbolic_ipv4_to_string  (GskSocketAddress *address)
+{
+  return g_strdup_printf ("%s:%u",
+                          GSK_SOCKET_ADDRESS_SYMBOLIC (address)->name,
+                          (guint) GSK_SOCKET_ADDRESS_SYMBOLIC_IPV4 (address)->port);
+}
+
+static gboolean
+gsk_socket_address_symbolic_ipv4_equals(GskSocketAddress *addr1,
+                                        GskSocketAddress *addr2)
+{
+  return strcmp (GSK_SOCKET_ADDRESS_SYMBOLIC (addr1)->name,
+                 GSK_SOCKET_ADDRESS_SYMBOLIC (addr2)->name) == 0
+     &&   GSK_SOCKET_ADDRESS_SYMBOLIC_IPV4 (addr1)->port
+       == GSK_SOCKET_ADDRESS_SYMBOLIC_IPV4 (addr2)->port;
+}
+static guint
+gsk_socket_address_symbolic_ipv4_hash   (GskSocketAddress *addr)
+{
+  return g_str_hash (GSK_SOCKET_ADDRESS_SYMBOLIC (addr)->name) + 200000
+     + GSK_SOCKET_ADDRESS_SYMBOLIC_IPV4 (addr)->port;
+}
 static void
 gsk_socket_address_symbolic_ipv4_set_property (GObject        *object,
                                                guint           property_id,
@@ -274,10 +335,14 @@ static void
 gsk_socket_address_symbolic_ipv4_class_init (GskSocketAddressSymbolicIpv4Class *class)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (class);
+  GskSocketAddressClass *address_class = GSK_SOCKET_ADDRESS_CLASS (class);
   GskSocketAddressSymbolicClass *symbolic_class = GSK_SOCKET_ADDRESS_SYMBOLIC_CLASS (class);
   object_class->set_property = gsk_socket_address_symbolic_ipv4_set_property;
   object_class->get_property = gsk_socket_address_symbolic_ipv4_get_property;
   object_class->finalize = gsk_socket_address_symbolic_ipv4_finalize;
+  address_class->to_string = gsk_socket_address_symbolic_ipv4_to_string;
+  address_class->hash = gsk_socket_address_symbolic_ipv4_hash;
+  address_class->equals = gsk_socket_address_symbolic_ipv4_equals;
   symbolic_class->create_name_resolver = gsk_socket_address_symbolic_ipv4_create_name_resolver;
   symbolic_class->start_resolution = gsk_socket_address_symbolic_ipv4_start_resolution;
   symbolic_class->cancel_resolution = gsk_socket_address_symbolic_ipv4_cancel_resolution;
