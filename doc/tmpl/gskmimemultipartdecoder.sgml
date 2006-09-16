@@ -86,8 +86,6 @@ a stream for just a few bytes.  This is can be slightly inconvenient.
 
 @decoder: 
 @mode: 
-<!-- # Unused Parameters # -->
-@multipart_decoder: 
 
 
 <!-- ##### FUNCTION gsk_mime_multipart_decoder_get_piece ##### -->
@@ -97,8 +95,6 @@ a stream for just a few bytes.  This is can be slightly inconvenient.
 
 @decoder: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@multipart_decoder: 
 
 
 <!-- ##### MACRO gsk_mime_multipart_decoder_trap ##### -->

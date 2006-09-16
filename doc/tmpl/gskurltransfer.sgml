@@ -114,6 +114,12 @@ and indicates that the length is not known in advance.
 @Returns: a newly allocated stream, or NULL if an error occurs.
 
 
+<!-- ##### STRUCT GskUrlTransfer ##### -->
+<para>
+
+</para>
+
+
 <!-- ##### FUNCTION gsk_url_transfer ##### -->
 <para>
 
@@ -222,8 +228,6 @@ and indicates that the length is not known in advance.
 
 @transfer: 
 @address: 
-<!-- # Unused Parameters # -->
-@addr: 
 
 
 <!-- ##### FUNCTION gsk_url_transfer_start ##### -->
@@ -301,6 +305,7 @@ and indicates that the length is not known in advance.
 @response: 
 @is_permanent: 
 @dest_url: 
+@Returns: 
 
 
 <!-- ##### FUNCTION gsk_url_transfer_set_download ##### -->
@@ -364,5 +369,24 @@ and indicates that the length is not known in advance.
 
 @scheme: 
 @transfer_class: 
+
+
+<!-- ##### FUNCTION gsk_url_transfer_get_state_string ##### -->
+<para>
+
+</para>
+
+@transfer: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_url_transfer_stream_new ##### -->
+<para>
+
+</para>
+
+@transfer: 
+@error: 
+@Returns: 
 
 

@@ -35,8 +35,6 @@ Information about how to initialize GSK.
 </para>
 
 @info: 
-<!-- # Unused Parameters # -->
-@out: 
 
 
 <!-- ##### FUNCTION gsk_init ##### -->

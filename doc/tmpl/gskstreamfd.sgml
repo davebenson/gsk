@@ -71,10 +71,6 @@ An instance of a file-descriptor based stream.
 @fd: 
 @flags: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@is_readable: 
-@is_writable: 
-@is_file: 
 
 
 <!-- ##### FUNCTION gsk_stream_fd_new_auto ##### -->
@@ -158,7 +154,37 @@ An instance of a file-descriptor based stream.
 @permission: 
 @error: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@is_reading: 
+
+
+<!-- ##### FUNCTION gsk_stream_fd_duplex_pipe ##### -->
+<para>
+
+</para>
+
+@side_a_out: 
+@side_b_out: 
+@error: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_stream_fd_duplex_pipe_fd ##### -->
+<para>
+
+</para>
+
+@side_a_out: 
+@side_b_fd_out: 
+@error: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_stream_fd_new_from_symbolic_address ##### -->
+<para>
+
+</para>
+
+@Param1: 
+@error: 
+@Returns: 
 
 

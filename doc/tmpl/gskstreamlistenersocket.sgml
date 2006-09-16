@@ -52,9 +52,6 @@ An instance of a socket-based #GskStreamListener.
 @address: 
 @error: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@may_reuse_addr: 
-@addr: 
 
 
 <!-- ##### FUNCTION gsk_stream_listener_socket_new_bind_full ##### -->
@@ -75,6 +72,16 @@ An instance of a socket-based #GskStreamListener.
 
 @lis: 
 @backlog: 
+
+
+<!-- ##### FUNCTION gsk_stream_listener_socket_new_from_fd ##### -->
+<para>
+
+</para>
+
+@fd: 
+@error: 
+@Returns: 
 
 
 <!-- ##### MACRO GSK_STREAM_LISTENER_SOCKET_USE_GLIB_MAIN_LOOP ##### -->

@@ -1,0 +1,103 @@
+<!-- ##### SECTION Title ##### -->
+GskSocketAddressSymbolicIpv4
+
+<!-- ##### SECTION Short_Description ##### -->
+
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION Stability_Level ##### -->
+
+
+<!-- ##### MACRO GSK_TYPE_SOCKET_ADDRESS_SYMBOLIC_IPV4 ##### -->
+<para>
+
+</para>
+
+
+
+<!-- ##### USER_FUNCTION GskSocketAddressSymbolicResolveFunc ##### -->
+<para>
+
+</para>
+
+@orig: 
+@resolved: 
+@user_data: 
+
+
+<!-- ##### USER_FUNCTION GskSocketAddressSymbolicErrorFunc ##### -->
+<para>
+
+</para>
+
+@orig: 
+@error: 
+@user_data: 
+
+
+<!-- ##### STRUCT GskSocketAddressSymbolic ##### -->
+<para>
+
+</para>
+
+@socket_address: 
+@name: 
+
+<!-- ##### STRUCT GskSocketAddressSymbolicIpv4 ##### -->
+<para>
+
+</para>
+
+@base_instance: 
+@port: 
+
+<!-- ##### FUNCTION gsk_socket_address_symbolic_ipv4_new ##### -->
+<para>
+
+</para>
+
+@name: 
+@port: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_socket_address_symbolic_create_name_resolver ##### -->
+<para>
+
+</para>
+
+@symbolic: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_socket_address_symbolic_start_resolution ##### -->
+<para>
+
+</para>
+
+@symbolic: 
+@name_resolver: 
+@r: 
+@e: 
+@user_data: 
+@destroy: 
+
+
+<!-- ##### FUNCTION gsk_socket_address_symbolic_cancel_resolution ##### -->
+<para>
+
+</para>
+
+@symbolic: 
+@name_resolver: 
+
+

@@ -566,8 +566,6 @@ perform a particular operation (e.g., zone transfer) for particular data.
 
 @question: 
 @fp: 
-<!-- # Unused Parameters # -->
-@message: 
 
 
 <!-- ##### FUNCTION gsk_dns_parse_ip_address ##### -->

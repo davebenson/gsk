@@ -55,6 +55,16 @@ object.
 @pool: 
 
 
+<!-- ##### FUNCTION gsk_mem_pool_construct_with_scratch_buf ##### -->
+<para>
+
+</para>
+
+@pool: 
+@buffer: 
+@buffer_size: 
+
+
 <!-- ##### FUNCTION gsk_mem_pool_alloc ##### -->
 <para>
 

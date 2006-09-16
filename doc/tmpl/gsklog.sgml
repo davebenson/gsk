@@ -48,6 +48,23 @@ Log a message at the DEBUG priority level.
 
 @domain: the log-domain to use to categorize the message.
 @...: printf-style format and arguments.
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...: 
 
 
 <!-- ##### MACRO gsk_warning ##### -->
@@ -58,6 +75,23 @@ Messages logged at this level can be fatal in debugging mode.
 
 @domain: the log-domain to use to categorize the message.
 @...: printf-style format and arguments.
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...: 
 
 
 <!-- ##### MACRO gsk_error ##### -->
@@ -68,6 +102,23 @@ Messages logged at this level are always fatal.
 
 @domain:  the log-domain to use to categorize the message.
 @...: printf-style format and arguments.
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...: 
 
 
 <!-- ##### MACRO gsk_critical ##### -->
@@ -78,5 +129,22 @@ Messages logged at this level can be fatal in debugging mode.
 
 @domain:  the log-domain to use to categorize the message.
 @...: printf-style format and arguments.
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...:
+@...: 
 
 

@@ -81,8 +81,6 @@ GskControlServer.
 @argv_inout: 
 @flags: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@Param4: 
 
 
 <!-- ##### FUNCTION gsk_control_client_print_command_line_usage ##### -->
@@ -91,8 +89,6 @@ GskControlServer.
 </para>
 
 @flags: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_control_client_run_command ##### -->

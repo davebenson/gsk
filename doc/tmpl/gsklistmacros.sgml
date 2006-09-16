@@ -1,0 +1,238 @@
+<!-- ##### SECTION Title ##### -->
+gsklistmacros
+
+<!-- ##### SECTION Short_Description ##### -->
+
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION Stability_Level ##### -->
+
+
+<!-- ##### MACRO GSK_LOG2_MAX_LIST_SIZE ##### -->
+<para>
+
+</para>
+
+
+
+<!-- ##### MACRO GSK_STACK_PUSH ##### -->
+<para>
+
+</para>
+
+@stack: 
+@node: 
+
+
+<!-- ##### MACRO GSK_STACK_POP ##### -->
+<para>
+
+</para>
+
+@stack: 
+@rv_node: 
+
+
+<!-- ##### MACRO GSK_STACK_INSERT_AFTER ##### -->
+<para>
+
+</para>
+
+@stack: 
+@above_node: 
+@new_node: 
+
+
+<!-- ##### MACRO GSK_STACK_REVERSE ##### -->
+<para>
+
+</para>
+
+@stack: 
+
+
+<!-- ##### MACRO GSK_STACK_FOREACH ##### -->
+<para>
+
+</para>
+
+@stack: 
+@iter_var: 
+@code: 
+
+
+<!-- ##### MACRO GSK_STACK_SORT ##### -->
+<para>
+
+</para>
+
+@stack: 
+@comparator: 
+
+
+<!-- ##### MACRO GSK_STACK_GET_BOTTOM ##### -->
+<para>
+
+</para>
+
+@stack: 
+@rv_node: 
+
+
+<!-- ##### MACRO GSK_STACK_IS_EMPTY ##### -->
+<para>
+
+</para>
+
+@stack: 
+
+
+<!-- ##### MACRO GSK_QUEUE_ENQUEUE ##### -->
+<para>
+
+</para>
+
+@queue: 
+@node: 
+
+
+<!-- ##### MACRO GSK_QUEUE_DEQUEUE ##### -->
+<para>
+
+</para>
+
+@queue: 
+@rv_node: 
+
+
+<!-- ##### MACRO GSK_QUEUE_PREPEND ##### -->
+<para>
+
+</para>
+
+@queue: 
+@node: 
+
+
+<!-- ##### MACRO GSK_QUEUE_REVERSE ##### -->
+<para>
+
+</para>
+
+@queue: 
+
+
+<!-- ##### MACRO GSK_QUEUE_SORT ##### -->
+<para>
+
+</para>
+
+@queue: 
+@comparator: 
+
+
+<!-- ##### MACRO GSK_QUEUE_IS_EMPTY ##### -->
+<para>
+
+</para>
+
+@queue: 
+
+
+<!-- ##### MACRO GSK_LIST_PREPEND ##### -->
+<para>
+
+</para>
+
+@list: 
+@node: 
+
+
+<!-- ##### MACRO GSK_LIST_APPEND ##### -->
+<para>
+
+</para>
+
+@list: 
+@node: 
+
+
+<!-- ##### MACRO GSK_LIST_REMOVE_FIRST ##### -->
+<para>
+
+</para>
+
+@list: 
+
+
+<!-- ##### MACRO GSK_LIST_REMOVE_LAST ##### -->
+<para>
+
+</para>
+
+@list: 
+
+
+<!-- ##### MACRO GSK_LIST_REMOVE ##### -->
+<para>
+
+</para>
+
+@list: 
+@node: 
+
+
+<!-- ##### MACRO GSK_LIST_INSERT_AFTER ##### -->
+<para>
+
+</para>
+
+@list: 
+@at: 
+@node: 
+
+
+<!-- ##### MACRO GSK_LIST_INSERT_BEFORE ##### -->
+<para>
+
+</para>
+
+@list: 
+@at: 
+@node: 
+
+
+<!-- ##### MACRO GSK_LIST_IS_EMPTY ##### -->
+<para>
+
+</para>
+
+@list: 
+
+
+<!-- ##### MACRO GSK_LIST_REVERSE ##### -->
+<para>
+
+</para>
+
+@list: 
+
+
+<!-- ##### MACRO GSK_LIST_SORT ##### -->
+<para>
+
+</para>
+
+@list: 
+@comparator: 
+
+

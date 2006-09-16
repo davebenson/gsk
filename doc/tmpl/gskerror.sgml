@@ -171,6 +171,10 @@ of error conditions.
 @GSK_ERROR_TOO_MANY_USERS: 
 @GSK_ERROR_MULTIPLE_ROOTS: 
 @GSK_ERROR_NO_DOCUMENT: 
+@GSK_ERROR_COMPILE: 
+@GSK_ERROR_LINK: 
+@GSK_ERROR_OPEN_MODULE: 
+@GSK_ERROR_CIRCULAR: 
 
 <!-- ##### FUNCTION gsk_error_code_from_errno ##### -->
 <para>
@@ -179,5 +183,24 @@ of error conditions.
 
 @errno_number: 
 @Returns: 
+
+
+<!-- ##### FUNCTION gsk_g_error_add_prefix ##### -->
+<para>
+
+</para>
+
+@error: 
+@format: 
+@Varargs: 
+
+
+<!-- ##### FUNCTION gsk_fatal_user_error ##### -->
+<para>
+
+</para>
+
+@format: 
+@Varargs: 
 
 

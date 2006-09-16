@@ -1000,8 +1000,6 @@ length in advance.
 </para>
 
 @set: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_http_char_set_new ##### -->
@@ -1020,8 +1018,6 @@ length in advance.
 </para>
 
 @char_set: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_http_content_encoding_set_new ##### -->
@@ -1095,6 +1091,39 @@ length in advance.
 @set: 
 
 
+<!-- ##### FUNCTION gsk_http_authenticate_new_basic ##### -->
+<para>
+
+</para>
+
+@realm: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_http_authenticate_new_digest ##### -->
+<para>
+
+</para>
+
+@realm: 
+@domain: 
+@nonce: 
+@opaque: 
+@algorithm: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_http_authenticate_new_unknown ##### -->
+<para>
+
+</para>
+
+@auth_scheme_name: 
+@realm: 
+@options: 
+@Returns: 
+
+
 <!-- ##### FUNCTION gsk_http_authorization_new_basic ##### -->
 <para>
 
@@ -1137,6 +1166,61 @@ length in advance.
 
 @Param1: 
 @Returns: 
+
+
+<!-- ##### FUNCTION gsk_http_authorization_copy ##### -->
+<para>
+
+</para>
+
+@Param1: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_http_authorization_free ##### -->
+<para>
+
+</para>
+
+@Param1: 
+
+
+<!-- ##### FUNCTION gsk_http_authorization_new_digest ##### -->
+<para>
+
+</para>
+
+@realm: 
+@domain: 
+@nonce: 
+@opaque: 
+@algorithm: 
+@user: 
+@password: 
+@response_digest: 
+@entity_digest: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_http_authorization_new_respond ##### -->
+<para>
+
+</para>
+
+@Param1: 
+@user: 
+@password: 
+@error: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_http_authorization_set_nonce ##### -->
+<para>
+
+</para>
+
+@Param1: 
+@nonce: 
 
 
 <!-- ##### FUNCTION gsk_http_cookie_new ##### -->
@@ -1352,9 +1436,6 @@ when parsing.
 
 @header: 
 @output: 
-<!-- # Unused Parameters # -->
-@http_header: 
-@buffer: 
 
 
 <!-- ##### FUNCTION gsk_http_header_set_content_encoding ##### -->
@@ -1409,6 +1490,16 @@ in [RFC 2616, Section 14.18].
 @header: 
 @key: 
 @value: 
+
+
+<!-- ##### FUNCTION gsk_http_header_lookup_misc ##### -->
+<para>
+
+</para>
+
+@header: 
+@key: 
+@Returns: 
 
 
 <!-- ##### FUNCTION gsk_http_header_remove_misc ##### -->
@@ -1497,8 +1588,6 @@ Get the Connection type reflected in this header.
 </para>
 
 @header: the header to query.
-<!-- # Unused Parameters # -->
-@connection_type: 
 
 
 <!-- ##### MACRO gsk_http_header_set_transfer_encoding ##### -->
@@ -1601,6 +1690,41 @@ cannot be predetermined.
 </para>
 
 @header: the header to query.
+
+
+<!-- ##### MACRO gsk_http_header_get_content_charset ##### -->
+<para>
+
+</para>
+
+@header: 
+
+
+<!-- ##### FUNCTION gsk_http_header_add_accepted_range ##### -->
+<para>
+
+</para>
+
+@header: 
+@range: 
+
+
+<!-- ##### FUNCTION gsk_http_header_add_pragma ##### -->
+<para>
+
+</para>
+
+@header: 
+@pragma: 
+
+
+<!-- ##### MACRO gsk_http_header_set_content_charset ##### -->
+<para>
+
+</para>
+
+@header: 
+@content_type: 
 
 
 <!-- ##### MACRO gsk_http_header_set_range ##### -->

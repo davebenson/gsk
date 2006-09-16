@@ -633,7 +633,8 @@ gskxmltoken
 
 </para>
 
-@...: 
+@...:
+
 
 <!-- ##### MACRO GSK_HTTP_REQUEST ##### -->
 <para>
@@ -747,6 +748,20 @@ gskxmltoken
 
 @klass: 
 
+<!-- ##### MACRO GSK_IS_SOCKET_ADDRESS_SYMBOLIC_IPV4 ##### -->
+<para>
+
+</para>
+
+@obj: 
+
+<!-- ##### MACRO GSK_IS_SOCKET_ADDRESS_SYMBOLIC_IPV4_CLASS ##### -->
+<para>
+
+</para>
+
+@klass: 
+
 <!-- ##### MACRO GSK_LISP_NODE_IS_LIST ##### -->
 <para>
 
@@ -754,11 +769,681 @@ gskxmltoken
 
 @node: 
 
+<!-- ##### MACRO GSK_LIST_APPEND_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@first: 
+@last: 
+@prev: 
+@next: 
+@node: 
+
+<!-- ##### MACRO GSK_LIST_INSERT_AFTER_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@first: 
+@last: 
+@prev: 
+@next: 
+@at: 
+@node: 
+
+<!-- ##### MACRO GSK_LIST_INSERT_BEFORE_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@first: 
+@last: 
+@prev: 
+@next: 
+@at: 
+@node: 
+
+<!-- ##### MACRO GSK_LIST_IS_EMPTY_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@first: 
+@last: 
+@prev: 
+@next: 
+
+<!-- ##### MACRO GSK_LIST_PREPEND_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@first: 
+@last: 
+@prev: 
+@next: 
+@node: 
+
+<!-- ##### MACRO GSK_LIST_REMOVE_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@first: 
+@last: 
+@prev: 
+@next: 
+@node: 
+
+<!-- ##### MACRO GSK_LIST_REMOVE_FIRST_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@first: 
+@last: 
+@prev: 
+@next: 
+
+<!-- ##### MACRO GSK_LIST_REMOVE_LAST_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@first: 
+@last: 
+@prev: 
+@next: 
+
+<!-- ##### MACRO GSK_LIST_REVERSE_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@first: 
+@last: 
+@prev: 
+@next: 
+
+<!-- ##### MACRO GSK_LIST_SORT_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@first: 
+@last: 
+@prev: 
+@next: 
+@comparator: 
+
 <!-- ##### MACRO GSK_PACKET_QUEUE_FD_USE_GLIB_MAIN_LOOP ##### -->
 <para>
 
 </para>
 
+
+<!-- ##### MACRO GSK_QUEUE_DEQUEUE_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@head: 
+@tail: 
+@next: 
+@rv_node: 
+
+<!-- ##### MACRO GSK_QUEUE_ENQUEUE_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@head: 
+@tail: 
+@next: 
+@node: 
+
+<!-- ##### MACRO GSK_QUEUE_IS_EMPTY_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@head: 
+@tail: 
+@next: 
+
+<!-- ##### MACRO GSK_QUEUE_PREPEND_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@head: 
+@tail: 
+@next: 
+@node: 
+
+<!-- ##### MACRO GSK_QUEUE_REVERSE_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@head: 
+@tail: 
+@next: 
+
+<!-- ##### MACRO GSK_QUEUE_SORT_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@head: 
+@tail: 
+@next: 
+@comparator: 
+
+<!-- ##### MACRO GSK_RBCTREE_FIRST_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_GET_BY_INDEX_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@index: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_GET_BY_INDEX_UNCHECKED_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@index: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_GET_NODE_INDEX_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@node: 
+@index_out: 
+
+<!-- ##### MACRO GSK_RBCTREE_INFIMUM_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_INFIMUM_COMPARATOR_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@key_comparator: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_INSERT_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@node: 
+@collision_node: 
+
+<!-- ##### MACRO GSK_RBCTREE_LAST_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_LOOKUP_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_LOOKUP_COMPARATOR_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@key_comparator: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_NEXT_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@in: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_PREV_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@in: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_REMOVE_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@node: 
+
+<!-- ##### MACRO GSK_RBCTREE_ROTATE_LEFT ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@parent: 
+@left: 
+@right: 
+@get_count: 
+@set_count: 
+@node: 
+
+<!-- ##### MACRO GSK_RBCTREE_ROTATE_RIGHT ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@parent: 
+@left: 
+@right: 
+@get_count: 
+@set_count: 
+@node: 
+
+<!-- ##### MACRO GSK_RBCTREE_SUPREMUM_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@out: 
+
+<!-- ##### MACRO GSK_RBCTREE_SUPREMUM_COMPARATOR_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@get_count: 
+@set_count: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@key_comparator: 
+@out: 
+
+<!-- ##### MACRO GSK_RBTREE_FIRST_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@out: 
+
+<!-- ##### MACRO GSK_RBTREE_INFIMUM_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@out: 
+
+<!-- ##### MACRO GSK_RBTREE_INFIMUM_COMPARATOR_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@key_comparator: 
+@out: 
+
+<!-- ##### MACRO GSK_RBTREE_INSERT_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@node: 
+@collision_node: 
+
+<!-- ##### MACRO GSK_RBTREE_LAST_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@out: 
+
+<!-- ##### MACRO GSK_RBTREE_LOOKUP_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@out: 
+
+<!-- ##### MACRO GSK_RBTREE_LOOKUP_COMPARATOR_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@key_comparator: 
+@out: 
+
+<!-- ##### MACRO GSK_RBTREE_NEXT_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@in: 
+@out: 
+
+<!-- ##### MACRO GSK_RBTREE_PREV_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@in: 
+@out: 
+
+<!-- ##### MACRO GSK_RBTREE_REMOVE_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@node: 
+
+<!-- ##### MACRO GSK_RBTREE_SUPREMUM_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@out: 
+
+<!-- ##### MACRO GSK_RBTREE_SUPREMUM_COMPARATOR_ ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@is_red: 
+@set_is_red: 
+@parent: 
+@left: 
+@right: 
+@comparator: 
+@key: 
+@key_comparator: 
+@out: 
 
 <!-- ##### MACRO GSK_SIMPLE_PARSER_DEFAULT_MAX_LENGTH ##### -->
 <para>
@@ -828,6 +1513,107 @@ gskxmltoken
 </para>
 
 @obj: 
+
+<!-- ##### MACRO GSK_SOCKET_ADDRESS_SYMBOLIC_IPV4 ##### -->
+<para>
+
+</para>
+
+@obj: 
+
+<!-- ##### MACRO GSK_SOCKET_ADDRESS_SYMBOLIC_IPV4_CLASS ##### -->
+<para>
+
+</para>
+
+@klass: 
+
+<!-- ##### MACRO GSK_SOCKET_ADDRESS_SYMBOLIC_IPV4_GET_CLASS ##### -->
+<para>
+
+</para>
+
+@obj: 
+
+<!-- ##### MACRO GSK_STACK_FOREACH_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@top: 
+@next: 
+@iter_var: 
+@code: 
+
+<!-- ##### MACRO GSK_STACK_GET_BOTTOM_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@top: 
+@next: 
+@rv_node: 
+
+<!-- ##### MACRO GSK_STACK_INSERT_AFTER_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@top: 
+@next: 
+@above_node: 
+@new_node: 
+
+<!-- ##### MACRO GSK_STACK_IS_EMPTY_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@top: 
+@next: 
+
+<!-- ##### MACRO GSK_STACK_POP_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@top: 
+@next: 
+@rv_node: 
+
+<!-- ##### MACRO GSK_STACK_PUSH_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@top: 
+@next: 
+@node: 
+
+<!-- ##### MACRO GSK_STACK_REVERSE_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@top: 
+@next: 
+
+<!-- ##### MACRO GSK_STACK_SORT_ ##### -->
+<para>
+
+</para>
+
+@type: 
+@top: 
+@next: 
+@comparator: 
 
 <!-- ##### MACRO GSK_STREAM_FD_USE_GLIB_MAIN_LOOP ##### -->
 <para>
@@ -977,6 +1763,18 @@ gskxmltoken
 
 
 <!-- ##### MACRO GSK_XML_TOKEN_TEXT ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### MACRO G_STMT_END ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### MACRO G_STMT_START ##### -->
 <para>
 
 </para>
@@ -1543,6 +2341,20 @@ possibly in a thread-pool.
 
 @run_data: data passed to gsk_main_loop_run_background().
 @Returns: opaque result data which will be passed to the #GskMainLoopResultFunc.
+
+<!-- ##### STRUCT GskQsortStack ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### STRUCT GskQsortStackNode ##### -->
+<para>
+
+</para>
+
+@start: 
+@len: 
 
 <!-- ##### ENUM GskRpcCommandType ##### -->
 <para>
@@ -2482,7 +3294,8 @@ possibly in a thread-pool.
 
 </para>
 
-@...: 
+@...:
+
 
 <!-- ##### FUNCTION gsk_g_hash_table_get_keys_slist ##### -->
 <para>
@@ -2940,36 +3753,12 @@ MD5 sum given by the caller; currently, that is the application's responsibility
 @flags: 
 @Returns: 
 
-<!-- ##### MACRO gsk_http_response_get_content_subtype ##### -->
-<para>
-
-</para>
-
-
-<!-- ##### MACRO gsk_http_response_get_content_type ##### -->
-<para>
-
-</para>
-
-
 <!-- ##### FUNCTION gsk_http_response_get_type ##### -->
 <para>
 
 </para>
 
 @Returns: 
-
-<!-- ##### MACRO gsk_http_response_set_content_subtype ##### -->
-<para>
-
-</para>
-
-
-<!-- ##### MACRO gsk_http_response_set_content_type ##### -->
-<para>
-
-</para>
-
 
 <!-- ##### FUNCTION gsk_http_transfer_encoding_get_type ##### -->
 <para>
@@ -3598,7 +4387,14 @@ on the given port.
 
 @Returns: 
 
-<!-- ##### FUNCTION gsk_socket_address_system_supports_ipv6 ##### -->
+<!-- ##### MACRO gsk_socket_address_new_local ##### -->
+<para>
+
+</para>
+
+@Returns: 
+
+<!-- ##### FUNCTION gsk_socket_address_symbolic_ipv4_get_type ##### -->
 <para>
 
 </para>

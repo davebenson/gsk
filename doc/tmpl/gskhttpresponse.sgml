@@ -379,3 +379,67 @@ This field is optional, but is helpful for debugging, etc.
 @Returns: 
 
 
+<!-- ##### FUNCTION gsk_http_response_cache_directive_free ##### -->
+<para>
+
+</para>
+
+@directive: 
+
+
+<!-- ##### FUNCTION gsk_http_response_cache_directive_new ##### -->
+<para>
+
+</para>
+
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_http_response_cache_directive_set_no_cache_name ##### -->
+<para>
+
+</para>
+
+@directive: 
+@name: 
+@name_len: 
+
+
+<!-- ##### FUNCTION gsk_http_response_cache_directive_set_private_name ##### -->
+<para>
+
+</para>
+
+@directive: 
+@name: 
+@name_len: 
+
+
+<!-- ##### MACRO gsk_http_response_get_content_subtype ##### -->
+<para>
+
+</para>
+
+
+
+<!-- ##### MACRO gsk_http_response_get_content_type ##### -->
+<para>
+
+</para>
+
+
+
+<!-- ##### MACRO gsk_http_response_set_content_subtype ##### -->
+<para>
+
+</para>
+
+
+
+<!-- ##### MACRO gsk_http_response_set_content_type ##### -->
+<para>
+
+</para>
+
+
+

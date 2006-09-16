@@ -68,6 +68,9 @@
 <!ENTITY gsk-gskutils SYSTEM "xml/gskutils.xml">
 <!ENTITY gsk-gskxmlrpc SYSTEM "xml/gskxmlrpc.xml">
 <!ENTITY gsk-GskXmlRpcStream SYSTEM "xml/gskxmlrpcstream.xml">
+<!ENTITY gsk-gskrbtreemacros SYSTEM "xml/gskrbtreemacros.xml">
+<!ENTITY gsk-gsklistmacros SYSTEM "xml/gsklistmacros.xml">
+<!ENTITY gsk-gskqsortmacro SYSTEM "xml/gskqsortmacro.xml">
 <!ENTITY gsk-tutorial-debugging-hints SYSTEM "tutorials/debugging-hints.sgml">
 <!ENTITY gsk-tutorial-http-server SYSTEM "tutorials/http-server.sgml">
 <!ENTITY gsk-tutorial-generic-client SYSTEM "tutorials/generic-client.sgml">
@@ -199,6 +202,12 @@
     &gsk-gskmempool;
     &gsk-gsknetworkinterface;
     &gsk-gskdate;
+  </chapter>
+  <chapter>
+    <title>Macro Madness</title>
+    &gsk-gsklistmacros;
+    &gsk-gskrbtreemacros;
+    &gsk-gskqsortmacro;
   </chapter>
   <chapter>
     <title>Questionable ideas</title>

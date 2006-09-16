@@ -159,8 +159,6 @@ Characters which do not normally need escaping within a URL.
 @location: 
 @error: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@url: 
 
 
 <!-- ##### FUNCTION gsk_url_get_relative_path ##### -->
@@ -214,6 +212,71 @@ Characters which do not normally need escaping within a URL.
 </para>
 
 @decoded: 
+@Returns: 
+
+
+<!-- ##### MACRO gsk_url_is_valid_fragment ##### -->
+<para>
+
+</para>
+
+@str: 
+@bad_char_out: 
+
+
+<!-- ##### FUNCTION gsk_url_is_valid_generic_component ##### -->
+<para>
+
+</para>
+
+@str: 
+@bad_char_out: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_url_is_valid_hostname ##### -->
+<para>
+
+</para>
+
+@str: 
+@bad_char_out: 
+@Returns: 
+
+
+<!-- ##### MACRO gsk_url_is_valid_path ##### -->
+<para>
+
+</para>
+
+@str: 
+@bad_char_out: 
+
+
+<!-- ##### MACRO gsk_url_is_valid_query ##### -->
+<para>
+
+</para>
+
+@str: 
+@bad_char_out: 
+
+
+<!-- ##### FUNCTION gsk_url_split_form_urlencoded ##### -->
+<para>
+
+</para>
+
+@encoded_query: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_url_to_string ##### -->
+<para>
+
+</para>
+
+@url: 
 @Returns: 
 
 
@@ -338,8 +401,6 @@ This function type is only used to register new methods for downloading URLs.
 @scheme: 
 @download_method: 
 @download_data: 
-<!-- # Unused Parameters # -->
-@method: 
 
 
 <!-- ##### FUNCTION gsk_url_download_success ##### -->

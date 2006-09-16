@@ -569,8 +569,6 @@ but is always presented to the user as raw bytes.
 
 @response: 
 @structure: 
-<!-- # Unused Parameters # -->
-@substructure: 
 
 
 <!-- ##### FUNCTION gsk_xmlrpc_parser_new ##### -->

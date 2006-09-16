@@ -48,6 +48,19 @@ gskutils
 @Returns: 
 
 
+<!-- ##### FUNCTION gsk_unescape_memory ##### -->
+<para>
+
+</para>
+
+@quoted: 
+@has_quote_marks: 
+@end: 
+@length_out: 
+@error: 
+@Returns: 
+
+
 <!-- ##### FUNCTION gsk_escape_memory_hex ##### -->
 <para>
 
@@ -77,5 +90,45 @@ gskutils
 
 @fd: 
 @close_on_exec: 
+
+
+<!-- ##### FUNCTION gsk_fd_clear_nonblocking ##### -->
+<para>
+
+</para>
+
+@fd: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_fd_is_nonblocking ##### -->
+<para>
+
+</para>
+
+@fd: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_readn ##### -->
+<para>
+
+</para>
+
+@fd: 
+@buf: 
+@len: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_writen ##### -->
+<para>
+
+</para>
+
+@fd: 
+@buf: 
+@len: 
+@Returns: 
 
 

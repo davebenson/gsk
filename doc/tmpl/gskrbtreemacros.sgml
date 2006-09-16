@@ -1,0 +1,315 @@
+<!-- ##### SECTION Title ##### -->
+gskrbtreemacros
+
+<!-- ##### SECTION Short_Description ##### -->
+
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION Stability_Level ##### -->
+
+
+<!-- ##### MACRO GSK_RBTREE_INSERT ##### -->
+<para>
+
+</para>
+
+@tree: 
+@node: 
+@collision_node: 
+
+
+<!-- ##### MACRO GSK_RBTREE_REMOVE ##### -->
+<para>
+
+</para>
+
+@tree: 
+@node: 
+
+
+<!-- ##### MACRO GSK_RBTREE_LOOKUP ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBTREE_LOOKUP_COMPARATOR ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@key_comparator: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBTREE_FIRST ##### -->
+<para>
+
+</para>
+
+@tree: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBTREE_LAST ##### -->
+<para>
+
+</para>
+
+@tree: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBTREE_NEXT ##### -->
+<para>
+
+</para>
+
+@tree: 
+@in: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBTREE_PREV ##### -->
+<para>
+
+</para>
+
+@tree: 
+@in: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBTREE_SUPREMUM ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBTREE_SUPREMUM_COMPARATOR ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@key_comparator: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBTREE_INFIMUM ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBTREE_INFIMUM_COMPARATOR ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@key_comparator: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBTREE_ROTATE_RIGHT ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@parent: 
+@left: 
+@right: 
+@node: 
+
+
+<!-- ##### MACRO GSK_RBTREE_ROTATE_LEFT ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@parent: 
+@left: 
+@right: 
+@node: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_INSERT ##### -->
+<para>
+
+</para>
+
+@tree: 
+@node: 
+@collision_node: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_REMOVE ##### -->
+<para>
+
+</para>
+
+@tree: 
+@node: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_LOOKUP ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_LOOKUP_COMPARATOR ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@key_comparator: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_FIRST ##### -->
+<para>
+
+</para>
+
+@tree: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_LAST ##### -->
+<para>
+
+</para>
+
+@tree: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_NEXT ##### -->
+<para>
+
+</para>
+
+@tree: 
+@in: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_PREV ##### -->
+<para>
+
+</para>
+
+@tree: 
+@in: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_SUPREMUM ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_SUPREMUM_COMPARATOR ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@key_comparator: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_INFIMUM ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_INFIMUM_COMPARATOR ##### -->
+<para>
+
+</para>
+
+@tree: 
+@key: 
+@key_comparator: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_GET_BY_INDEX ##### -->
+<para>
+
+</para>
+
+@tree: 
+@index: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_GET_BY_INDEX_UNCHECKED ##### -->
+<para>
+
+</para>
+
+@tree: 
+@index: 
+@out: 
+
+
+<!-- ##### MACRO GSK_RBCTREE_GET_NODE_INDEX ##### -->
+<para>
+
+</para>
+
+@tree: 
+@node: 
+@index_out: 
+
+

@@ -1,0 +1,60 @@
+<!-- ##### SECTION Title ##### -->
+gsklogringbuffer
+
+<!-- ##### SECTION Short_Description ##### -->
+
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+<!-- ##### SECTION Stability_Level ##### -->
+
+
+<!-- ##### STRUCT GskLogRingBuffer ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### FUNCTION gsk_log_ring_buffer_new ##### -->
+<para>
+
+</para>
+
+@size: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_log_ring_buffer_add ##### -->
+<para>
+
+</para>
+
+@buffer: 
+@line: 
+
+
+<!-- ##### FUNCTION gsk_log_ring_buffer_get ##### -->
+<para>
+
+</para>
+
+@buffer: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_log_ring_buffer_free ##### -->
+<para>
+
+</para>
+
+@buffer: 
+
+

@@ -300,6 +300,14 @@ Set the Host: header for the HTTP request.
 @user_agent: 
 
 
+<!-- ##### MACRO gsk_http_request_peek_user_agent ##### -->
+<para>
+
+</para>
+
+@request: 
+
+
 <!-- ##### FUNCTION gsk_http_request_peek_authorization ##### -->
 <para>
 
@@ -307,6 +315,51 @@ Set the Host: header for the HTTP request.
 
 @request: 
 @is_proxy_auth: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_http_request_cache_directive_free ##### -->
+<para>
+
+</para>
+
+@directive: 
+
+
+<!-- ##### FUNCTION gsk_http_request_cache_directive_new ##### -->
+<para>
+
+</para>
+
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_http_request_parse_first_line ##### -->
+<para>
+
+</para>
+
+@request: 
+@line: 
+@error: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_http_request_set_cache_control ##### -->
+<para>
+
+</para>
+
+@request: 
+@directive: 
+
+
+<!-- ##### FUNCTION gsk_http_request_has_content_body ##### -->
+<para>
+
+</para>
+
+@request: 
 @Returns: 
 
 
@@ -326,15 +379,6 @@ Set the Host: header for the HTTP request.
 </para>
 
 @query_string: 
-@Returns: 
-
-
-<!-- ##### FUNCTION gsk_http_request_has_content_body ##### -->
-<para>
-
-</para>
-
-@request: 
 @Returns: 
 
 

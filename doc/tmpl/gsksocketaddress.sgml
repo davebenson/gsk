@@ -60,6 +60,14 @@ An IPv6 Socket Address.  For now, the IPv6 implementation is unfinished.
 </para>
 
 
+<!-- ##### STRUCT GskSocketAddressEthernet ##### -->
+<para>
+
+</para>
+
+@socket_address: 
+@mac_address: 
+
 <!-- ##### FUNCTION gsk_socket_address_from_native ##### -->
 <para>
 
@@ -147,12 +155,29 @@ on the given port.
 @Returns: 
 
 
-<!-- ##### FUNCTION gsk_socket_address_new_local ##### -->
+<!-- ##### FUNCTION gsk_socket_address_ethernet_new ##### -->
+<para>
+
+</para>
+
+@mac_addr: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_socket_address_local_new ##### -->
 <para>
 
 </para>
 
 @path: 
+@Returns: 
+
+
+<!-- ##### FUNCTION gsk_socket_address_system_supports_ipv6 ##### -->
+<para>
+
+</para>
+
 @Returns: 
 
 
@@ -193,9 +218,6 @@ on the given port.
 @address_a_ptr: 
 @address_b_ptr: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@address_a: 
-@address_b: 
 
 
 <!-- ##### FUNCTION gsk_socket_address_hash ##### -->

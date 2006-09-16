@@ -35,8 +35,6 @@ Provide various simple functions that we have found useful.
 
 @tree: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_g_tree_max ##### -->
@@ -46,8 +44,6 @@ Provide various simple functions that we have found useful.
 
 @tree: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_g_tree_key_slist ##### -->
@@ -57,8 +53,6 @@ Provide various simple functions that we have found useful.
 
 @tree: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_g_tree_value_slist ##### -->
@@ -68,8 +62,6 @@ Provide various simple functions that we have found useful.
 
 @tree: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_g_hash_table_key_slist ##### -->
@@ -79,8 +71,6 @@ Provide various simple functions that we have found useful.
 
 @table: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_g_hash_table_value_slist ##### -->
@@ -90,8 +80,6 @@ Provide various simple functions that we have found useful.
 
 @table: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_strtoll ##### -->

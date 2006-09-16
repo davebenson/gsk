@@ -55,8 +55,6 @@ Find offset of a member's end in bytes.
 </para>
 
 @s: 
-<!-- # Unused Parameters # -->
-@x: 
 
 
 <!-- ##### MACRO GSK_SKIP_CHAR_TYPE ##### -->

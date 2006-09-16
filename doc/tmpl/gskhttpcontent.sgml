@@ -211,8 +211,6 @@ Possible results from trying an http handler.
 </para>
 
 @handler: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_http_content_handler_unref ##### -->
@@ -221,8 +219,6 @@ Possible results from trying an http handler.
 </para>
 
 @handler: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_http_content_listen ##### -->
@@ -272,8 +268,6 @@ Possible results from trying an http handler.
 @content: 
 @type: 
 @subtype: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_http_content_set_mime_type ##### -->
@@ -286,7 +280,5 @@ Possible results from trying an http handler.
 @suffix: 
 @type: 
 @subtype: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 

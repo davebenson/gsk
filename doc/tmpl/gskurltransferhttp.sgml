@@ -70,6 +70,15 @@ In particular, this class defines many HTTP specific configurations.
 @value: 
 
 
+<!-- ##### FUNCTION gsk_url_transfer_http_set_proxy_address ##### -->
+<para>
+
+</para>
+
+@http: 
+@proxy_address: 
+
+
 <!-- ##### USER_FUNCTION GskUrlTransferHttpRequestModifierFunc ##### -->
 <para>
 

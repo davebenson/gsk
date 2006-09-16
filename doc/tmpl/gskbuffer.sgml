@@ -181,8 +181,6 @@ The headers of foreign fragments are pooled in a separate pool.
 @length: 
 @destroy: 
 @destroy_data: 
-<!-- # Unused Parameters # -->
-@slat: 
 
 
 <!-- ##### FUNCTION gsk_buffer_printf ##### -->

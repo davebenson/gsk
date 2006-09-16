@@ -86,8 +86,6 @@ The IPv4 namespace, used for practically all of the internet (in 2003)
 
 @family: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_name_resolver_lookup ##### -->

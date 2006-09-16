@@ -121,10 +121,6 @@ gsk_dns_resolver_lookup() or gsk_dns_resolver_rev_lookup().
 @destroy: 
 @hints: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@questions: 
-@client: 
-@notify: 
 
 
 <!-- ##### FUNCTION gsk_dns_resolver_cancel ##### -->
@@ -148,9 +144,6 @@ gsk_dns_resolver_lookup() or gsk_dns_resolver_rev_lookup().
 @func_data: 
 @destroy: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@client: 
-@notify: 
 
 
 <!-- ##### FUNCTION gsk_dns_resolver_rev_lookup ##### -->
@@ -165,9 +158,6 @@ gsk_dns_resolver_lookup() or gsk_dns_resolver_rev_lookup().
 @func_data: 
 @destroy: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@client: 
-@notify: 
 
 
 <!-- ##### FUNCTION gsk_dns_resolver_add_name_resolver_iface ##### -->

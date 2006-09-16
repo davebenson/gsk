@@ -292,8 +292,6 @@ Make a new main loop.
 @millis_expire: 
 @milli_period: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@loop: 
 
 
 <!-- ##### FUNCTION gsk_main_loop_add_timer_absolute ##### -->
@@ -308,8 +306,6 @@ Make a new main loop.
 @unixtime: 
 @unixtime_micro: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@loop: 
 
 
 <!-- ##### FUNCTION gsk_source_adjust_timer ##### -->
@@ -363,8 +359,6 @@ Make a new main loop.
 
 @source: 
 @Returns: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_main_loop_destroy_all_sources ##### -->
@@ -373,8 +367,6 @@ Make a new main loop.
 </para>
 
 @main_loop: 
-<!-- # Unused Parameters # -->
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_main_loop_do_waitpid ##### -->

@@ -2,6 +2,7 @@
 
 set -x
 
+gtkdocize || exit 1
 libtoolize --automake || exit 1
 aclocal$automake_program_suffix || exit 1
 autoheader || exit 1

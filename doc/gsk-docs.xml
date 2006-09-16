@@ -40,6 +40,7 @@
 <!ENTITY gsk-GskUrl SYSTEM "xml/gskurl.xml">
 <!ENTITY gsk-GskUrlTransfer SYSTEM "xml/gskurltransfer.xml">
 <!ENTITY gsk-GskUrlTransferHttp SYSTEM "xml/gskurltransferhttp.xml">
+<!ENTITY gsk-GskUrlTransferHttp SYSTEM "xml/gskurltransferhttp.xml">
 <!ENTITY gsk-gskbuffer SYSTEM "xml/gskbuffer.xml">
 <!ENTITY gsk-gskdns SYSTEM "xml/gskdns.xml">
 <!ENTITY gsk-gskerrno SYSTEM "xml/gskerrno.xml">
@@ -68,6 +69,9 @@
 <!ENTITY gsk-gskutils SYSTEM "xml/gskutils.xml">
 <!ENTITY gsk-gskxmlrpc SYSTEM "xml/gskxmlrpc.xml">
 <!ENTITY gsk-GskXmlRpcStream SYSTEM "xml/gskxmlrpcstream.xml">
+<!ENTITY gsk-gskrbtreemacros SYSTEM "xml/gskrbtreemacros.xml">
+<!ENTITY gsk-gsklistmacros SYSTEM "xml/gsklistmacros.xml">
+<!ENTITY gsk-gskqsortmacro SYSTEM "xml/gskqsortmacro.xml">
 <!ENTITY gsk-tutorial-debugging-hints SYSTEM "tutorials/debugging-hints.sgml">
 <!ENTITY gsk-tutorial-http-server SYSTEM "tutorials/http-server.sgml">
 <!ENTITY gsk-tutorial-generic-client SYSTEM "tutorials/generic-client.sgml">
@@ -134,6 +138,7 @@
     &gsk-GskUrl;
     &gsk-GskUrlTransfer;
     &gsk-GskUrlTransferHttp;
+    &gsk-GskUrlTransferFile;
   </chapter>
 
   <chapter>
@@ -199,6 +204,12 @@
     &gsk-gskmempool;
     &gsk-gsknetworkinterface;
     &gsk-gskdate;
+  </chapter>
+  <chapter>
+    <title>Macro Madness</title>
+    &gsk-gsklistmacros;
+    &gsk-gskrbtreemacros;
+    &gsk-gskqsortmacro;
   </chapter>
   <chapter>
     <title>Questionable ideas</title>
