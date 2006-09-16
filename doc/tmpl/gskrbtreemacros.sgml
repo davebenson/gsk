@@ -2,16 +2,36 @@
 gskrbtreemacros
 
 <!-- ##### SECTION Short_Description ##### -->
-
+Flexible Red-Black Trees implemented as macros
 
 <!-- ##### SECTION Long_Description ##### -->
 <para>
-
+The macros defined here allow you to implement
+efficient red-black trees which put their data
+in existing node structures.
+Besides efficiency, this can be much more convenient
+because the same node may be a member of multiple trees.
+It shares these characteristics in
+common with the gsklistmacros,
+so that a member of a rbtree may be a member of a gsk-list,
+etc etc. all simultanteously.
+</para>
+<para>
+ TODO: Description of what an rbtree is.
+</para>
+<para>
+ TODO: Description of what an rbctree is.
+</para>
+<para>
+ TODO: example use cases.
+</para>
+<para>
+ TODO: Some example programs.
 </para>
 
 <!-- ##### SECTION See_Also ##### -->
 <para>
-
+gskqsortmacro
 </para>
 
 <!-- ##### SECTION Stability_Level ##### -->
@@ -135,32 +155,6 @@ gskrbtreemacros
 @key: 
 @key_comparator: 
 @out: 
-
-
-<!-- ##### MACRO GSK_RBTREE_ROTATE_RIGHT ##### -->
-<para>
-
-</para>
-
-@top: 
-@type: 
-@parent: 
-@left: 
-@right: 
-@node: 
-
-
-<!-- ##### MACRO GSK_RBTREE_ROTATE_LEFT ##### -->
-<para>
-
-</para>
-
-@top: 
-@type: 
-@parent: 
-@left: 
-@right: 
-@node: 
 
 
 <!-- ##### MACRO GSK_RBCTREE_INSERT ##### -->

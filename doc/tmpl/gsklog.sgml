@@ -64,6 +64,7 @@ Log a message at the DEBUG priority level.
 @...:
 @...:
 @...:
+@...:
 @...: 
 
 
@@ -75,6 +76,7 @@ Messages logged at this level can be fatal in debugging mode.
 
 @domain: the log-domain to use to categorize the message.
 @...: printf-style format and arguments.
+@...:
 @...:
 @...:
 @...:
@@ -118,6 +120,7 @@ Messages logged at this level are always fatal.
 @...:
 @...:
 @...:
+@...:
 @...: 
 
 
@@ -129,6 +132,7 @@ Messages logged at this level can be fatal in debugging mode.
 
 @domain:  the log-domain to use to categorize the message.
 @...: printf-style format and arguments.
+@...:
 @...:
 @...:
 @...:

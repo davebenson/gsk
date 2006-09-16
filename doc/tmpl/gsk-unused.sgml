@@ -1412,6 +1412,30 @@ gskxmltoken
 @comparator: 
 @node: 
 
+<!-- ##### MACRO GSK_RBTREE_ROTATE_LEFT ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@parent: 
+@left: 
+@right: 
+@node: 
+
+<!-- ##### MACRO GSK_RBTREE_ROTATE_RIGHT ##### -->
+<para>
+
+</para>
+
+@top: 
+@type: 
+@parent: 
+@left: 
+@right: 
+@node: 
+
 <!-- ##### MACRO GSK_RBTREE_SUPREMUM_ ##### -->
 <para>
 
