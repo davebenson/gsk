@@ -16,6 +16,19 @@
  * structure or on the stack.)
  */
 
+/**
+ * gsk_mem_pool_construct_with_scratch_buf:
+ * @pool: the mem-pool to initialize.
+ * @buffer: the buffer to use.
+ * @buffer_size: the number of bytes in buffer
+ * to use as storage.
+ *
+ * Initialize the members of a mem-pool,
+ * using a scratch-buffer that the user provides.
+ * (The caller is responsible for ensuring that
+ * the buffer exists long enough)
+ */
+
 
 /**
  * gsk_mem_pool_alloc:
@@ -28,20 +41,34 @@
  *
  * returns: the slab of memory allocated from the pool.
  */
-#undef gsk_mem_pool_alloc
+
+
+/**
+ * gsk_mem_pool_alloc_unaligned:
+ * @pool: area to allocate memory from.
+ * @size: number of bytes to allocate.
+ *
+ * Allocate memory from a pool, without ensuring that
+ * it is aligned.
+ *
+ * returns: the slab of memory allocated from the pool.
+ */
+
+/**
+ * gsk_mem_pool_must_alloc:
+ * @pool: area to allocate memory from.
+ * @size: number of bytes to allocate.
+ *
+ * private
+ *
+ * returns: the slab of memory allocated from the pool.
+ */
+
 gpointer
-gsk_mem_pool_alloc        (GskMemPool     *pool,
+gsk_mem_pool_must_alloc   (GskMemPool     *pool,
 			   gsize           size)
 {
   char *rv;
-  size = ALIGN (size);
-  if (pool->chunk_left >= size)
-    {
-      rv = pool->chunk;
-      pool->chunk_left -= size;
-      pool->chunk = rv + size;
-      return rv;
-    }
   if (size < CHUNK_SIZE)
     {
       /* Allocate a new chunk. */
@@ -78,15 +105,14 @@ gsk_mem_pool_alloc        (GskMemPool     *pool,
  * @pool: area to allocate memory from.
  * @size: number of bytes to allocate.
  *
- * Allocate memory from a pool, initializing it to 0.
+ * Allocate memory from a pool, and initializes it to 0.
  * This function terminates the program if there is an
  * out-of-memory condition.
  *
  * returns: the slab of memory allocated from the pool.
  */
-gpointer
-gsk_mem_pool_alloc0       (GskMemPool     *pool,
-			   gsize           size)
+G_INLINE_FUNC gpointer gsk_mem_pool_alloc0           (GskMemPool     *pool,
+                                                      gsize           size)
 {
   return memset (gsk_mem_pool_alloc (pool, size), 0, size);
 }
@@ -112,7 +138,7 @@ gsk_mem_pool_strdup       (GskMemPool     *pool,
   if (str == NULL)
     return NULL;
   L = strlen (str) + 1;
-  return memcpy (gsk_mem_pool_alloc (pool, L), str, L);
+  return memcpy (gsk_mem_pool_alloc_unaligned (pool, L), str, L);
 }
 
 /**
@@ -204,6 +230,7 @@ gpointer gsk_mem_pool_fixed_alloc0    (GskMemPoolFixed     *pool)
 {
   return memset (gsk_mem_pool_fixed_alloc (pool), 0, pool->piece_size);
 }
+
 /**
  * gsk_mem_pool_fixed_free:
  * @pool: the pool to return memory to.

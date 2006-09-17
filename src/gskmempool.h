@@ -25,9 +25,11 @@ G_INLINE_FUNC void     gsk_mem_pool_construct_with_scratch_buf
                                                  (GskMemPool     *pool,
                                                   gpointer        buffer,
                                                   gsize           buffer_size);
-              gpointer gsk_mem_pool_alloc        (GskMemPool     *pool,
+G_INLINE_FUNC gpointer gsk_mem_pool_alloc        (GskMemPool     *pool,
                                                   gsize           size);
               gpointer gsk_mem_pool_alloc0       (GskMemPool     *pool,
+                                                  gsize           size);
+G_INLINE_FUNC gpointer gsk_mem_pool_alloc_unaligned(GskMemPool   *pool,
                                                   gsize           size);
               char    *gsk_mem_pool_strdup       (GskMemPool     *pool,
                                                   const char     *str);
@@ -57,6 +59,9 @@ void     gsk_mem_pool_fixed_destruct  (GskMemPoolFixed  *pool);
 
 
 
+/* private */
+gpointer gsk_mem_pool_must_alloc (GskMemPool *pool,
+                                  gsize       size);
 
 /* ------------------------------*/
 /* -- Inline Implementations --- */
@@ -83,11 +88,22 @@ G_INLINE_FUNC void     gsk_mem_pool_construct_with_scratch_buf
   pool->chunk_left = buffer_size;
 }
 
-G_INLINE_FUNC gpointer gsk_mem_pool_fast_alloc   (GskMemPool     *pool,
-                                                  gsize           size)
+G_INLINE_FUNC void     gsk_mem_pool_align        (GskMemPool     *pool)
+{
+  guint mask = GPOINTER_TO_UINT (pool->chunk) & (sizeof(gpointer)-1);
+  if (mask)
+    {
+      /* need to align chunk */
+      guint align = sizeof (gpointer) - mask;
+      pool->chunk_left -= align;
+      pool->chunk = (char*)pool->chunk + align;
+    }
+}
+
+G_INLINE_FUNC gpointer gsk_mem_pool_alloc_unaligned   (GskMemPool     *pool,
+                                                       gsize           size)
 {
   char *rv;
-  size = _GSK_MEM_POOL_ALIGN (size);
   if (G_LIKELY (pool->chunk_left >= size))
     {
       rv = pool->chunk;
@@ -98,11 +114,15 @@ G_INLINE_FUNC gpointer gsk_mem_pool_fast_alloc   (GskMemPool     *pool,
   else
     /* fall through to non-inline version for
        slow malloc-using case */
-    return gsk_mem_pool_alloc (pool, size);
-
+    return gsk_mem_pool_must_alloc (pool, size);
 }
 
-#define gsk_mem_pool_alloc gsk_mem_pool_fast_alloc
+G_INLINE_FUNC gpointer gsk_mem_pool_alloc            (GskMemPool     *pool,
+                                                      gsize           size)
+{
+  gsk_mem_pool_align (pool);
+  return gsk_mem_pool_alloc_unaligned (pool, size);
+}
 
 G_INLINE_FUNC void     gsk_mem_pool_destruct     (GskMemPool     *pool)
 {
