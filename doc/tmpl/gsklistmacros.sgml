@@ -156,6 +156,7 @@ For the list example, here's a comparator macro:
   rv = (a->value < b->value) ? -1 : (a->value > b->value) ? 1 : 0
 ]]></programlisting>
 </para>
+
 <!-- ##### SECTION See_Also ##### -->
 <para>
 gskrbtreemacros, gskqsortmacro
@@ -299,6 +300,7 @@ Sort the elements of the queue.
 
 @queue: the queue (a list of four arguments provided by a macro) to affect.
 @comparator: 
+<!-- # Unused Parameters # -->
 @comparator: a macro that takes three arguments: two nodes,
 and an integer which should be assigned -1, 0, or 1 if the first node
 is lesser, equal to, or greater than the second node, respectively.

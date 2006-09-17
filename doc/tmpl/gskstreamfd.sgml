@@ -183,7 +183,7 @@ An instance of a file-descriptor based stream.
 
 </para>
 
-@Param1: 
+@symbolic: 
 @error: 
 @Returns: 
 

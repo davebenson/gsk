@@ -55,9 +55,6 @@ However, for debugging purposes, ....
 </para>
 
 @stream: 
-@read_buffer: 
-@write_buffer: 
-@max_write_buffer: 
 
 <!-- ##### FUNCTION gsk_buffer_stream_new ##### -->
 <para>

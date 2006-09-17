@@ -12,11 +12,36 @@ is URL-scheme independent, for convenience we allow users to see
 the URL-specific portions as well.
 </para>
 <para>
+Some types of URLs are download only,
+and others support upload, but possibly not at the same time.
+</para>
+<para>
 The basic plan is to make a #GskUrlTransfer
 object.  If you wish to upload, provide a way of constructing 
 an upload content-stream.  If you wish to download, provide a function
 that will be called with the downloading content-stream.
 Additional configuration may be done: for example, whether to follow redirections.
+</para>
+<para>
+The transfer which is returned from gsk_url_transfer_new()
+is in an "unstarted" state.  After you are done configuring it,
+you should invoke gsk_url_transfer_start() to begin doing
+actual work.
+</para>
+<para>
+You should at least connect a handler to it
+before you start it using gsk_url_transfer_set_handler().
+</para>
+<para>
+Your handler is guaranteed to be called
+exactly once, after or during the invocation of gsk_url_transfer_start().
+</para>
+<para>
+Internally, the URL-transfer code maintains a mapping from url-scheme to
+a list of GskUrlTransferClasses responsible for that type of URL.
+When gsk_url_transfer_new(url) is called, each handler for the url's scheme is tried in
+sequence until one is found that accepts the URL, or NULL will returned
+if no suitable class is found.
 </para>
 
 <!-- ##### SECTION See_Also ##### -->
@@ -48,18 +73,39 @@ of the result of the transfer.
 This enumeration therefore lists all possible ways
 that a Url-transfer can conclude.
 </para>
+<para>
+For error values, the "error" member of transfer should be set.
+</para>
 
 @GSK_URL_TRANSFER_ERROR_BAD_REQUEST: 
+Some aspect request was invalidly formed:
+for example, the user provided a bad SSL certificate
+or upload-function.
 @GSK_URL_TRANSFER_ERROR_BAD_NAME: 
+DNS failed on the hostname.
 @GSK_URL_TRANSFER_ERROR_NO_SERVER: 
+Problem connecting to the server.
 @GSK_URL_TRANSFER_ERROR_NOT_FOUND: 
+Server indicated the entity was not found.
 @GSK_URL_TRANSFER_ERROR_SERVER_ERROR: 
+Server indicated another error.
 @GSK_URL_TRANSFER_ERROR_UNSUPPORTED: 
+Request was not supported (either by the server,
+the protocol, or the url-transfer-code).
 @GSK_URL_TRANSFER_ERROR_TIMED_OUT: 
+Request timed out.
 @GSK_URL_TRANSFER_ERROR_REDIRECT_LOOP: 
+Request redirection looped circulurly.
 @GSK_URL_TRANSFER_REDIRECT: 
+The URL transfer code was not instructed to follow
+redirects, but a redirect was encountered.
+See the transfer's redirect_url member.
 @GSK_URL_TRANSFER_CANCELLED: 
+The transfer was aborted because
+gsk_url_transfer_cancel() was called on it.
 @GSK_URL_TRANSFER_SUCCESS: 
+The transfer initiated successfully
+(the data may not be transferred yet, though)
 
 <!-- ##### MACRO GSK_URL_TRANSFER_N_RESULTS ##### -->
 <para>
@@ -116,9 +162,23 @@ and indicates that the length is not known in advance.
 
 <!-- ##### STRUCT GskUrlTransfer ##### -->
 <para>
-
+A GObject that represents a transfer of data with the entity responsible
+for that type of URL.
 </para>
 
+@result: code indicating final status of the transfer.
+(only valid in the "done" state)
+@url: the url of the initial request.
+@redirect_urls: XXX: UNUSED
+@first_redirect: first redirect in list
+@last_redirect: last redirect in list
+@address: socket-address of the server for this url.
+@request: request header.
+@response: response header.
+@content: downloading data.
+@redirect_url: target of first redirect.
+@redirect_is_permanent: whether the redirection was permenant (versus temporary)
+@error: the error, if something went wrong.
 
 <!-- ##### FUNCTION gsk_url_transfer ##### -->
 <para>

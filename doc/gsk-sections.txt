@@ -375,7 +375,6 @@ gsk_socket_address_new_ethernet
 
 <SECTION>
 <FILE>gsksocketaddresssymbolic</FILE>
-GSK_TYPE_SOCKET_ADDRESS_SYMBOLIC_IPV4
 GskSocketAddressSymbolicResolveFunc
 GskSocketAddressSymbolicErrorFunc
 <TITLE>GskSocketAddressSymbolic</TITLE>
@@ -387,6 +386,7 @@ gsk_socket_address_symbolic_create_name_resolver
 gsk_socket_address_symbolic_start_resolution
 gsk_socket_address_symbolic_cancel_resolution
 <SUBSECTION Standard>
+GSK_TYPE_SOCKET_ADDRESS_SYMBOLIC_IPV4
 gsk_socket_address_symbolic_ipv4_get_type
 GSK_SOCKET_ADDRESS_SYMBOLIC_IPV4
 GSK_SOCKET_ADDRESS_SYMBOLIC_IPV4_CLASS

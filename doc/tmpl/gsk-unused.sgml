@@ -1762,6 +1762,12 @@ gskxmltoken
 </para>
 
 
+<!-- ##### MACRO GSK_TYPE_SOCKET_ADDRESS_SYMBOLIC_IPV4 ##### -->
+<para>
+
+</para>
+
+
 <!-- ##### MACRO GSK_XDR_NO_MAX_SIZE ##### -->
 <para>
 
