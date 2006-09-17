@@ -243,12 +243,13 @@ gsk_escape_memory (gconstpointer    data,
 
 /**
  * gsk_unescape_memory:
- * @data: C-string to unquote.
+ * @quoted: C-string to unquote.
  * @has_quote_marks: whether to strip off double-quotes.
  * @end: where to store the end of the quoted string (right
  * past the last double-quote.
  * @length_out: where to store the length of the
  * unquoted memory.
+ * @error: optional error return location.
  *
  * Take a C double-quoted string and make it into a
  * suitable for addition into a C string.

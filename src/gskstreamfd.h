@@ -73,7 +73,7 @@ GskStream   *gsk_stream_fd_new_auto        (gint            fd);
 
 
 GskStream   *gsk_stream_fd_new_connecting  (gint            fd);
-GskStream   *gsk_stream_fd_new_from_symbolic_address (GskSocketAddressSymbolic *,
+GskStream   *gsk_stream_fd_new_from_symbolic_address (GskSocketAddressSymbolic *symbolic,
                                                       GError                  **error);
 
 /* reading/writing from/to a file */

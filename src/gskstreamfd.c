@@ -738,6 +738,15 @@ GskStreamFdFlags gsk_stream_fd_flags_guess (gint            fd)
   return rv;
 }
 
+/**
+ * gsk_stream_fd_new_auto:
+ * @fd: the file-descriptor to use as the basis for a stream.
+ *
+ * Try to guess the nature of the file-descriptor using fstat(),
+ * isatty().
+ *
+ * returns: a new GskStream which will free @fd when it is closed.
+ */
 GskStream   *gsk_stream_fd_new_auto        (gint            fd)
 {
   GskStreamFdFlags flags = gsk_stream_fd_flags_guess (fd);
@@ -1054,6 +1063,17 @@ do_socketpair (int fds[2],
   return TRUE;
 }
 
+/**
+ * gsk_stream_fd_duplex_pipe:
+ * @side_a_out: place to store a reference to a newly allocated stream-fd.
+ * @side_b_out: place to store a reference to a newly allocated stream-fd.
+ * @error: optional error return value.
+ *
+ * Create a pair of file-descriptors that 
+ * are connected to eachother, and make GskStreamFds around them.
+ *
+ * returns: whether the streams were allocated successfully.
+ */
 gboolean    gsk_stream_fd_duplex_pipe (GskStream     **side_a_out,
                                        GskStream     **side_b_out,
 			               GError        **error)
@@ -1071,6 +1091,17 @@ gboolean    gsk_stream_fd_duplex_pipe (GskStream     **side_a_out,
   return TRUE;
 }
 
+/**
+ * gsk_stream_fd_duplex_pipe_fd:
+ * @side_a_out: place to store a reference to a newly allocated stream-fd.
+ * @side_b_fd_out: place to store a new file-descriptor.
+ * @error: optional error return value.
+ *
+ * Create a pair of file-descriptors that 
+ * are connected to eachother, and make a GskStreamFd around one of them.
+ *
+ * returns: whether the file-descriptors were allocated successfully.
+ */
 gboolean    gsk_stream_fd_duplex_pipe_fd (GskStream     **side_a_out,
                                           int            *side_b_fd_out,
 			                  GError        **error)

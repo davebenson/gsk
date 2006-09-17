@@ -51,7 +51,6 @@ gskrequest.h \
 gskrbtreemacros.h \
 gsksocketaddress.h \
 gsksocketaddresssymbolic.h \
-gskshutdown.h \
 gsksimplefilter.h \
 gskstdio.h \
 gskstreamqueue.h \
@@ -100,7 +99,6 @@ gskpacketqueuefd.c \
 gskpersistentconnection.c \
 gskprocessinfo.c \
 gskrequest.c \
-gskshutdown.c \
 gsksimplefilter.c \
 gsksocketaddress.c \
 gsksocketaddresssymbolic.c \

@@ -539,14 +539,13 @@ GType gsk_stream_queue_get_type()
 
 /**
  * gsk_stream_queue_new:
- *
- * Create a stream which can have other
- * streams queueenated to either its read or write ends.
- *
  * @is_readable: whether the read can have readable streamss
  * appended to it.
  * @is_writable: whether the read can have writable streamss
  * appended to it.
+ *
+ * Create a stream which can have other
+ * streams queueenated to either its read or write ends.
  *
  * returns: the newly allocated stream.
  */
@@ -570,14 +569,13 @@ gsk_stream_queue_new (gboolean is_readable,
 
 /**
  * gsk_stream_queue_append_read_stream:
- *
- * Append a readable stream to a queue-stream.
- * It will be read in the order in which it was appended.
- *
  * @queue: the larger stream.
  * @substream: the stream whose data will be read by @queue.
  * Note that this function increments the ref-count on substream,
  * so you must g_object_unref() it also.
+ *
+ * Append a readable stream to a queue-stream.
+ * It will be read in the order in which it was appended.
  */
 void
 gsk_stream_queue_append_read_stream (GskStreamQueue *queue,
@@ -599,13 +597,12 @@ gsk_stream_queue_append_read_stream (GskStreamQueue *queue,
 
 /**
  * gsk_stream_queue_no_more_read_streams:
+ * @queue: the stream to which no further streams can be appended.
  *
  * Indicate that you are done added substreams to a queue-stream.
  * When the last stream shuts down for reading, and all the buffered
  * data has been read from queue, then this queue-stream
  * will shut down.
- *
- * @queue: the stream to which no further streams can be appended.
  */
 void
 gsk_stream_queue_no_more_read_streams(GskStreamQueue *queue)
@@ -623,14 +620,13 @@ gsk_stream_queue_no_more_read_streams(GskStreamQueue *queue)
 
 /**
  * gsk_stream_queue_append_write_stream:
- *
- * Append a writable stream to a queue-stream.
- * It will be written to in the order in which it was appended.
- *
  * @queue: the larger stream.
  * @substream: the stream which will be written to by the @queue.
  * Note that this function increments the ref-count on substream,
  * so you must g_object_unref() it also.
+ *
+ * Append a writable stream to a queue-stream.
+ * It will be written to in the order in which it was appended.
  */
 void
 gsk_stream_queue_append_write_stream (GskStreamQueue *queue,
@@ -652,12 +648,11 @@ gsk_stream_queue_append_write_stream (GskStreamQueue *queue,
 
 /**
  * gsk_stream_queue_no_more_write_streams:
+ * @queue: the stream to which no further streams can be appended.
  *
  * Indicate that you are done added substreams to a queue-stream.
  * When the last stream shuts down for writeing, then this queue-stream
  * will shut down.
- *
- * @queue: the stream to which no further streams can be appended.
  */
 void
 gsk_stream_queue_no_more_write_streams(GskStreamQueue *queue)
@@ -672,4 +667,3 @@ gsk_stream_queue_no_more_write_streams(GskStreamQueue *queue)
   if (queue->write_streams->length == 0)
     gsk_io_notify_write_shutdown (queue);
 }
-
