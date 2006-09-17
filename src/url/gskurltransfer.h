@@ -89,10 +89,11 @@ struct _GskUrlTransfer
 {
   GObject base_instance;
 
+  /*< public >*/
   /* --- information prepared for the handler --- */
   GskUrlTransferResult result;
   GskUrl *url;
-  GSList *redirect_urls;
+  GSList *redirect_urls;        // XXX: unused
   GskUrlTransferRedirect *first_redirect, *last_redirect;
   GskSocketAddress *address;
 
@@ -109,13 +110,13 @@ struct _GskUrlTransfer
   /* ERROR status codes */
   GError *error;
 
-  /* --- protected --- */
+  /*< protected >*/
   GskSocketAddress   *address_hint;
   guint               follow_redirects : 1;
   guint               has_timeout : 1;
   guint               timed_out : 1;
 
-  /* --- private --- */
+  /*< private >*/
   GskSource *timeout_source;
   guint timeout_ms;
 

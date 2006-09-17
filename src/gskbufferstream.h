@@ -45,7 +45,7 @@ struct _GskBufferStreamClass 		/* final */
 };
 struct _GskBufferStream 		/* final */
 {
-  GskStream      stream;
+  GskStream      stream; /*< private >*/
 
   /* after modifying any of these you
      must call gsk_buffer_stream_changed()
@@ -58,9 +58,10 @@ struct _GskBufferStream 		/* final */
 
   GskBuffer      read_buffer;
   GskBuffer      write_buffer;
-  guint          max_write_buffer;
 
   /*< private >*/
+  guint          max_write_buffer;
+
   /* Run when the read_buffer has been drained. */
   GskHook        buffered_read_hook;
 

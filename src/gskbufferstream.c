@@ -34,6 +34,13 @@ void gsk_buffer_stream_mark_deferred_write_shutdown (GskBufferStream *stream);
 #define gsk_buffer_stream_clear_deferred_read_shutdown(stream)	\
   GSK_HOOK_CLEAR_USER_FLAG (gsk_buffer_stream_read_hook(stream), DEFERRED_READ_SHUTDOWN)
 
+/**
+ * gsk_buffer_stream_read_shutdown:
+ * @stream: the stream to gracefully shut-down.
+ *
+ * Shutdown the read-end of the buffer-stream,
+ * waiting for the buffer to be drained first.
+ */
 void gsk_buffer_stream_read_shutdown (GskBufferStream *stream)
 {
   if (stream->read_buffer.size == 0)

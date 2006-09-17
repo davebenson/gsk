@@ -588,12 +588,13 @@ gsk_url_transfer_cancel     (GskUrlTransfer     *transfer)
 /**
  * gsk_url_transfer_has_upload:
  * @transfer: the Transfer to query.
- * returns: whether the transfer has upload data.
  *
  * Figure out whether this transfer has upload data.
  *
  * This function should only be needed by implementors
  * of types of GskUrlTransfer.
+ *
+ * returns: whether the transfer has upload data.
  */
 gboolean
 gsk_url_transfer_has_upload      (GskUrlTransfer     *transfer)

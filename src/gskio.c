@@ -137,6 +137,14 @@ gsk_io_shutdown (GskIO *io, GError **error)
 
 /* --- implement poll-read/write for nonblocking ios --- */
 
+/**
+ * gsk_io_notify_shutdown:
+ * @io: the object which is shut-down.
+ *
+ * This function is called by an implementation
+ * when the read- and write- ends of the i/o object
+ * have both shut-down.
+ */
 void
 gsk_io_notify_shutdown (GskIO *io)
 {
