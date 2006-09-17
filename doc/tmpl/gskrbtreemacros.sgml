@@ -20,6 +20,68 @@ etc etc. all simultanteously.
  TODO: Description of what an rbtree is.
 </para>
 <para>
+ The actual rbtree consists of a macro with eight arguments:
+ <variablelist>
+  <varlistentry>
+   <term>top</term>
+   <listitem>
+    <para>
+    ...
+    </para>
+   </listitem>
+  </varlistentry>
+  <varlistentry>
+   <term>type*</term>
+   <listitem>
+    <para>
+    ...
+    </para>
+   </listitem>
+  </varlistentry>
+  <varlistentry>
+   <term>is_red</term>
+   <listitem>
+    <para>
+    ...
+    </para>
+   </listitem>
+  </varlistentry>
+  <varlistentry>
+   <term>set_is_red</term>
+   <listitem>
+    <para>
+    ...
+    </para>
+   </listitem>
+  </varlistentry>
+  <varlistentry>
+   <term>parent</term>
+   <listitem>
+    <para>
+    ...
+    </para>
+   </listitem>
+  </varlistentry>
+  <varlistentry>
+   <term>left</term>
+   <term>right</term>
+   <listitem>
+    <para>
+    ...
+    </para>
+   </listitem>
+  </varlistentry>
+  <varlistentry>
+   <term>comparator</term>
+   <listitem>
+    <para>
+    ...
+    </para>
+   </listitem>
+  </varlistentry>
+ </variablelist>
+</para>
+<para>
  TODO: Description of what an rbctree is.
 </para>
 <para>
