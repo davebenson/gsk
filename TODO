@@ -9,7 +9,6 @@
 - mailto: URIs
 - basic tutorials need serious work. [simple-http-server is very misleading, should use gskhttpcontent]
 - BUILD: should check for zlib
-- GskUrlTransferHttp should use a symbolic socket-address
 - HTTP client doesn't call the request's destroy function
   sometimes until it is finalized. ?
 - TODO: contention on POST data:  right now, we buffer as much
@@ -18,6 +17,13 @@
   it needs to be adjustable (ie a signal or trap)
   (or a bunch of bits to suppress certain errors, EPIPE, ECONNREFUSED etc)
 - optimization: use read_buffer() and write_buffer() in gskstreamconnection
+- HTTP authentication.
+  - Status: most of the structures are in place,
+    but the digest-response computing-code
+    has not been added to gsk_http_authorization_new_digest().
+    Hence digest does not even come close to working.
+  - need support in url-transfer-http (for client-side)
+  - need support in GskHttpContent (for server-side)
 - missing HTTP headers:
    Vary: *
    Cache-Expires: Thu, 24 Mar 2005 13:11:58 GMT
