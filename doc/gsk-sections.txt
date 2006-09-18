@@ -49,6 +49,7 @@ HAVE_EXECINFO_H
 HAVE_GMTIME_R
 HAVE_LOCALTIME_R
 HAVE_READLINE_READLINE_H
+_
 </SECTION>
 
 <SECTION>
@@ -60,11 +61,11 @@ gsk_init_without_threads
 gsk_init_get_support_threads
 gsk_init_info_parse_args
 gsk_init_raw
-_GskInitFlags
 gsk_init_flags
 gsk_main_thread
 <SUBSECTION Standard>
 GSK_IS_MAIN_THREAD
+_GskInitFlags
 </SECTION>
 
 <SECTION>
@@ -645,6 +646,8 @@ gsk_thread_pool_destroy
 
 <SECTION>
 <FILE>gskmempool</FILE>
+GSK_MEM_POOL_FIXED_STATIC_INIT
+GSK_MEM_POOL_STATIC_INIT
 GskMemPool
 GskMemPoolFixed
 gsk_mem_pool_construct

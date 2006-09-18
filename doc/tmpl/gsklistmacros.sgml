@@ -299,8 +299,6 @@ Sort the elements of the queue.
 </para>
 
 @queue: the queue (a list of four arguments provided by a macro) to affect.
-@comparator: 
-<!-- # Unused Parameters # -->
 @comparator: a macro that takes three arguments: two nodes,
 and an integer which should be assigned -1, 0, or 1 if the first node
 is lesser, equal to, or greater than the second node, respectively.

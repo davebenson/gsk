@@ -25,7 +25,7 @@ HFILE_GLOB=
 CFILE_GLOB=
 
 # Header files to ignore when scanning.
-IGNORE_HFILES=store debug.h
+IGNORE_HFILES=store xdr debug.h xml cgi
 
 HTML_DIR = $(datadir)/doc/gsk-1.0/html
 

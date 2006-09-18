@@ -36,6 +36,12 @@ struct _GskQsortStackNode
                  GSK_QSORT_STACK_MAX_SIZE,                                   \
                  GSK_QSORT_ASSERT_STACK_SIZE)
 
+#define GSK_QSELECT(array, type, n_elements, n_select, compare)		     \
+  GSK_QSELECT_FULL(array, type, n_elements, compare,                         \
+                   GSK_INSERTION_SORT_THRESHOLD,                             \
+                   GSK_QSORT_STACK_MAX_SIZE,                                 \
+                   /* no stack guard assertion */)
+
 #define GSK_QSORT_FULL(array, type, n_elements, compare, isort_threshold, stack_size, ss_assertion)    \
   gint gsk_rv;                                                               \
   G_STMT_START{                                                              \

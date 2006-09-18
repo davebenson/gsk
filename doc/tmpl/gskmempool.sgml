@@ -31,6 +31,45 @@ other reasons, but stronger evidence is welcome.</para>
 <!-- ##### SECTION Stability_Level ##### -->
 
 
+<!-- ##### MACRO GSK_MEM_POOL_FIXED_STATIC_INIT ##### -->
+<para>
+Initialize a fixed-length static mem-pool 
+member-wise given its elements' size.
+</para>
+<para>
+Example:
+<programlisting>
+static GskMemPoolFixed request_pool = GSK_MEM_POOL_FIXED_STATIC_INIT(sizeof (Request));
+...
+Request *request = gsk_mem_pool_fixed_alloc (&amp;request_pool);
+...
+gsk_mem_pool_fixed_free (request);
+</programlisting>
+</para>
+
+@size: the size of the mem-pool's elements.
+
+
+<!-- ##### MACRO GSK_MEM_POOL_STATIC_INIT ##### -->
+<para>
+Initialize a fixed-length static mem-pool 
+member-wise.
+</para>
+<para>
+Example:
+<programlisting>
+void foo ()
+{
+  GskMemPool mem_pool = GSK_MEM_POOL_STATIC_INIT;
+  void *garbage = gsk_mem_pool_alloc (&amp;mem_pool, 20);
+  ...
+  gsk_mem_pool_destruct (&amp;mem_pool);
+}
+</programlisting>
+</para>
+
+
+
 <!-- ##### STRUCT GskMemPool ##### -->
 <para>
 A memory pool.

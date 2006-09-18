@@ -62,14 +62,17 @@ It has no public members.
 
 <!-- ##### SIGNAL GskIO::on-connect ##### -->
 <para>
-
+Signal to indicate that the gsk-io has become connected
+(to a remote server).
 </para>
 
 @gskio: the object which received the signal.
 
 <!-- ##### SIGNAL GskIO::on-error ##### -->
 <para>
-
+Signal to indicate that the gsk-io has had an error.
+Use the 'error' and 'error_cause' members of #GskIO
+to find out what went wrong.
 </para>
 
 @gskio: the object which received the signal.

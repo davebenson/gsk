@@ -42,7 +42,7 @@ gskmodule
 
 </para>
 
-@Param1: 
+@context: 
 @flags: 
 
 
@@ -51,7 +51,7 @@ gskmodule
 
 </para>
 
-@Param1: 
+@context: 
 @flags: 
 
 
@@ -60,7 +60,7 @@ gskmodule
 
 </para>
 
-@Param1: 
+@context: 
 @pkg: 
 
 
@@ -69,7 +69,7 @@ gskmodule
 
 </para>
 
-@Param1: 
+@context: 
 @tmp_dir: 
 
 
@@ -78,7 +78,7 @@ gskmodule
 
 </para>
 
-@Param1: 
+@context: 
 @support: 
 
 
@@ -87,7 +87,7 @@ gskmodule
 
 </para>
 
-@Param1: 
+@context: 
 @support: 
 
 
@@ -96,7 +96,7 @@ gskmodule
 
 </para>
 
-@Param1: 
+@context: 
 
 
 <!-- ##### FUNCTION gsk_module_compile ##### -->
@@ -130,7 +130,7 @@ gskmodule
 
 </para>
 
-@Param1: 
+@module: 
 @Returns: 
 
 
@@ -139,7 +139,7 @@ gskmodule
 
 </para>
 
-@Param1: 
+@module: 
 
 
 <!-- ##### FUNCTION gsk_module_lookup ##### -->
@@ -147,7 +147,7 @@ gskmodule
 
 </para>
 
-@Param1: 
+@module: 
 @symbol_name: 
 @Returns: 
 

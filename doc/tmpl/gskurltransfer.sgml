@@ -170,8 +170,6 @@ for that type of URL.
 (only valid in the "done" state)
 @url: the url of the initial request.
 @redirect_urls: XXX: UNUSED
-@first_redirect: first redirect in list
-@last_redirect: last redirect in list
 @address: socket-address of the server for this url.
 @request: request header.
 @response: response header.

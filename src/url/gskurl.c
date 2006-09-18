@@ -693,9 +693,10 @@ gsk_url_new_relative  (GskUrl     *base_url,
 /**
  * gsk_url_to_string:
  * @url: the URL to stringify.
- * returns: the newly allocated string.
  *
  * Convert the URL to a string.
+ *
+ * returns: the newly allocated string.
  */
 char *
 gsk_url_to_string (const GskUrl *url)

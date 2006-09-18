@@ -81,13 +81,6 @@ Ascertain whether thread support is necessary.
 @info: 
 
 
-<!-- ##### ENUM _GskInitFlags ##### -->
-<para>
-
-</para>
-
-@_GSK_INIT_SUPPORT_THREADS: 
-
 <!-- ##### VARIABLE gsk_init_flags ##### -->
 <para>
 Flags given to gsk_init().

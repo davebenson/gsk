@@ -19,6 +19,13 @@ struct _GskCompileContext
 };
 
 
+/**
+ * gsk_compile_context_new:
+ *
+ * Create a new compilation context.
+ *
+ * returns: the new compilation-context.
+ */
 GskCompileContext *gsk_compile_context_new ()
 {
   GskCompileContext *rv = g_new (GskCompileContext, 1);
@@ -35,6 +42,15 @@ GskCompileContext *gsk_compile_context_new ()
   return rv;
 }
 
+/**
+ * gsk_compile_context_add_cflags:
+ * @context: the compilation context.
+ * @flags: a space-separated list of compiler flags.
+ * This will be passed through the shell.
+ *
+ * Add compiler flags that you want used in
+ * this compilation-context.
+ */
 void 
 gsk_compile_context_add_cflags (GskCompileContext *context,
                                 const char        *flags)
@@ -43,6 +59,15 @@ gsk_compile_context_add_cflags (GskCompileContext *context,
   g_string_append (context->cflags, flags);
 }
 
+/**
+ * gsk_compile_context_add_ldflags:
+ * @context: the compilation context.
+ * @flags: a space-separated list of linker flags.
+ * This will be passed through the shell.
+ *
+ * Add linker flags that you want used in
+ * this compilation-context.
+ */
 void               gsk_compile_context_add_ldflags(GskCompileContext*context,
                                                    const char *flags)
 {
@@ -50,6 +75,15 @@ void               gsk_compile_context_add_ldflags(GskCompileContext*context,
   g_string_append (context->ldflags, flags);
 }
 
+/**
+ * gsk_compile_context_add_pkg:
+ * @context: the compilation context.
+ * @pkg: the name of a library as known by pkgconfig(1).
+ *
+ * Add a package-dependency for this compilation context.
+ *
+ * TODO error-handling.
+ */
 void               gsk_compile_context_add_pkg   (GskCompileContext*context,
                                                   const char *pkg)
 {
@@ -66,6 +100,13 @@ void               gsk_compile_context_add_pkg   (GskCompileContext*context,
     }
 }
 
+/**
+ * gsk_compile_context_set_tmp_dir:
+ * @context: the compilation context.
+ * @tmp_dir: the temporary directory to use.
+ *
+ * Set the directory to use for temporary files.
+ */
 void               gsk_compile_context_set_tmp_dir(GskCompileContext*context,
                                                    const char *tmp_dir)
 {
@@ -74,18 +115,44 @@ void               gsk_compile_context_set_tmp_dir(GskCompileContext*context,
   context->tmp_dir = t;
 }
 
+/**
+ * gsk_compile_context_set_gdb:
+ * @context: the compilation context.
+ * @support: whether to support gdb by not immediately deleting temporary files.
+ *
+ * Set whether gdb will be supported on shared-libraries
+ * created with this context.
+ * The default is FALSE.
+ */
 void               gsk_compile_context_set_gdb    (GskCompileContext *context,
                                                    gboolean           support)
 {
   context->gdb_support = support;
 }
 
+/**
+ * gsk_compile_context_set_verbose:
+ * @context: the compilation context.
+ * @support: whether to support be verbose.
+ *
+ * Set whether to be verbose.
+ * When the context is verbose, compilation and link commands
+ * are printed out to stderr, with "compiling: " and "linking: " prefixes.
+ *
+ * The default is FALSE.
+ */
 void               gsk_compile_context_set_verbose(GskCompileContext *context,
                                                    gboolean           support)
 {
   context->verbose = support;
 }
 
+/**
+ * gsk_compile_context_free:
+ * @context: the compilation context to free.
+ *
+ * Free memory used by the compilation context.
+ */
 void
 gsk_compile_context_free       (GskCompileContext *context)
 {
@@ -170,6 +237,26 @@ ensure_pkg_info_ok (GskCompileContext *context,
     }
   return TRUE;
 }
+
+/**
+ * gsk_module_compile:
+ * @context: the compilation context.
+ * @n_sources: the number of source files to compile into the module.
+ * @sources: the source files.
+ * @flags: ...
+ * @delete_sources: whether to delete the source files
+ * as possible (depending on whether gdb support is enabled)
+ * @program_output: the program's output.
+ * @error: where to put an error if something goes wrong.
+ *
+ * Compile a collection of sources into a module.
+ * This will invoke the compiler n_sources times,
+ * and the linker once.
+ *
+ * If @delete_sources is set, then the source files
+ * will be deleted, but when depends on whether gdb support is enabled.
+ * If it is enabled, then they are deleted only once the module is closed.
+ */
 
 GskModule *
 gsk_module_compile  (GskCompileContext *context,

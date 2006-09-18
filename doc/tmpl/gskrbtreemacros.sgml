@@ -249,7 +249,7 @@ Get the last element of the tree.
 as determined by the comparator)
 </para>
 
-@tree: 
+@tree: The RBTree (a macro that expands to eight arguments) to query.
 @out: A variable which will be set to the last element in the tree,
 or NULL if the tree is empty.
 
@@ -408,7 +408,7 @@ Get the last element of the tree.
 as determined by the comparator)
 </para>
 
-@tree: 
+@tree: The RBCTree (a macro that expands to eight arguments) to query.
 @out: A variable which will be set to the last element in the tree,
 or NULL if the tree is empty.
 

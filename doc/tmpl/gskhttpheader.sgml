@@ -1407,6 +1407,8 @@ Flags which affect how headers are parsed.
 Require the header to be in strict(er) HTTP conformance
 when parsing.
 @GSK_HTTP_PARSE_SAVE_ERRORS: 
+Add headers that don't parse correctly into 
+the misc-headers hashtable.
 
 <!-- ##### FUNCTION gsk_http_header_get_connection ##### -->
 <para>

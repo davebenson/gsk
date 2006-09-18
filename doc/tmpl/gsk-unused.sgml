@@ -3054,6 +3054,13 @@ possibly in a thread-pool.
 </para>
 
 
+<!-- ##### ENUM _GskInitFlags ##### -->
+<para>
+
+</para>
+
+@_GSK_INIT_SUPPORT_THREADS: 
+
 <!-- ##### FUNCTION gsk_buffer_make_walker ##### -->
 <para>
 

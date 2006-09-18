@@ -30,14 +30,14 @@ of integers, considering only the least n_bits bits:
 			       guint  n_bits)
  {
    guint mask = (1 << n_bits) - 1;
-#define COMPARE(a,b,rv)       \
+]]>&hash;<![CDATA[define COMPARE(a,b,rv)       \
   { guint tmp_a = mask & a;   \
     guint tmp_b = mask & b;   \
     rv = (tmp_a < tmp_b) ? -1 \
        : (tmp_a > tmp_b) ? +1 \
        0; }
   GSK_QSORT (array, guint, array_len, COMPARE);
-#undef COMPARE
+]]>&hash;<![CDATA[undef COMPARE
  }
 ]]>
 </programlisting>
@@ -55,14 +55,16 @@ is O(log N).
 
 <!-- ##### MACRO GSK_QSORT_STACK_MAX_SIZE ##### -->
 <para>
-
+Maximum stack size to use for QSORT.
+Only should be changed if stack-space is very limited.
 </para>
 
 
 
 <!-- ##### MACRO GSK_INSERTION_SORT_THRESHOLD ##### -->
 <para>
-
+Maximum number of elements for which insertion sort
+is preferred to quicksort.
 </para>
 
 
@@ -80,47 +82,54 @@ Sort an array.
 
 <!-- ##### MACRO GSK_QSORT_DEBUG ##### -->
 <para>
-
+Quicksort, with stack-checking.
 </para>
 
-@array: 
-@type: 
-@n_elements: 
-@compare: 
+@array:  The array of values to sort.
+@type: The type of an element of the array.
+@n_elements: The number of elements in @array to sort.
+@compare: A comparator macro.
 
 
 <!-- ##### MACRO GSK_QSORT_FULL ##### -->
 <para>
-
+Quicksort, with a bit more configurability.
 </para>
 
-@array: 
-@type: 
-@n_elements: 
-@compare: 
-@isort_threshold: 
-@stack_size: 
-@ss_assertion: 
+@array: the array
+@type: the type of elements in the array.
+@n_elements: the number of elements in the array.
+@compare: comparator macro
+@isort_threshold: maximum size of array to insertion-sort
+instead of quicksort.
+@stack_size: maximum number of stack required.
+@ss_assertion: a macro which can do the stack-guard assertion.
+Should be blank or GSK_QSORT_ASSERT_STACK_SIZE.
 
 
 <!-- ##### MACRO GSK_QSELECT_FULL ##### -->
 <para>
-
+Computes the top @n_select elements of an
+array which has @n_elements elements in it.
+The top @n_select elements will be sorted.
 </para>
 
-@array: 
-@type: 
-@n_elements: 
-@n_select: 
-@compare: 
-@isort_threshold: 
-@stack_size: 
-@ss_assertion: 
+@array: the array
+@type: the type of elements in the array.
+@n_elements: the number of elements in the array.
+@n_select: the number of elements to get in the sorted part.
+@compare: comparator macro
+@isort_threshold: maximum size of array to insertion-sort
+instead of quicksort.
+@stack_size: maximum number of stack required.
+@ss_assertion: a macro which can do the stack-guard assertion.
+Should be blank or GSK_QSORT_ASSERT_STACK_SIZE.
 
 
 <!-- ##### MACRO GSK_QSORT_ASSERT_STACK_SIZE ##### -->
 <para>
-
+Macro to verify that the stack is not overflowed.
+The stack can overflow if the comparator is invalid.
 </para>
 
 @stack_alloced: 
@@ -128,22 +137,25 @@ Sort an array.
 
 <!-- ##### MACRO GSK_INSERTION_SORT ##### -->
 <para>
-
+An insertion-sort implementation,
+which is used by the quicksort in the case
+of small arrays.
 </para>
 
-@array: 
-@type: 
-@length: 
-@compare: 
+@array:  The array of values to sort.
+@type: The type of an element of the array.
+@length: The number elements in @array.
+@compare: comparator macro
 
 
 <!-- ##### MACRO GSK_QSORT_SIMPLE_COMPARATOR ##### -->
 <para>
-
+A comparator macro that just uses the normal operators &lt;,
+&gt; and ==.
 </para>
 
-@a: 
-@b: 
-@compare_rv: 
+@a: the first element
+@b: the second element
+@compare_rv: set to -1, 0, 1 if @a is less than, equal to, or greater than @b.
 
 
