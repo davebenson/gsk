@@ -13,6 +13,12 @@
 #undef G_LOG_DOMAIN
 #define G_LOG_DOMAIN    "Gsk-Http-Parser"
 
+/* TODO: unified set of parsing macros for http-header-ish stuff,
+   similar to those used in the authenticate/authorization code
+   (which is in this file, search for CUT_TOKEN) */
+/* TODO: GError-style error handling in line-handlers */
+/* TODO: multiline header-lines */
+
 /* === input: reading a header from an output source === */
 
 /* command: handle first line of Http Request */
