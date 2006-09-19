@@ -18,12 +18,14 @@
   (or a bunch of bits to suppress certain errors, EPIPE, ECONNREFUSED etc)
 - optimization: use read_buffer() and write_buffer() in gskstreamconnection
 - HTTP authentication.
-  - Status: most of the structures are in place,
-    but the digest-response computing-code
-    has not been added to gsk_http_authorization_new_digest().
+  - DONE: most of the structures and parsing are in place.
+    Still some TODOs in the parsing code that may require structural changes.
+    GskHttp{Request,Response} have the necessary members.
+  - Need methods to compute and check "authorization".
     Hence digest does not even come close to working.
-  - need support in url-transfer-http (for client-side)
-  - need support in GskHttpContent (for server-side)
+  - Need to add support to gskhttpheader-output.c
+  - Need support in url-transfer-http (for client-side)
+  - Need support in GskHttpContent (for server-side)
 - missing HTTP headers:
    Vary: *
    Cache-Expires: Thu, 24 Mar 2005 13:11:58 GMT
