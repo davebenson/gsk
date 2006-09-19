@@ -426,7 +426,9 @@ gsk_http_response_set_authenticate       (GskHttpResponse  *response,
 					  gboolean         is_proxy_auth,
 					  GskHttpAuthenticate *auth)
 {
-  GskHttpAuthenticate **dst_auth = is_proxy_auth ? &response->proxy_auth : &response->auth;
+  GskHttpAuthenticate **dst_auth = is_proxy_auth
+                                 ? &response->proxy_authenticate
+                                 : &response->authenticate;
 
   if (auth)
     gsk_http_authenticate_ref (auth);
@@ -450,7 +452,7 @@ GskHttpAuthenticate *
 gsk_http_response_peek_authenticate      (GskHttpResponse  *response,
 					  gboolean    is_proxy_auth)
 {
-  return is_proxy_auth ? response->proxy_auth : response->auth;
+  return is_proxy_auth ? response->proxy_authenticate : response->authenticate;
 }
 
 /**

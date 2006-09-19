@@ -131,8 +131,8 @@ gsk_http_request_finalize (GObject *object)
   gsk_http_header_free_string (request, request->from);
   if (request->authorization)
     gsk_http_authorization_unref (request->authorization);
-  if (request->proxy_auth)
-    gsk_http_authorization_unref (request->proxy_auth);
+  if (request->proxy_authorization)
+    gsk_http_authorization_unref (request->proxy_authorization);
   if (NULL != request->cache_control)
     {
       gsk_http_request_cache_directive_free (request->cache_control);
@@ -577,7 +577,7 @@ gsk_http_request_set_authorization       (GskHttpRequest  *request,
 					  gboolean         is_proxy_auth,
 					  GskHttpAuthorization *auth)
 {
-  GskHttpAuthorization **dst_auth = is_proxy_auth ? &request->proxy_auth : &request->authorization;
+  GskHttpAuthorization **dst_auth = is_proxy_auth ? &request->proxy_authorization : &request->authorization;
   if (auth)
     gsk_http_authorization_ref (auth);
   if (*dst_auth)
@@ -599,7 +599,7 @@ GskHttpAuthorization *
 gsk_http_request_peek_authorization      (GskHttpRequest  *request,
 					  gboolean    is_proxy_auth)
 {
-  return is_proxy_auth ? request->proxy_auth : request->authorization;
+  return is_proxy_auth ? request->proxy_authorization : request->authorization;
 }
 
 /**

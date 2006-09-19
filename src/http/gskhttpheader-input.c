@@ -1547,7 +1547,7 @@ static inline gboolean
 is_key (const char *start, guint len, const char *str)
 {
   return memcmp (start, str, len) == 0 
-     &&  start[len] == '\0';
+     &&  str[len] == '\0';
 }
 
 static GskHttpAuthenticate *
@@ -1569,6 +1569,8 @@ gsk_http_authenticate_parse (const char *value)
   if (*at == 0)
     return FALSE;
 
+  start = at;
+  GSK_SKIP_NONWHITESPACE (at);
   CUT_TOKEN (auth_scheme);
   GSK_SKIP_WHITESPACE (at);
 
@@ -1652,6 +1654,8 @@ gsk_http_authorization_parse (const char *value)
   if (*at == 0)
     return NULL;
 
+  start = at;
+  GSK_SKIP_NONWHITESPACE (at);
   CUT_TOKEN (auth_scheme);
   GSK_SKIP_WHITESPACE (at);
 

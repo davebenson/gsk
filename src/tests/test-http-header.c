@@ -588,6 +588,36 @@ int main(int argc, char **argv)
                     "d", NOT_FOUND_TOKEN,
                     NULL);
 
+  /* example from rfc 2617, page 5 */
+  {
+    GskHttpResponse *res = GSK_HTTP_RESPONSE
+      (header_from_string (FALSE,
+                           "HTTP/1.0 401 Unauthorized\r\n"
+                           "WWW-Authenticate: Basic realm=\"WallyWorld\"\r\n"
+                           "\n"));
+    g_assert (res);
+    g_assert (res->authenticate != NULL);
+    g_assert (res->authenticate->mode == GSK_HTTP_AUTH_MODE_BASIC);
+    g_assert (strcmp (res->authenticate->realm, "WallyWorld") == 0);
+    g_object_unref (res);
+  }
+  /* example from rfc 2617, page 6 */
+  {
+    GskHttpRequest *req = GSK_HTTP_REQUEST
+      (header_from_string (TRUE,
+                           "GET / HTTP/1.1\r\n"
+                           "Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n"
+                           "\n"));
+    g_assert (req);
+    g_assert (req->authorization != NULL);
+    g_assert (req->authorization->mode == GSK_HTTP_AUTH_MODE_BASIC);
+    g_assert (strcmp (req->authorization->info.basic.user, "Aladdin") == 0);
+    g_assert (strcmp (req->authorization->info.basic.password, "open sesame") == 0);
+    g_object_unref (req);
+  }
+
+
+
   corruption_test (TRUE,
                    "GET /foo.txt HTTP/1.0\r\n"
                    "Host: foo.com\r\n"

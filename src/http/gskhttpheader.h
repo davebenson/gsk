@@ -419,10 +419,11 @@ struct _GskHttpAuthenticate
     struct {
       char                   *options;
     } unknown;
+    /* no members:
     struct {
     } basic;
+    */
     struct {
-      char                   *realm;
       char                   *domain;
       char                   *nonce;
       char                   *opaque;

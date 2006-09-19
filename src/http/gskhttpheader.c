@@ -866,7 +866,6 @@ GskHttpAuthenticate *gsk_http_authenticate_new_basic   (const char *realm)
   auth->auth_scheme_name = "Basic";
   auth->ref_count = 1;
   MAYBE_COPY (auth->realm, realm, at);
-  auth->realm = strcpy (at, realm);
   return auth;
 }
 

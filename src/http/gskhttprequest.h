@@ -53,7 +53,7 @@ struct _GskHttpRequest
   /* List of Cookie: headers. */
   GSList                   *cookies;
 
-  GskHttpAuthorization     *proxy_auth;
+  GskHttpAuthorization     *proxy_authorization;
 
   int                       keep_alive_seconds;   /* -1 if not used */
 
