@@ -1650,11 +1650,35 @@ gsk_http_authorization_parse (const char *value)
 
   GSK_SKIP_WHITESPACE (at);
   if (*at == 0)
-    return FALSE;
+    return NULL;
 
   CUT_TOKEN (auth_scheme);
   GSK_SKIP_WHITESPACE (at);
 
+  if (g_ascii_strcasecmp (auth_scheme, "basic") == 0)
+    {
+      /* remainder is user:password, base-64 encoded */
+      guint base64_encoded_len = strlen (at);
+      guint decoded_max_len = GSK_BASE64_GET_MAX_DECODED_LEN (base64_encoded_len);
+      char *decoded = g_alloca (decoded_max_len + 1);
+      char *colon;
+      guint decoded_len = gsk_base64_decode (decoded, decoded_max_len,
+                                             at, base64_encoded_len);
+      decoded[decoded_len] = 0;
+      colon = strchr (decoded, ':');
+      if (colon == NULL)
+        {
+          return NULL;         /* need ':' separating user/password */
+        }
+      *colon = 0;
+      return gsk_http_authorization_new_basic (decoded, colon + 1);
+    }
+  if (g_ascii_strcasecmp (auth_scheme, "digest") != 0)
+    {
+      return gsk_http_authorization_new_unknown (auth_scheme, at);
+    }
+
+  /* -- digest authorization header -- */
   while (*at)
     {
       const char *key_start = at;
@@ -1699,20 +1723,9 @@ gsk_http_authorization_parse (const char *value)
 #undef IS_KEY
     }
 
-  if (g_ascii_strcasecmp (auth_scheme, "Basic") == 0)
-    {
-      rv = gsk_http_authorization_new_basic (realm, user, password);
-    }
-  else if (g_ascii_strcasecmp (auth_scheme, "Digest") == 0)
-    {
-      rv = gsk_http_authorization_new_digest (realm, domain, nonce, opaque,
-                                              algorithm, user, password,
-                                              response_digest, entity_digest);
-    }
-  else
-    {
-      return NULL;
-    }
+  rv = gsk_http_authorization_new_digest (realm, domain, nonce, opaque,
+                                          algorithm, user, password,
+                                          response_digest, entity_digest);
 
   /* TODO: aux parameters */
 
@@ -1734,9 +1747,9 @@ handle_www_authenticate (GskHttpHeader *header,
 }
 
 static gboolean
-handle_www_authorization (GskHttpHeader *header,
-		          const char *value,
-		          gpointer data)
+handle_authorization (GskHttpHeader *header,
+		      const char *value,
+		      gpointer data)
 {
   GskHttpAuthorization *auth = gsk_http_authorization_parse (value);
   if (auth == NULL)
@@ -1811,7 +1824,7 @@ static GskHttpHeaderLineParser request_parsers[] =
   GENERIC_LINE_PARSER ("if-match", handle_if_match),
   GENERIC_LINE_PARSER ("te", handle_te),
   GENERIC_LINE_PARSER ("cache-control", handle_request_cache_control),
-  GENERIC_LINE_PARSER ("www-authorization", handle_www_authorization),
+  GENERIC_LINE_PARSER ("authorization", handle_authorization),
 };
 
 static GskHttpHeaderLineParser response_parsers[] =

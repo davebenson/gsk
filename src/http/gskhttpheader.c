@@ -995,12 +995,10 @@ GskHttpAuthorization *gsk_http_authorization_new_unknown (const char *auth_schem
  *
  * returns: the response to the authentication request.
  */
-GskHttpAuthorization *gsk_http_authorization_new_basic   (const char *realm,
-                                                          const char *user,
+GskHttpAuthorization *gsk_http_authorization_new_basic   (const char *user,
                                                           const char *password)
 {
   guint len = sizeof (GskHttpAuthorization)
-            + ACTUAL_LENGTH (realm)
             + ACTUAL_LENGTH (user)
             + ACTUAL_LENGTH (password);
   char *at;
@@ -1008,7 +1006,8 @@ GskHttpAuthorization *gsk_http_authorization_new_basic   (const char *realm,
   at = (char *)(auth + 1);
   auth->mode = GSK_HTTP_AUTH_MODE_BASIC;
   auth->auth_scheme_name = "Basic";
-  MAYBE_COPY (auth->info.basic.realm, realm, at);
+  MAYBE_COPY (auth->info.basic.user, user, at);
+  MAYBE_COPY (auth->info.basic.password, password, at);
   return auth;
 }
 /**
@@ -1069,6 +1068,8 @@ GskHttpAuthorization *gsk_http_authorization_new_digest  (const char *realm,
     auth->info.digest.algorithm = NULL;
   else
     auth->info.digest.algorithm = strcpy (at, algorithm);
+  auth->info.digest.response_digest = g_strdup (response_digest);
+  auth->info.digest.entity_digest = g_strdup (entity_digest);
   return auth;
 }
 
@@ -1101,7 +1102,7 @@ gsk_http_authorization_new_respond (const GskHttpAuthenticate *auth,
       return NULL;
 
     case GSK_HTTP_AUTH_MODE_BASIC:
-      return gsk_http_authorization_new_basic (auth->realm, user, password);
+      return gsk_http_authorization_new_basic (user, password);
 
     case GSK_HTTP_AUTH_MODE_DIGEST:
       return gsk_http_authorization_new_digest (auth->realm,
@@ -1142,8 +1143,7 @@ gsk_http_authorization_copy (const GskHttpAuthorization *auth)
       return gsk_http_authorization_new_unknown (auth->auth_scheme_name,
                                                  auth->info.unknown.response);
     case GSK_HTTP_AUTH_MODE_BASIC:
-      return gsk_http_authorization_new_basic (auth->auth_scheme_name,
-                                               auth->info.basic.user,
+      return gsk_http_authorization_new_basic (auth->info.basic.user,
                                                auth->info.basic.password);
     case GSK_HTTP_AUTH_MODE_DIGEST:
       return gsk_http_authorization_new_digest  (auth->info.digest.realm,

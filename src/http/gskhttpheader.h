@@ -454,7 +454,6 @@ struct _GskHttpAuthorization
       char                   *response;
     } unknown;
     struct {
-      char                   *realm;
       char                   *user;
       char                   *password;
     } basic;
@@ -474,8 +473,7 @@ struct _GskHttpAuthorization
 };
 GskHttpAuthorization *gsk_http_authorization_new_unknown (const char *auth_scheme_name,
                                                           const char *response);
-GskHttpAuthorization *gsk_http_authorization_new_basic   (const char *realm,
-                                                          const char *user,
+GskHttpAuthorization *gsk_http_authorization_new_basic   (const char *user,
                                                           const char *password);
 GskHttpAuthorization *gsk_http_authorization_new_digest  (const char *realm,
                                                           const char *domain,
