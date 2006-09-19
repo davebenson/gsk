@@ -408,7 +408,6 @@ void       gsk_http_response_set_no_retry_after(GskHttpResponse *response)
   response->has_retry_after = 0;
 }
 
-#if 0
 /**
  * gsk_http_response_set_authenticate:
  * @response: the response to adjust the authentication for.
@@ -427,9 +426,14 @@ gsk_http_response_set_authenticate       (GskHttpResponse  *response,
 					  gboolean         is_proxy_auth,
 					  GskHttpAuthenticate *auth)
 {
-  GskHttpAuthenticate *dst_auth = is_proxy_auth ? &response->proxy_auth : &response->auth;
-  const char *challenge = auth ? auth->challenge : NULL;
-  gsk_http_header_set_string (GSK_HTTP_HEADER (response), &dst_auth->challenge, challenge);
+  GskHttpAuthenticate **dst_auth = is_proxy_auth ? &response->proxy_auth : &response->auth;
+
+  if (auth)
+    gsk_http_authenticate_ref (auth);
+  if (*dst_auth != NULL)
+    gsk_http_authenticate_unref (*dst_auth);
+
+  *dst_auth = auth;
 }
 
 /**
@@ -446,10 +450,8 @@ GskHttpAuthenticate *
 gsk_http_response_peek_authenticate      (GskHttpResponse  *response,
 					  gboolean    is_proxy_auth)
 {
-  GskHttpAuthenticate *dst_auth = is_proxy_auth ? &response->proxy_auth : &response->auth;
-  return dst_auth->challenge ? dst_auth : NULL;
+  return is_proxy_auth ? response->proxy_auth : response->auth;
 }
-#endif
 
 /**
  * gsk_http_response_set_allowed_verbs:

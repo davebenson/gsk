@@ -130,9 +130,9 @@ gsk_http_request_finalize (GObject *object)
   gsk_http_header_free_string (request, request->referrer);
   gsk_http_header_free_string (request, request->from);
   if (request->authorization)
-    gsk_http_authorization_free (request->authorization);
+    gsk_http_authorization_unref (request->authorization);
   if (request->proxy_auth)
-    gsk_http_authorization_free (request->proxy_auth);
+    gsk_http_authorization_unref (request->proxy_auth);
   if (NULL != request->cache_control)
     {
       gsk_http_request_cache_directive_free (request->cache_control);
@@ -559,7 +559,6 @@ gsk_http_request_clear_media    (GskHttpRequest *header)
     }
 }
 
-#if 0
 /**
  * gsk_http_request_set_authorization:
  * @request: the request to adjust the authorization for.
@@ -578,9 +577,12 @@ gsk_http_request_set_authorization       (GskHttpRequest  *request,
 					  gboolean         is_proxy_auth,
 					  GskHttpAuthorization *auth)
 {
-  GskHttpAuthorization *dst_auth = is_proxy_auth ? &request->proxy_auth : &request->authorization;
-  const char *credentials = auth ? auth->credentials : NULL;
-  gsk_http_header_set_string (GSK_HTTP_HEADER (request), &dst_auth->credentials, credentials);
+  GskHttpAuthorization **dst_auth = is_proxy_auth ? &request->proxy_auth : &request->authorization;
+  if (auth)
+    gsk_http_authorization_ref (auth);
+  if (*dst_auth)
+    gsk_http_authorization_unref (*dst_auth);
+  *dst_auth = auth;
 }
 
 /**
@@ -597,10 +599,8 @@ GskHttpAuthorization *
 gsk_http_request_peek_authorization      (GskHttpRequest  *request,
 					  gboolean    is_proxy_auth)
 {
-  GskHttpAuthorization *dst_auth = is_proxy_auth ? &request->proxy_auth : &request->authorization;
-  return dst_auth->credentials ? dst_auth : NULL;
+  return is_proxy_auth ? request->proxy_auth : request->authorization;
 }
-#endif
 
 /**
  * gsk_http_request_add_cookie:

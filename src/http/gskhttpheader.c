@@ -836,6 +836,7 @@ gsk_http_authenticate_new_unknown (const char *auth_scheme_name,
   char *at;
   GskHttpAuthenticate *auth = g_malloc (len);
   auth->mode = GSK_HTTP_AUTH_MODE_UNKNOWN;
+  auth->ref_count = 1;
   at = (char *)(auth + 1);
   MAYBE_COPY(auth->auth_scheme_name, auth_scheme_name, at);
   MAYBE_COPY(auth->realm, realm, at);
@@ -863,6 +864,7 @@ GskHttpAuthenticate *gsk_http_authenticate_new_basic   (const char *realm)
   auth->mode = GSK_HTTP_AUTH_MODE_BASIC;
   at = (char *)(auth + 1);
   auth->auth_scheme_name = "Basic";
+  auth->ref_count = 1;
   MAYBE_COPY (auth->realm, realm, at);
   auth->realm = strcpy (at, realm);
   return auth;
@@ -899,6 +901,7 @@ GskHttpAuthenticate *gsk_http_authenticate_new_digest  (const char *realm,
             + (is_md5 ? 0 : (strlen (algorithm) + 1));
   GskHttpAuthenticate *auth = g_malloc (len);
   char *at;
+  auth->ref_count = 1;
   auth->mode = GSK_HTTP_AUTH_MODE_DIGEST;
   auth->auth_scheme_name = "Digest";
   at = (char*)(auth + 1);
@@ -935,10 +938,22 @@ gsk_http_authenticate_copy (const GskHttpAuthenticate *auth)
     }
 }
 
-static void
-gsk_http_authenticate_free (GskHttpAuthenticate *auth)
+GskHttpAuthenticate *
+gsk_http_authenticate_ref (GskHttpAuthenticate *auth)
 {
-  g_free (auth);
+  g_return_val_if_fail (auth->ref_count != 0, auth);
+  ++(auth->ref_count);
+  return auth;
+}
+
+void
+gsk_http_authenticate_unref (GskHttpAuthenticate *auth)
+{
+  g_return_if_fail (auth->ref_count != 0);
+  if (--(auth->ref_count) == 0)
+    {
+      g_free (auth);
+    }
 }
 
 /* GskHttpAuthorization */
@@ -1145,17 +1160,30 @@ gsk_http_authorization_copy (const GskHttpAuthorization *auth)
     }
 }
 
-void
-gsk_http_authorization_free (GskHttpAuthorization *auth)
+GskHttpAuthorization *
+gsk_http_authorization_ref (GskHttpAuthorization *auth)
 {
-  if (auth->mode == GSK_HTTP_AUTH_MODE_DIGEST)
-    {
-      g_free (auth->info.digest.nonce);
-      g_free (auth->info.digest.response_digest);
-      g_free (auth->info.digest.entity_digest);
-    }
-  g_free (auth);
+  g_return_val_if_fail (auth->ref_count != 0, auth);
+  ++(auth->ref_count);
+  return auth;
 }
+
+void
+gsk_http_authorization_unref (GskHttpAuthorization *auth)
+{
+  g_return_if_fail (auth->ref_count != 0);
+  if (--(auth->ref_count) == 0)
+    {
+      if (auth->mode == GSK_HTTP_AUTH_MODE_DIGEST)
+        {
+          g_free (auth->info.digest.nonce);
+          g_free (auth->info.digest.response_digest);
+          g_free (auth->info.digest.entity_digest);
+        }
+      g_free (auth);
+    }
+}
+
 
 /* GskHttpResponseCacheDirective */
 /**
@@ -1663,7 +1691,7 @@ gsk_http_range_set_free(GskHttpRangeSet *set)
   g_free (set);
 }
 
-#define DEFINE_BOXED_GET_TYPE(Class, class)				   \
+#define _DEFINE_BOXED_GET_TYPE(Class, class, _copy, _free)	           \
 GType									   \
 class ## _get_type (void)						   \
 {									   \
@@ -1674,8 +1702,10 @@ class ## _get_type (void)						   \
                                          (GBoxedFreeFunc) class ## _free); \
   return type;								   \
 }
-DEFINE_BOXED_GET_TYPE (GskHttpAuthenticate, gsk_http_authenticate)
-DEFINE_BOXED_GET_TYPE (GskHttpAuthorization, gsk_http_authorization)
+#define DEFINE_BOXED_GET_TYPE(Class, class) _DEFINE_BOXED_GET_TYPE(Class,class,_copy,_free)
+#define DEFINE_REFCOUNTED_BOXED_GET_TYPE(Class, class) _DEFINE_BOXED_GET_TYPE(Class,class,_ref,_unref)
+DEFINE_REFCOUNTED_BOXED_GET_TYPE (GskHttpAuthenticate, gsk_http_authenticate)
+DEFINE_REFCOUNTED_BOXED_GET_TYPE (GskHttpAuthorization, gsk_http_authorization)
 DEFINE_BOXED_GET_TYPE (GskHttpResponseCacheDirective, 
 		       gsk_http_response_cache_directive)
 DEFINE_BOXED_GET_TYPE (GskHttpRequestCacheDirective, 

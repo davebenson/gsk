@@ -51,10 +51,10 @@ struct _GskHttpResponse
   /* The ``Entity-Tag'', cf RFC 2616, Sections 14.24, 14.26, 14.44. */
   char                     *etag;
 
-  GskHttpAuthenticate       proxy_auth;
+  GskHttpAuthenticate      *proxy_auth;
 
   /* This is the WWW-Authenticate: header line. */
-  GskHttpAuthenticate       auth;
+  GskHttpAuthenticate      *auth;
 
   /* If `retry_after_relative', the retry_after is the number 
    * of seconds to wait before retrying; otherwise,

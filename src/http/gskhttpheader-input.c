@@ -1482,6 +1482,270 @@ handle_retry_after (GskHttpHeader *header,
   return TRUE;
 }
 
+/* --- Authenticate and Authorization ---*/
+
+/* NOTES:
+    - The macros CUT_TOKEN and CUT_TOKEN_MAYBE_QUOTED
+      assume that there are local variables "start"
+      and "at" that are being manipulated.
+    - IS_NONQUOTED_ATTR is intended for use with GSK_SKIP_CHAR_TYPE().
+ */
+
+  /* This macro assigns 'var_name' a stack-allocated
+     string which consists of the characters starting
+     at the variable 'start' and with 'at' immediately past
+     the last character. */
+#define CUT_TOKEN(var_name)                     \
+  G_STMT_START{                                 \
+    var_name = g_alloca (at - start + 1);       \
+    memcpy (var_name, start, at - start);       \
+    var_name[at - start] = 0;                   \
+  }G_STMT_END
+
+/* TODO: optimize these */
+#define IS_ATTR_NAME_CHAR(c)                    \
+  ((c) == '-' || (c) == '_' || g_ascii_isalnum(c))
+#define IS_NONQUOTED_ATTR(c)                    \
+  (!g_ascii_isspace (c) && c != ';' && c != ',')
+
+  /* Assign var_name the value of a string starting
+     at 'at', at moving 'at' past the end of the string,
+     past a ';' or ',' delimiter.
+     and skipping any trailing whitespace */
+#define CUT_TOKEN_MAYBE_QUOTED(var_name)             \
+  G_STMT_START{                                      \
+    if (*at == '"')                                  \
+      {                                              \
+        start = ++at;                                \
+        at = strchr (at, '"');                       \
+        if (at == NULL)                              \
+          return FALSE;                              \
+        CUT_TOKEN (var_name);                        \
+        at++;                                        \
+        GSK_SKIP_WHITESPACE (at);                    \
+        if (*at == ',' || *at == ';')                \
+          at++;                                      \
+      }                                              \
+    else                                             \
+      {                                              \
+        start = at;                                  \
+        GSK_SKIP_CHAR_TYPE (at, IS_NONQUOTED_ATTR);  \
+        CUT_TOKEN (var_name);                        \
+        if (*at)                                     \
+          at++; /* skip delimiter character */       \
+      }                                              \
+    GSK_SKIP_WHITESPACE (at);                        \
+  }G_STMT_END
+
+static inline gboolean
+is_key (const char *start, guint len, const char *str)
+{
+  return memcmp (start, str, len) == 0 
+     &&  start[len] == '\0';
+}
+
+static GskHttpAuthenticate *
+gsk_http_authenticate_parse (const char *value)
+{
+  char *auth_scheme = NULL;
+  char *realm = NULL;
+  char *domain = NULL;
+  char *nonce = NULL;
+  char *opaque = NULL;
+  char *algorithm = NULL;
+  char *stale = NULL;
+  char *qop = NULL;
+  const char *at = value;
+  const char *start;
+  GskHttpAuthenticate *rv;
+
+  GSK_SKIP_WHITESPACE (at);
+  if (*at == 0)
+    return FALSE;
+
+  CUT_TOKEN (auth_scheme);
+  GSK_SKIP_WHITESPACE (at);
+
+  while (*at)
+    {
+      const char *key_start = at;
+      const char *key_end = key_start;
+      guint key_len;
+      GSK_SKIP_CHAR_TYPE (key_end, IS_ATTR_NAME_CHAR);
+      at = key_end;
+      GSK_SKIP_WHITESPACE (at);
+      if (*at != '=')
+        {
+          /* is this ever ok? */
+          return FALSE;
+        }
+      at++;
+      GSK_SKIP_WHITESPACE (at);
+#define IS_KEY(str) is_key (key_start, key_end - key_start, str)
+      if (IS_KEY ("realm"))
+        CUT_TOKEN_MAYBE_QUOTED (realm);
+      else if (IS_KEY ("domain"))
+        CUT_TOKEN_MAYBE_QUOTED (domain);
+      else if (IS_KEY ("nonce"))
+        CUT_TOKEN_MAYBE_QUOTED (nonce);
+      else if (IS_KEY ("opaque"))
+        CUT_TOKEN_MAYBE_QUOTED (opaque);
+      else if (IS_KEY ("algorithm"))
+        CUT_TOKEN_MAYBE_QUOTED (algorithm);
+      else if (IS_KEY ("stale"))
+        CUT_TOKEN_MAYBE_QUOTED (stale);
+      else if (IS_KEY ("qop"))
+        CUT_TOKEN_MAYBE_QUOTED (qop);
+      else
+        {
+          char *unused;
+          CUT_TOKEN_MAYBE_QUOTED (unused);      /* TODO: save these! */
+        }
+#undef IS_KEY
+    }
+
+  if (g_ascii_strcasecmp (auth_scheme, "Basic") == 0)
+    {
+      rv = gsk_http_authenticate_new_basic (realm);
+    }
+  else if (g_ascii_strcasecmp (auth_scheme, "Digest") == 0)
+    {
+      /* XXX: missing qop and stale ??? */
+      rv = gsk_http_authenticate_new_digest (realm, domain, nonce,
+                                             opaque, algorithm);
+    }
+  else
+    {
+      return NULL;
+    }
+
+  /* TODO: aux parameters */
+
+  return rv;
+}
+
+static GskHttpAuthorization *
+gsk_http_authorization_parse (const char *value)
+{
+  char *auth_scheme = NULL;
+  char *realm = NULL;
+  char *domain = NULL;
+  char *nonce = NULL;
+  char *opaque = NULL;
+  char *algorithm = NULL;
+  char *qop = NULL;
+  char *user = NULL;
+  char *password = NULL;
+  char *response_digest = NULL;
+  char *entity_digest = NULL;
+  const char *at = value;
+  const char *start;
+  GskHttpAuthorization *rv;
+
+  GSK_SKIP_WHITESPACE (at);
+  if (*at == 0)
+    return FALSE;
+
+  CUT_TOKEN (auth_scheme);
+  GSK_SKIP_WHITESPACE (at);
+
+  while (*at)
+    {
+      const char *key_start = at;
+      const char *key_end = key_start;
+      guint key_len;
+      GSK_SKIP_CHAR_TYPE (key_end, IS_ATTR_NAME_CHAR);
+      at = key_end;
+      GSK_SKIP_WHITESPACE (at);
+      if (*at != '=')
+        {
+          /* is this ever ok? */
+          return FALSE;
+        }
+      at++;
+      GSK_SKIP_WHITESPACE (at);
+#define IS_KEY(str) is_key (key_start, key_end - key_start, str)
+      if (IS_KEY ("realm"))
+        CUT_TOKEN_MAYBE_QUOTED (realm);
+      else if (IS_KEY ("domain"))
+        CUT_TOKEN_MAYBE_QUOTED (domain);
+      else if (IS_KEY ("nonce"))
+        CUT_TOKEN_MAYBE_QUOTED (nonce);
+      else if (IS_KEY ("opaque"))
+        CUT_TOKEN_MAYBE_QUOTED (opaque);
+      else if (IS_KEY ("algorithm"))
+        CUT_TOKEN_MAYBE_QUOTED (algorithm);
+      else if (IS_KEY ("qop"))
+        CUT_TOKEN_MAYBE_QUOTED (qop);
+      else if (IS_KEY ("user"))
+        CUT_TOKEN_MAYBE_QUOTED (user);
+      else if (IS_KEY ("password"))
+        CUT_TOKEN_MAYBE_QUOTED (password);
+      else if (IS_KEY ("response_digest"))
+        CUT_TOKEN_MAYBE_QUOTED (response_digest);
+      else if (IS_KEY ("entity_digest"))
+        CUT_TOKEN_MAYBE_QUOTED (entity_digest);
+      else
+        {
+          char *unused;
+          CUT_TOKEN_MAYBE_QUOTED (unused);      /* TODO: save these! */
+        }
+#undef IS_KEY
+    }
+
+  if (g_ascii_strcasecmp (auth_scheme, "Basic") == 0)
+    {
+      rv = gsk_http_authorization_new_basic (realm, user, password);
+    }
+  else if (g_ascii_strcasecmp (auth_scheme, "Digest") == 0)
+    {
+      rv = gsk_http_authorization_new_digest (realm, domain, nonce, opaque,
+                                              algorithm, user, password,
+                                              response_digest, entity_digest);
+    }
+  else
+    {
+      return NULL;
+    }
+
+  /* TODO: aux parameters */
+
+  return rv;
+}
+
+static gboolean
+handle_www_authenticate (GskHttpHeader *header,
+		         const char *value,
+		         gpointer data)
+{
+
+  GskHttpAuthenticate *auth = gsk_http_authenticate_parse (value);
+  if (auth == NULL)
+    return FALSE;
+  gsk_http_response_set_authenticate (GSK_HTTP_RESPONSE (header), FALSE, auth);
+  gsk_http_authenticate_unref (auth);
+  return TRUE;
+}
+
+static gboolean
+handle_www_authorization (GskHttpHeader *header,
+		          const char *value,
+		          gpointer data)
+{
+  GskHttpAuthorization *auth = gsk_http_authorization_parse (value);
+  if (auth == NULL)
+    return FALSE;
+  gsk_http_request_set_authorization (GSK_HTTP_REQUEST (header), FALSE, auth);
+  gsk_http_authorization_unref (auth);
+  return TRUE;
+}
+
+#undef IS_ATTR_NAME_CHAR
+#undef CUT_TOKEN_MAYBE_QUOTED
+#undef CUT_TOKEN
+
+
+/* --- Parser Tables --- */
 G_LOCK_DEFINE_STATIC (table_table);
 
 /**
@@ -1540,7 +1804,8 @@ static GskHttpHeaderLineParser request_parsers[] =
   GENERIC_LINE_PARSER ("accept", handle_accept),
   GENERIC_LINE_PARSER ("if-match", handle_if_match),
   GENERIC_LINE_PARSER ("te", handle_te),
-  GENERIC_LINE_PARSER ("cache-control", handle_request_cache_control)
+  GENERIC_LINE_PARSER ("cache-control", handle_request_cache_control),
+  GENERIC_LINE_PARSER ("www-authorization", handle_www_authorization),
 };
 
 static GskHttpHeaderLineParser response_parsers[] =
@@ -1557,7 +1822,8 @@ static GskHttpHeaderLineParser response_parsers[] =
   GENERIC_LINE_PARSER ("allow", handle_allow),
   GENERIC_LINE_PARSER ("content-md5", handle_content_md5sum),
   GENERIC_LINE_PARSER ("retry-after", handle_retry_after),
-  GENERIC_LINE_PARSER ("cache-control", handle_response_cache_control)
+  GENERIC_LINE_PARSER ("cache-control", handle_response_cache_control),
+  GENERIC_LINE_PARSER ("www-authenticate", handle_www_authenticate),
 };
 
 /**

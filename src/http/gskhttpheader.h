@@ -430,16 +430,19 @@ struct _GskHttpAuthenticate
       char                   *algorithm;
     } digest;
   } info;
+  guint           ref_count;            /*< private >*/
 };
-GskHttpAuthenticate *gsk_http_authenticate_new_unknown (const char *auth_scheme_name,
-                                                        const char *realm,
-                                                        const char *options);
-GskHttpAuthenticate *gsk_http_authenticate_new_basic   (const char *realm);
-GskHttpAuthenticate *gsk_http_authenticate_new_digest  (const char *realm,
-                                                        const char *domain,
-                                                        const char *nonce,
-                                                        const char *opaque,
-                                                        const char *algorithm);
+GskHttpAuthenticate *gsk_http_authenticate_new_unknown (const char          *auth_scheme_name,
+                                                        const char          *realm,
+                                                        const char          *options);
+GskHttpAuthenticate *gsk_http_authenticate_new_basic   (const char          *realm);
+GskHttpAuthenticate *gsk_http_authenticate_new_digest  (const char          *realm,
+                                                        const char          *domain,
+                                                        const char          *nonce,
+                                                        const char          *opaque,
+                                                        const char          *algorithm);
+GskHttpAuthenticate  *gsk_http_authenticate_ref        (GskHttpAuthenticate *auth);
+void                  gsk_http_authenticate_unref      (GskHttpAuthenticate *auth);
 
 struct _GskHttpAuthorization
 {
@@ -467,6 +470,7 @@ struct _GskHttpAuthorization
       char                   *entity_digest;
     } digest;
   } info;
+  guint           ref_count;            /*< private >*/
 };
 GskHttpAuthorization *gsk_http_authorization_new_unknown (const char *auth_scheme_name,
                                                           const char *response);
@@ -496,7 +500,8 @@ const char           *gsk_http_authorization_peek_response_digest (GskHttpAuthor
 GskHttpAuthorization *gsk_http_authorization_copy        (const GskHttpAuthorization *);
 void                  gsk_http_authorization_set_nonce   (GskHttpAuthorization *,
                                                           const char *nonce);
-void                  gsk_http_authorization_free        (GskHttpAuthorization *);
+GskHttpAuthorization *gsk_http_authorization_ref         (GskHttpAuthorization *);
+void                  gsk_http_authorization_unref       (GskHttpAuthorization *);
 
 /* an update to an existing authentication,
    to verify that we're talking to the same host. */
