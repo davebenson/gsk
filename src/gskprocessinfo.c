@@ -2,6 +2,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <limits.h>
+#include <unistd.h>
 #include <sys/param.h>
 #include <stdlib.h>
 
@@ -24,6 +25,32 @@
 #if !defined(PAGE_SIZE) && defined(PAGESIZE)
 #define PAGE_SIZE PAGESIZE
 #endif
+
+/* Define 'get_page_size()' */
+#ifdef PAGE_SIZE
+# define get_page_size()	PAGE_SIZE
+#else
+
+  /* Define SYSCONF_PAGESIZE_MACRO */
+# ifdef _SC_PAGESIZE
+#  define SYSCONF_PAGESIZE_MACRO	_SC_PAGESIZE
+# elif defined(_SC_PAGE_SIZE)
+#  define SYSCONF_PAGESIZE_MACRO	_SC_PAGE_SIZE
+# else
+#  error no way to find PAGE_SIZE
+# endif
+
+static guint get_page_size (void)
+{
+  static guint rv = 0;
+  if (rv == 0)
+    {
+      rv = sysconf (SYSCONF_PAGESIZE_MACRO);
+      g_assert (rv != 0);
+    }
+  return rv;
+}
+#endif	/* !defined(PAGE_SIZE) */
 
 GskProcessInfo *
 gsk_process_info_get (guint          pid,
@@ -185,7 +212,7 @@ gsk_process_info_get (guint          pid,
 
   /* 'rss' */
   PARSE_UINT (dummy_uint, 0);
-  rv->resident_memory_size = dummy_uint * PAGE_SIZE;
+  rv->resident_memory_size = dummy_uint * get_page_size ();
 
   /* 'rlim' */
   PARSE_UINT (dummy_uint, 0);
