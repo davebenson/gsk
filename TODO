@@ -9,8 +9,6 @@
 - mailto: URIs
 - basic tutorials need serious work. [simple-http-server is very misleading, should use gskhttpcontent]
 - BUILD: should check for zlib
-- HTTP client doesn't call the request's destroy function
-  sometimes until it is finalized. ?
 - TODO: contention on POST data:  right now, we buffer as much
    data as the user feels like giving us... need to block the hook.
 - TODO: GskStreamConnection::handle_error() needs to NOT just warn, 
