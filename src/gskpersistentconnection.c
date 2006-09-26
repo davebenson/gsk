@@ -236,6 +236,7 @@ handle_transport_error (GskStream *transport,
   if (connection->warn_on_transport_errors)
     g_warning ("error in transport: %s", GSK_IO (transport)->error->message);
   shutdown_transport (connection);
+  g_signal_emit (connection, handle_disconnected_signal_id, 0);
   setup_timeout (connection);
 }
 
@@ -384,7 +385,10 @@ void gsk_persistent_connection_restart (GskPersistentConnection *connection,
                                         guint                    retry_wait_ms)
 {
   if (connection->transport != NULL)
-    shutdown_transport (connection);
+    {
+      shutdown_transport (connection);
+      g_signal_emit (connection, handle_disconnected_signal_id, 0);
+    }
   if (connection->retry_timeout_source != NULL)
     {
       gsk_source_remove (connection->retry_timeout_source);
