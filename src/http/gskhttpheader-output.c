@@ -144,18 +144,19 @@ cookie_max_length (GskHttpCookie *cookie)
   guint rv = 0;
   if (!cookie->key || !cookie->value)
     return 0;
-  rv += strlen (cookie->key) + strlen (cookie->value) + 1;
+  rv += strlen (cookie->key) + strlen (cookie->value) + 3;
   if (cookie->domain)
-    rv += strlen (cookie->domain) + 15;
+    rv += strlen (cookie->domain) + 9;
   if (cookie->expire_date)
-    rv += strlen (cookie->expire_date) + 15;
+    rv += strlen (cookie->expire_date) + 10;
   if (cookie->max_age >= 0)
     rv += 30;
   if (cookie->secure)
     rv += 10;
   if (cookie->version)
     rv += 12;
-  rv += 30;		/* for `; $Path=/' */
+  if (cookie->path)
+    rv += strlen (cookie->path) + 7;
   return rv;
 }
 
@@ -169,42 +170,42 @@ cookie_to_string (GskHttpCookie *cookie,
   char *start = buf_at;
   if (!cookie->key || !cookie->value)
     return 0;
-  g_snprintf (buf_at, remaining, "%s=%s", cookie->key, cookie->value);
+  g_snprintf (buf_at, remaining, "%s=%s;", cookie->key, cookie->value);
   buf_at = strchr (buf_at, 0);
   if (cookie->domain)
     {
       g_snprintf (buf_at, remaining - (buf_at - start),
-		  "; Domain=%s", cookie->domain);
+		  " Domain=%s;", cookie->domain);
       buf_at = strchr (buf_at, 0);
     }
   if (cookie->max_age >= 0)
     {
       g_snprintf (buf_at, remaining - (buf_at - start),
-		  "; Max-Age=%ld", (long) cookie->max_age);
+		  " Max-Age=%ld;", (long) cookie->max_age);
       buf_at = strchr (buf_at, 0);
     }
   if (cookie->expire_date)
     {
       g_snprintf (buf_at, remaining - (buf_at - start),
-		  "; Expires=%s", cookie->expire_date);
+		  " Expires=%s;", cookie->expire_date);
       buf_at = strchr (buf_at, 0);
     }
   if (cookie->path)
     {
       g_snprintf (buf_at, remaining - (buf_at - start),
-                  "; Path=%s", cookie->path);
+                  " Path=%s;", cookie->path);
       buf_at = strchr (buf_at, 0);
     }
   if (cookie->version)
     {
       g_snprintf (buf_at, remaining - (buf_at - start),
-                  "; Version=%u",
+                  " Version=%u;",
                   cookie->version);
       buf_at = strchr (buf_at, 0);
     }
   if (cookie->secure)
     {
-      g_snprintf (buf_at, remaining - (buf_at - start), "; Secure");
+      g_snprintf (buf_at, remaining - (buf_at - start), " Secure;");
       buf_at = strchr (buf_at, 0);
     }
 
@@ -221,23 +222,23 @@ print_cookielist    (const char             *header,
     {
       char *buf;
       guint index = 0;
-      guint len = strlen (header) + 2;
+      guint len = 0;
       GSList *tmp;
       for (tmp = cookie_list; tmp != NULL; tmp = tmp->next)
-	len += cookie_max_length (tmp->data);
+	len += cookie_max_length (tmp->data) + strlen (header) + 4;
       buf = g_alloca (len + 1);
 
-      strcpy (buf + index, header);
-      index = strchr (buf + index, 0) - buf;
-      strcpy (buf + index, ": ");
-      index += 2;
+      index = 0;
       for (tmp = cookie_list; tmp != NULL; tmp = tmp->next)
 	{
+          strcpy (buf + index, header);
+          index += strlen (header);
+          strcpy (buf + index, ": ");
+          index += 2;
 	  index += cookie_to_string (tmp->data, buf + index, len - index);
 	  if (tmp->next != NULL)
 	    {
-              /* Separate cookies with comma (RFC 2109) */
-	      strcpy (buf + index, ", ");
+	      strcpy (buf + index, "\r\n");
 	      index += 2;
 	    }
 	}
