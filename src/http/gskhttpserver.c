@@ -240,12 +240,19 @@ handle_content_shutdown (GskStream *content_stream, gpointer data)
       if (was_empty)
 	gsk_io_mark_idle_notify_read (server);
     }
-  if (trapped_response->outgoing.size == 0
-   && should_close_after_this_response (trapped_response))
+  if (trapped_response->outgoing.size == 0)
     {
-      gsk_io_notify_read_shutdown (server);
-      if (gsk_io_get_is_writable (server))
-	gsk_io_write_shutdown (server, NULL);
+      trapped_response->is_done_writing = 1;
+      if (should_close_after_this_response (trapped_response))
+        {
+          gsk_io_notify_read_shutdown (server);
+          if (gsk_io_get_is_writable (server))
+            gsk_io_write_shutdown (server, NULL);
+        }
+      else
+        {
+          gsk_http_server_prune_done_responses (server);
+        }
     }
   g_object_unref (content_stream);
   return FALSE;
