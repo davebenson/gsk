@@ -111,8 +111,8 @@ gsk_mem_pool_must_alloc   (GskMemPool     *pool,
  *
  * returns: the slab of memory allocated from the pool.
  */
-G_INLINE_FUNC gpointer gsk_mem_pool_alloc0           (GskMemPool     *pool,
-                                                      gsize           size)
+gpointer gsk_mem_pool_alloc0           (GskMemPool     *pool,
+                                        gsize           size)
 {
   return memset (gsk_mem_pool_alloc (pool, size), 0, size);
 }
