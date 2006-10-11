@@ -124,34 +124,7 @@ gsk_http_server_response_destroy (GskHttpServerResponse *response,
   gsk_http_server_response_free (response);
 }
 
-static void
-gsk_http_server_prune_done_responses (GskHttpServer *server)
-{
-  GskHttpServerResponse **pthis = &server->first_response;
-  GskHttpServerResponse *last = NULL;
-  while (*pthis != NULL)
-    {
-      GskHttpServerResponse *at = *pthis;
-      if (gsk_http_server_response_is_done (at))
-	{
-          if (server->trapped_response == at)
-	    {
-	      if (at->content != NULL)
-		gsk_stream_untrap_readable (at->content);
-	      server->trapped_response = NULL;
-	    }
-	  *pthis = at->next;
-	  gsk_http_server_response_destroy (at, FALSE);
-	}
-      else
-	{
-	  pthis = &at->next;
-	  last = at;
-	}
-    }
-  server->last_response = last;
-}
-
+static void gsk_http_server_prune_done_responses (GskHttpServer *server);
 static inline void
 gsk_http_server_response_fail (GskHttpServerResponse *response,
 			       const char            *explanation)
@@ -249,13 +222,73 @@ handle_content_shutdown (GskStream *content_stream, gpointer data)
           if (gsk_io_get_is_writable (server))
             gsk_io_write_shutdown (server, NULL);
         }
-      else
-        {
-          gsk_http_server_prune_done_responses (server);
-        }
     }
+  gsk_http_server_prune_done_responses (server);
   g_object_unref (content_stream);
   return FALSE;
+}
+
+static void gsk_http_server_prune_done_responses (GskHttpServer *server)
+{
+  GskHttpServerResponse **pthis = &server->first_response;
+  GskHttpServerResponse *last = NULL;
+  GskHttpServerResponse *at;
+  while (*pthis != NULL)
+    {
+      GskHttpServerResponse *at = *pthis;
+      if (gsk_http_server_response_is_done (at))
+	{
+          if (server->trapped_response == at)
+	    {
+	      if (at->content != NULL)
+		gsk_stream_untrap_readable (at->content);
+	      server->trapped_response = NULL;
+	    }
+	  *pthis = at->next;
+	  gsk_http_server_response_destroy (at, FALSE);
+	}
+      else
+	{
+	  pthis = &at->next;
+	  last = at;
+	}
+    }
+  server->last_response = last;
+
+  for (at = server->first_response; at != NULL; at = at->next)
+    {
+      if (!at->is_done_writing)
+	break;
+    }
+  
+  if ((at == NULL || at->is_done_writing)
+   && (server->got_close || !gsk_io_get_is_writable (server)))
+    {
+      /* The server is no longer readable.
+	 This automatically clears the idle-notify flag. */
+      gsk_io_notify_read_shutdown (server);
+
+      return;
+    }
+
+  gsk_io_set_idle_notify_read (server, at != NULL && at->outgoing.size != 0);
+
+  /* if we are blocking on the content-stream for data,
+     trap its readability. */
+  if (at != NULL && at->outgoing.size == 0 && at->content != NULL
+   && server->read_poll && server->trapped_response != at)
+    {
+      /* Untrap the old stream (if applicable),
+         and trap the correct one. */
+      if (server->trapped_response != NULL
+       && server->trapped_response->content != NULL)
+        gsk_stream_untrap_readable (at->content);
+      server->trapped_response = at;
+      gsk_stream_trap_readable (at->content, handle_content_is_readable,
+                                handle_content_shutdown,
+                                g_object_ref (server), g_object_unref);
+    }
+
 }
 
 /* --- i/o implementation --- */
@@ -321,7 +354,6 @@ gsk_http_server_raw_read      (GskStream     *stream,
   GskHttpServer *server = GSK_HTTP_SERVER (stream);
   GskHttpServerResponse *at;
   guint rv;
-  gboolean got_close = FALSE;
   for (at = server->first_response; at != NULL; at = at->next)
     {
       if (!at->is_done_writing)
@@ -359,7 +391,7 @@ gsk_http_server_raw_read      (GskStream     *stream,
 	  at->is_done_writing = TRUE;
 	  if (gsk_http_header_get_connection (GSK_HTTP_HEADER (at->response)) == GSK_HTTP_CONNECTION_CLOSE)
 	    {
-	      got_close = TRUE;
+	      server->got_close = TRUE;
 	      break;
 	    }
 	  at = at->next;
@@ -371,40 +403,6 @@ gsk_http_server_raw_read      (GskStream     *stream,
     }
 
   gsk_http_server_prune_done_responses (server);
-
-  for (at = server->first_response; at != NULL; at = at->next)
-    {
-      if (!at->is_done_writing)
-	break;
-    }
-  
-  if ((at == NULL || at->is_done_writing)
-   && (got_close || !gsk_io_get_is_writable (server)))
-    {
-      /* The server is no longer readable.
-	 This automatically clears the idle-notify flag. */
-      gsk_io_notify_read_shutdown (server);
-
-      return rv;
-    }
-
-  if (at == NULL || at->outgoing.size == 0)
-    gsk_io_clear_idle_notify_read (server);
-  /* if we are blocking on the content-stream for data,
-     trap its readability. */
-  if (at != NULL && at->outgoing.size == 0 && at->content != NULL
-   && server->read_poll && server->trapped_response != at)
-    {
-      /* Untrap the old stream (if applicable),
-         and trap the correct one. */
-      if (server->trapped_response != NULL
-       && server->trapped_response->content != NULL)
-        gsk_stream_untrap_readable (at->content);
-      server->trapped_response = at;
-      gsk_stream_trap_readable (at->content, handle_content_is_readable,
-                                handle_content_shutdown,
-                                g_object_ref (server), g_object_unref);
-    }
 
   return rv;
 }

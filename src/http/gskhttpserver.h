@@ -42,6 +42,7 @@ struct _GskHttpServer
   GskHttpServerResponse *trapped_response;
   guint read_poll : 1;
   guint write_poll : 1;
+  guint got_close : 1;
 };
 
 /* --- prototypes --- */
