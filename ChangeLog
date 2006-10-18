@@ -14,6 +14,7 @@
   * GskPersistentConnection is implemented in terms
     of GskSocketAddressSymbolic, and its DOING_NAME_RESOLUTION state
     is now unused.
+  * remove GskSimpleFilter.
 
 gsk (1.0.40)
   * minor bug fix (in rbtreemacros)
