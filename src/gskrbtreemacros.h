@@ -80,6 +80,16 @@
  *    right
  *    comparator
  */
+
+/*
+ * By and large, the red-black tree algorithms used here are from
+ * the classic text:
+ *     _Introduction to Algorithms_. Thomas Cormen, Charles Leiserson,
+ *     and Donald Rivest.  MIT Press.  1990.
+ * Citations appears as Algorithms:300 indicating page 300 (for example).
+ * The "rbctree" is my name for this idea (daveb),
+ * which i suspect has been thought of and implemented before.
+ */
 #define GSK_RBTREE_INSERT(tree, node, collision_node)                         \
   GSK_RBTREE_INSERT_(tree, node, collision_node)
 #define GSK_RBTREE_REMOVE(tree, node)                                         \
@@ -184,7 +194,7 @@ G_STMT_START{                                                                 \
                   set_is_red(_gsk_at->parent, 0);                             \
                   set_is_red(_gsk_at->parent->parent, 1);                     \
                   GSK_RBTREE_ROTATE_RIGHT (top,type,parent,left,right,        \
-                                         _gsk_at->parent->parent);            \
+                                           _gsk_at->parent->parent);          \
                 }                                                             \
             }                                                                 \
           else                                                                \
@@ -203,7 +213,7 @@ G_STMT_START{                                                                 \
                     {                                                         \
                       _gsk_at = _gsk_at->parent;                              \
                       GSK_RBTREE_ROTATE_RIGHT (top,type,parent,left,right,    \
-                                             _gsk_at);                        \
+                                               _gsk_at);                      \
                     }                                                         \
                   set_is_red(_gsk_at->parent, 0);                             \
                   set_is_red(_gsk_at->parent->parent, 1);                     \
@@ -427,7 +437,7 @@ G_STMT_START{                                                                 \
  *              sup(c)     if 'a < key' and sub(c) exists,           [case2]
  *              NULL       if 'a < key' and sub(c) does not exist.   [case3]
  *
- * the non-recursive algo follows once you realize that its just
+ * the non-recursive algo follows once you realize that it's just
  * a tree descent, keeping track of the best candidate you've found.
  * TODO: there's got to be a better way to describe it.
  */
