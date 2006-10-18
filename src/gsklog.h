@@ -100,7 +100,7 @@ void gsk_log_append (const char *filename);
                                                  G_LOG_LEVEL_WARNING,  \
                                                  format)
 #define gsk_debug(domain, format...)      g_log (domain,               \
-                                                 G_LOG_LEVEL_WARNING,  \
+                                                 G_LOG_LEVEL_DEBUG,    \
                                                  format)
 #else   /* no varargs macros */
 static void
