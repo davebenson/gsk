@@ -304,13 +304,30 @@ gsk_http_server_shutdown_read   (GskIO      *io,
 {
   GskHttpServer *server = GSK_HTTP_SERVER (io);
   GskHttpServerResponse *at;
+  guint n_to_shutdown = 0;
+  GskStream **to_shutdown;
+  guint i;
   for (at = server->first_response; at != NULL; at = at->next)
     if (!at->is_done_writing)
       {
         gsk_http_server_response_fail (at, "shutdown-read while data is still queued");
-        if (at->content != NULL)
-          gsk_io_read_shutdown (at->content, NULL);
+        if (at->content != NULL
+         && gsk_io_get_is_readable (at->content))
+          n_to_shutdown++;
       }
+  to_shutdown = g_newa (GskStream *, n_to_shutdown);
+  i = 0;
+  for (at = server->first_response; at != NULL; at = at->next)
+    if (!at->is_done_writing
+     && at->content != NULL
+     && gsk_io_get_is_readable (at->content))
+      to_shutdown[i++] = g_object_ref (at->content);
+  g_assert (i == n_to_shutdown);
+  for (i = 0; i < n_to_shutdown; i++)
+    {
+      gsk_io_read_shutdown (to_shutdown[i], NULL);
+      g_object_unref (to_shutdown[i]);
+    }
   return TRUE;
 }
 
