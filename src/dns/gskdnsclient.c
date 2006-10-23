@@ -2070,7 +2070,7 @@ gsk_dns_client_parse_resolv_conf_line(GskDnsClient       *client,
     {
       const char *end;
       char *tmp;
-      text += 10;
+      text += 6;
       GSK_SKIP_WHITESPACE (text);
       tmp = alloca (strlen (text) + 1);
       while (*text != 0)
