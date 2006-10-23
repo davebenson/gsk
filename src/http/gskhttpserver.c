@@ -647,6 +647,7 @@ gsk_http_server_init (GskHttpServer *http_server)
 {
   GSK_HOOK_INIT (http_server, GskHttpServer, has_request_hook, 0, 
 		 set_poll_request, shutdown_request);
+  GSK_HOOK_MARK_FLAG (&http_server->has_request_hook, IS_AVAILABLE);
   gsk_io_mark_is_readable (http_server);
   gsk_io_mark_is_writable (http_server);
 }
