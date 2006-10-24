@@ -538,7 +538,10 @@ header_line_parser_callback (GskHttpServerResponse *response,
   if (parser == NULL)
     {
       /* XXX: error handling */
-      g_warning ("couldn't handle header line %s", line);
+      gboolean is_nonstandard = (line[0] == 'x' || line[0] == 'X')
+                              && line[1] == '-';
+      if (!is_nonstandard)
+        g_warning ("couldn't handle header line %s", line);
       return;
     }
 
