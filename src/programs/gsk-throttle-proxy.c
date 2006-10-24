@@ -70,7 +70,7 @@ static inline void
 update_write_block (Side   *side)
 {
   gboolean old_val = side->write_side_blocked;
-  gboolean val = (side->buffer.size == 0);
+  gboolean val = (side->read_side != NULL && side->buffer.size == 0);
   side->write_side_blocked = val;
 
   if (old_val && !val)
@@ -138,7 +138,10 @@ handle_side_writable (GskStream *stream,
   update_write_block (side);
   update_read_block (side);
   if (written == 0 && side->read_side == NULL && side->buffer.size == 0)
-    gsk_io_write_shutdown (side->write_side, NULL);
+    {
+      update_write_block (side);
+      gsk_io_write_shutdown (side->write_side, NULL);
+    }
   return TRUE;
 }
 
@@ -226,7 +229,10 @@ handle_side_read_destroy (gpointer data)
   g_object_unref (side->read_side);
   side->read_side = NULL;
   if (side->buffer.size == 0 && side->write_side != NULL)
-    gsk_io_write_shutdown (side->write_side, NULL);
+    {
+      update_write_block (side);
+      gsk_io_write_shutdown (side->write_side, NULL);
+    }
   connection_unref (side->connection);
 }
 
