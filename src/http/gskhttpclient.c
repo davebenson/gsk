@@ -22,6 +22,11 @@
    data as the user feels like giving us... need to block the hook.  */
 #define BLOCK_POST_DATA 0       /* unfinished */
 
+/* TODO: contention on content-stream.  right now, we "never_block_on_write"
+   which means that if someone gives us gigabytes of data we
+   will buffer it, instead of blocking it. */
+
+
 /* TODO: instead of only flushing DONE requests in the raw_write
    call, we should be flushing them whereever we can.  */
 
@@ -89,8 +94,10 @@ typedef enum
   READING_RESPONSE_CONTENT_CHUNK_DATA,
   READING_RESPONSE_CONTENT_CHUNK_NEWLINE,	/* empty line after data */
 
-  /* request waiting to be deleted; we only delete requests in
-   * gsk_http_client_raw_write * which is actually kinda perverse i guess.
+  /* request waiting to be deleted.
+   * This is the state when all data for this request/response
+   * cycle has been written into us.  It is not necessarily
+   * the case that the ContentStream has been finished, however.
    */
   DONE
 } RequestState;
