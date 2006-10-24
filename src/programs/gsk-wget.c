@@ -149,6 +149,8 @@ handle_content_read_shutdown (GskStream *stream)
   return FALSE;
 }
 
+GskStream *the_content_stream;
+
 static void
 handle_transfer_done (GskUrlTransfer *transfer,
                       gpointer        data)
@@ -196,7 +198,7 @@ handle_transfer_done (GskUrlTransfer *transfer,
                                       handle_content_read_shutdown,
                                       NULL,
                                       NULL);
-            g_object_ref (transfer->content);
+            the_content_stream = g_object_ref (transfer->content);
           }
         break;
       }

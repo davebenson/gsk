@@ -41,7 +41,7 @@ virtual hosting.
 @referrer: URL which led us to this resource.
 @from: 
 @cookies: list of cookies.
-@proxy_auth: 
+@proxy_authorization: 
 @keep_alive_seconds: 
 @max_forwards: 
 @ua_height: 

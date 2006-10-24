@@ -3371,6 +3371,13 @@ possibly in a thread-pool.
 @challenge: 
 @Returns: 
 
+<!-- ##### FUNCTION gsk_http_authorization_free ##### -->
+<para>
+
+</para>
+
+@Param1: 
+
 <!-- ##### FUNCTION gsk_http_authorization_get_type ##### -->
 <para>
 

@@ -310,12 +310,13 @@ gsk_hook_trap           (GskHook        *hook,
 			 GDestroyNotify  destroy)
 {
   g_return_if_fail (hook->func == NULL);
+  g_return_if_fail (GSK_HOOK_TEST_FLAG (hook, IS_AVAILABLE));
   DEBUG ((hook, "gsk_hook_trap"));
   hook->func = func;
   hook->shutdown_func = shutdown;
   hook->data = data;
   hook->destroy = destroy;
-  if (hook->block_count == 0 && GSK_HOOK_TEST_FLAG (hook, IS_AVAILABLE)
+  if (hook->block_count == 0
    && !GSK_HOOK_TEST_FLAG (hook, HAS_POLL))
     gsk_hook_set_poll (hook);
 }
@@ -518,6 +519,8 @@ gsk_hook_notify          (GskHook        *hook)
 {
   GObject *object;
   gboolean handler_rv;
+
+  g_return_if_fail (GSK_HOOK_TEST_FLAG (hook, IS_AVAILABLE));
 
   DEBUG ((hook, "gsk_hook_notify: block-cnt=%d; notifying=%d, notifying-shutdown=%d, shutting-down=%d",
   	 hook->block_count,

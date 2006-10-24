@@ -1129,7 +1129,6 @@ length in advance.
 
 </para>
 
-@realm: 
 @user: 
 @password: 
 @Returns: 
@@ -1175,14 +1174,6 @@ length in advance.
 
 @Param1: 
 @Returns: 
-
-
-<!-- ##### FUNCTION gsk_http_authorization_free ##### -->
-<para>
-
-</para>
-
-@Param1: 
 
 
 <!-- ##### FUNCTION gsk_http_authorization_new_digest ##### -->
