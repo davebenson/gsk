@@ -42,21 +42,24 @@ read_destroy_notify (gpointer data)
 static gboolean
 handle_writable (GskStream *stream, gpointer data)
 {
-  g_printerr ("handle_writable (after read-end hung up) ??\n");
+  //g_printerr ("handle_writable (after read-end hung up) ??\n");
+  char buf = 0;
+  g_message ("handle_writable");
+  gsk_stream_write (stream, &buf, 1, NULL);
   return TRUE;
 }
 
 static gboolean
 handle_write_shutdown (GskStream *stream, gpointer data)
 {
-  g_printerr ("handle_write_shutdown (after read-end hung up).\n");
+  g_message ("handle_write_shutdown");
   return FALSE;
 }
 
 static void
 write_destroy_notify (gpointer data)
 {
-  g_printerr ("write_destroy_notify\n");
+  g_message ("write_destroy_notify\n");
   done = TRUE;
 }
 
@@ -87,7 +90,11 @@ int main(int argc, char **argv)
   while (!done)
     gsk_main_loop_run (gsk_main_loop_default (), -1, NULL);
   g_printerr (" done.\n");
+  g_object_unref (read_side);
+  g_object_unref (write_side);
 
+  if (!gsk_stream_fd_pipe (&read_side, &write_side, &error))
+    g_error ("error creating pipe: %s", error->message);
   g_printerr ("Testing Read-end Shutdown... ");
   timed_out = done = FALSE;
   gsk_stream_trap_writable(GSK_STREAM (write_side),
