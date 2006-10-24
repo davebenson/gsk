@@ -941,6 +941,7 @@ gsk_stream_fd_new_open (const char     *filename,
   if (fd < 0)
     {
       int e = errno;
+      gsk_errno_fd_creation_failed_errno (e);
       g_set_error (error, GSK_G_ERROR_DOMAIN,
 		   gsk_error_code_from_errno (e),
 		   _("error opening %s: %s"),
@@ -1030,8 +1031,12 @@ gboolean    gsk_stream_fd_pipe     (GskStream     **read_side_out,
 			            GError        **error)
 {
   int pipe_fds[2];
+retry:
   if (pipe (pipe_fds) < 0)
     {
+      if (gsk_errno_is_ignorable (errno))
+        goto retry;
+      gsk_errno_fd_creation_failed ();
       g_set_error (error, GSK_G_ERROR_DOMAIN,
 		   gsk_error_code_from_errno (errno),
 		   "error allocating pipe: %s", g_strerror (errno));
@@ -1050,8 +1055,12 @@ static gboolean
 do_socketpair (int fds[2],
                GError **error)
 {
+retry:
   if (socketpair (AF_UNIX, SOCK_STREAM, 0, fds) < 0)
     {
+      if (gsk_errno_is_ignorable (errno))
+        goto retry;
+      gsk_errno_fd_creation_failed ();
       g_set_error (error, GSK_G_ERROR_DOMAIN,
                    gsk_error_code_from_errno (errno),
                    "error allocating duplex pipe: %s",

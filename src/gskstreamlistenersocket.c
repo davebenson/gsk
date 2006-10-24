@@ -71,6 +71,7 @@ handle_input_event (GskStreamListenerSocket *listener)
       int e = errno;
       if (gsk_errno_is_ignorable (e))
         return;
+      gsk_errno_fd_creation_failed_errno (e);
       notify_error (listener, e);
     }
   else

@@ -47,9 +47,13 @@ gsk_socket_address_connect_fd    (GskSocketAddress *address,
   int fd;
   if (!gsk_socket_address_to_native (address, addr, error))
     return -1;
+retry:
   fd = socket (gsk_socket_address_protocol_family (address), SOCK_STREAM, 0);
   if (fd < 0)
     {
+      if (gsk_errno_is_ignorable (errno))
+        goto retry;
+      gsk_errno_fd_creation_failed ();
       if (error != NULL && *error == NULL)
 	{
 	  char *addr_str = gsk_socket_address_to_string (address);

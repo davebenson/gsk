@@ -498,8 +498,14 @@ GType gsk_stream_external_get_type()
 static inline int
 nb_pipe (int pipe_fds[2])
 {
+retry:
   if (pipe (pipe_fds) < 0)
-    return -1;
+    {
+      if (gsk_errno_is_ignorable (errno))
+        goto retry;
+      gsk_errno_fd_creation_failed ();
+      return -1;
+    }
   gsk_fd_set_nonblocking (pipe_fds[0]);
   gsk_fd_set_nonblocking (pipe_fds[1]);
   return 0;
@@ -631,6 +637,7 @@ gsk_stream_external_new       (GskStreamExternalFlags      flags,
 	   int fd = open (stdout_filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	   if (fd < 0)
 	     {
+               gsk_errno_fd_creation_failed ();
 	       g_warning ("error opening %s", stdout_filename);
 	       _exit (126);
 	     }
@@ -650,6 +657,7 @@ gsk_stream_external_new       (GskStreamExternalFlags      flags,
 	   int fd = open (stdin_filename, O_RDONLY);
 	   if (fd < 0)
 	     {
+               gsk_errno_fd_creation_failed ();
 	       g_warning ("error opening %s", stdin_filename);
 	       _exit (126);
 	     }
@@ -669,6 +677,7 @@ gsk_stream_external_new       (GskStreamExternalFlags      flags,
 	   int fd = open ("/dev/null", O_WRONLY);
 	   if (fd < 0)
 	     {
+               gsk_errno_fd_creation_failed ();
 	       g_warning ("error opening %s", "/dev/null");
 	       _exit (126);
 	     }

@@ -47,3 +47,45 @@ gsk_errno_from_fd (int fd)
 
   return value;
 }
+
+/* --- "Too Many Open Files" Handling --- */
+static void
+fd_creation_failed_default_handler (gboolean system_wide)
+{
+  if (system_wide)
+    g_error ("too many open files on system");
+  else
+    g_error ("too many open files in this process (pid=%u)", (guint) getpid ());
+}
+static GskErrnoFdCreateFailedFunc fd_creation_failed_handler
+  = fd_creation_failed_default_handler;
+
+/* ENFILE = too many files open in system
+   EMFILE = too many files open in process */
+
+void gsk_errno_fd_creation_failed (void)
+{
+  int e = errno;
+  if (e == ENFILE || e == EMFILE)
+    {
+      if (fd_creation_failed_handler)
+        (*fd_creation_failed_handler) (e == ENFILE);
+      errno = e;
+    }
+}
+
+void gsk_errno_fd_creation_failed_errno (int e)
+{
+  if (e == ENFILE || e == EMFILE)
+    {
+      if (fd_creation_failed_handler)
+        (*fd_creation_failed_handler) (e == ENFILE);
+    }
+}
+
+void
+gsk_errno_trap_fd_creation_failed (GskErrnoFdCreateFailedFunc func)
+{
+  fd_creation_failed_handler = func;
+}
+

@@ -522,9 +522,14 @@ GskPacketQueue *
 gsk_packet_queue_fd_new_by_family (int  addr_family,
 				   GError **error)
 {
-  int fd = socket (addr_family, SOCK_DGRAM, 0);
+  int fd;
+retry:
+  fd = socket (addr_family, SOCK_DGRAM, 0);
   if (fd < 0)
     {
+      if (gsk_errno_is_ignorable (errno))
+        goto retry;
+      gsk_errno_fd_creation_failed ();
       g_set_error (error, GSK_G_ERROR_DOMAIN,
 		   GSK_ERROR_OPEN_FAILED,
 		   _("error creating socket: %s"),
