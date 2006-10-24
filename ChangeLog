@@ -1,4 +1,6 @@
-gsk (1.0.42) [NOT YET RELEASED]
+gsk (1.0.42)
+  * gsk-throttle-proxy: useful for testing.
+  * suppress warnings on http-server "X-Whatever" headers.
 
 gsk (1.0.41)
   * gsk_main_loop_add_timer(), gsk_source_adjust_timer()
