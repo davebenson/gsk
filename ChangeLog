@@ -1,3 +1,6 @@
+gsk (1.0.42) [NOT YET RELEASED]
+
+gsk (1.0.41)
   * gsk_main_loop_add_timer(), gsk_source_adjust_timer()
     take 64-bit arguments for the time in milliseconds,
     so that we can handle really long timeouts.
@@ -14,7 +17,6 @@
   * GskPersistentConnection is implemented in terms
     of GskSocketAddressSymbolic, and its DOING_NAME_RESOLUTION state
     is now unused.
-  * remove GskSimpleFilter.
 
 gsk (1.0.40)
   * minor bug fix (in rbtreemacros)
