@@ -914,6 +914,7 @@ GskHttpAuthenticate *gsk_http_authenticate_new_digest  (const char *realm,
   return auth;
 }
 
+#if 0
 static GskHttpAuthenticate *
 gsk_http_authenticate_copy (const GskHttpAuthenticate *auth)
 {
@@ -936,6 +937,7 @@ gsk_http_authenticate_copy (const GskHttpAuthenticate *auth)
       g_return_val_if_reached (NULL);
     }
 }
+#endif
 
 GskHttpAuthenticate *
 gsk_http_authenticate_ref (GskHttpAuthenticate *auth)
