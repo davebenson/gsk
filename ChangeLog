@@ -1,3 +1,8 @@
+gsk (1.0.43)
+  * gsk-throttle-proxy: --{half,full}-shutdowns options
+  * http-client bug fixes: was forgetting to clear a write
+    block in several key places.
+
 gsk (1.0.42)
   * gsk-throttle-proxy: useful for testing.
   * suppress warnings on http-server "X-Whatever" headers.
