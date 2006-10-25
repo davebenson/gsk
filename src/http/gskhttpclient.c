@@ -1185,6 +1185,7 @@ gsk_http_client_content_stream_shutdown (GskHttpClientContentStream *stream)
   if (stream->has_shutdown)
     return;
   stream->has_shutdown = 1;
+  gsk_http_client_content_stream_clear_client_write_block (stream);
   stream->http_client = NULL;
   if (stream->buffer.size == 0)
     gsk_io_notify_read_shutdown (stream);
