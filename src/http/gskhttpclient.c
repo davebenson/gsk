@@ -1034,6 +1034,7 @@ gsk_http_client_content_stream_shutdown_read   (GskIO      *io,
     {
       gsk_io_notify_shutdown (GSK_IO (content_stream->http_client));
     }
+  gsk_http_client_content_stream_clear_client_write_block (content_stream);
   return TRUE;
 }
 
@@ -1162,11 +1163,18 @@ gsk_http_client_content_stream_xfer     (GskHttpClientContentStream *stream,
     {
       gsk_io_mark_idle_notify_read (stream);
     }
-  if (stream->buffer.size > GSK_HTTP_CLIENT_CONTENT_STREAM_MAX_BUFFER)
+  if (stream->buffer.size > GSK_HTTP_CLIENT_CONTENT_STREAM_MAX_BUFFER
+   && gsk_io_get_is_readable (stream))
     {
       g_return_val_if_fail (stream->http_client != NULL, 0);
       gsk_http_client_content_stream_mark_client_write_block (stream);
     }
+  else if (!gsk_io_get_is_readable (stream))
+    {
+      /* save memory if the data is just to be discarded */
+      gsk_buffer_destruct (&stream->buffer);
+    }
+
   return amount;
 }
 
