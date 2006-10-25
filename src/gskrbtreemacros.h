@@ -936,6 +936,10 @@ G_STMT_START{                                                                 \
   /*           set_count(x, n2)                                     */        \
   /*           set_count(y, n0)                                     */        \
   /*     c is _gsk_rot_y->right at this point                       */        \
+  /*                                                                */        \
+  /* equivalently:                                                  */        \
+  /*      y->count = x->count;                                      */        \
+  /*      x->count -= c->count + 1                                  */        \
   {                                                                           \
     guint _gsk_rot_n0 = get_count(_gsk_rot_x);                                \
     guint _gsk_rot_n1 = _gsk_rot_y->right ? get_count(_gsk_rot_y->right) : 0; \

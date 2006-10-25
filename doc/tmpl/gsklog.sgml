@@ -41,44 +41,6 @@ given files.
 @Returns: 
 
 
-<!-- ##### MACRO gsk_debug ##### -->
-<para>
-Log a message at the DEBUG priority level.
-</para>
-
-@domain: the log-domain to use to categorize the message.
-@...: printf-style format and arguments.
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...: 
-
 
 <!-- ##### MACRO gsk_warning ##### -->
 <para>
@@ -87,37 +49,6 @@ Messages logged at this level can be fatal in debugging mode.
 </para>
 
 @domain: the log-domain to use to categorize the message.
-@...: printf-style format and arguments.
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...: 
 
 
 <!-- ##### MACRO gsk_error ##### -->
@@ -128,37 +59,6 @@ Messages logged at this level are always fatal.
 
 @domain:  the log-domain to use to categorize the message.
 @...: printf-style format and arguments.
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...: 
-
 
 <!-- ##### MACRO gsk_critical ##### -->
 <para>
@@ -168,35 +68,4 @@ Messages logged at this level can be fatal in debugging mode.
 
 @domain:  the log-domain to use to categorize the message.
 @...: printf-style format and arguments.
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...:
-@...: 
-
 
