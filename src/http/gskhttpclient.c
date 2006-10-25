@@ -26,6 +26,9 @@
    which means that if someone gives us gigabytes of data we
    will buffer it, instead of blocking it. */
 
+/* TODO: if the content-stream is shutdown by the user,
+   we should automatically drain all the data from it. */
+
 
 /* TODO: instead of only flushing DONE requests in the raw_write
    call, we should be flushing them whereever we can.  */
