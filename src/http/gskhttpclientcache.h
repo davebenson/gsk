@@ -1,3 +1,30 @@
+/*
+    GSK - a library to write servers
+    Copyright (C) 2006 Dave Benson
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA
+
+    Contact:
+        daveb@ffem.org <Dave Benson>
+*/
+
+/* GskHttpClientCache:  configurable cache of http clients,
+ * obeying configurable keepalive semantics.
+ *
+ * Mostly for internal use by GskUrlTransfer.
+ */
 
 typedef struct _GskHttpClientCacheSlot GskHttpClientCacheSlot;
 typedef struct _GskHttpClientCacheBin GskHttpClientCacheBin;
@@ -63,6 +90,7 @@ GskStream          *gsk_http_client_cache_slot_peek_transport (GskHttpClientCach
 int                 gsk_http_client_cache_slot_peek_fd        (GskHttpClientCacheSlot     *slot);
 GskSocketAddress   *gsk_http_client_cache_slot_peek_address   (GskHttpClientCacheSlot     *slot);
 GskHttpClientCache *gsk_http_client_cache_slot_peek_cache     (GskHttpClientCacheSlot     *slot);
+GskHttpClient      *gsk_http_client_cache_slot_peek_client    (GskHttpClientCacheSlot     *slot);
 void                gsk_http_client_cache_slot_done           (GskHttpClientCacheSlot     *slot);
 
 
