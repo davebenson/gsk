@@ -9,7 +9,7 @@ reusable connections.
 
 To do this, the cache has methods which allow setting
 various aspects of the configuration depending on
-IP-Address and hostname of the URL.
+the hostname of the URL.
 
 Also, there is a backend API for donating potentially
 reusable client/stream-fd pairs to the cache.
@@ -21,13 +21,13 @@ automatic retry of an HTTP connection to UrlTransferHttp.
 
 HTTP CLIENT CACHE CONFIGURATION
 -------------------------------
-Configuration is on a IP-Address and/or host-name basis;
-that is, there's a http_client_cache_add_config(HttpClientCache,
+Configuration is on a host-name basis, and there is a default config.
+That is, there's a http_client_cache_add_config(HttpClientCache,
                                                 SocketAddress, /* optional */
                                                 char *hostname,/* optional */
 						HttpClientCacheConfig);
-(there's a "default" configuration: see
-gsk_http_client_cache_get_defaults(), and helper functions.)
+and there's a "default" configuration: see
+gsk_http_client_cache_get_defaults(), and helper functions.
 
 After a cache has been used, it becomes immutable.
 That is, you must finish configuring the cache
@@ -37,8 +37,12 @@ Then the rest of the work is constructing client-cache-config objects.
 
 CLIENT-CACHE-CONFIG MEMBERS
 ---------------------------
-max-keepalive-clients
-max-
+
+	max-keepalive-clients
+	max-idle-millis
+	max-connecting
+	max-pipelined
+	min-connect-interval-millis
 
 SUGAR
 -----
@@ -59,10 +63,23 @@ to disable caching.
 
 BACKEND API
 -----------
-- donate a client/stream-fd pair
-- request a client-stream-fd pair
-- wait until a client/stream-fd pair is ready
+- The cache creates can make HttpClients of any type,
+  even a non-keepalive client.  Use CacheSlot->use_keepalive
+  to see if keepalive is appropriate for this request.
 
+- request a client-stream-fd pair
+   /* may make a non-keepalive client;
+      must be called once per gsk_http_client_request() */
+   gsk_http_client_cache_make_client (Cache          *cache,
+                                      ClientReadyFunc func,
+				      ClientErrorFunc error_func,
+				      gpointer        data,
+				      GDestroyNotify  destroy);
+
+- donate a client/stream-fd pair
+   gsk_http_client_cache_slot_done  (CacheSlot        slot,
+				     HttpRequest      request,
+				     HttpResponse     response);
 
 WHAT WE ARE NOT DOING
 ---------------------
