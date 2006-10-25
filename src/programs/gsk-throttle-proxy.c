@@ -14,6 +14,11 @@ guint download_per_second_base = 100*1024;
 guint upload_per_second_noise = 1*1024;
 guint download_per_second_noise = 10*1024;
 
+/* if TRUE, shut-down the read and write ends of the connection
+   independently.  if FALSE, either propagation a read or a write
+   shutdown into both.  */
+gboolean half_shutdowns = TRUE;
+
 GskSocketAddress *bind_addr = NULL;
 GskSocketAddress *server_addr = NULL;
 GskSocketAddress *bind_status_addr = NULL;
@@ -140,7 +145,10 @@ handle_side_writable (GskStream *stream,
   if (written == 0 && side->read_side == NULL && side->buffer.size == 0)
     {
       update_write_block (side);
-      gsk_io_write_shutdown (side->write_side, NULL);
+      if (half_shutdowns)
+        gsk_io_write_shutdown (side->write_side, NULL);
+      else
+        gsk_io_shutdown (GSK_IO (side->write_side), NULL);
     }
   return TRUE;
 }
@@ -153,7 +161,12 @@ handle_side_write_shutdown (GskStream *stream,
   if (side->buffer.size > 0)
     g_warning ("write-side shut down while data still pending");
   if (side->read_side)
-    gsk_io_read_shutdown (side->read_side, NULL);
+    {
+      if (half_shutdowns)
+        gsk_io_read_shutdown (side->read_side, NULL);
+      else
+        gsk_io_shutdown (GSK_IO (side->read_side), NULL);
+    }
   return FALSE;
 }
 
@@ -231,7 +244,10 @@ handle_side_read_destroy (gpointer data)
   if (side->buffer.size == 0 && side->write_side != NULL)
     {
       update_write_block (side);
-      gsk_io_write_shutdown (side->write_side, NULL);
+      if (half_shutdowns)
+        gsk_io_write_shutdown (side->write_side, NULL);
+      else
+        gsk_io_shutdown (GSK_IO (side->write_side), NULL);
     }
   connection_unref (side->connection);
 }
@@ -353,6 +369,8 @@ usage (void)
               "  --download-rate=BPS        ...\n"
               "  --upload-rate-noise=BPS    ...\n"
               "  --download-rate-noise=BPS  ...\n"
+              "  --full-shutdowns\n"
+              "  --half-shutdowns\n"
              );
   exit (1);
 }
@@ -486,6 +504,10 @@ int main(int argc, char **argv)
         upload_per_second_noise = atoi (strchr (argv[i], '=') + 1);
       else if (g_str_has_prefix (argv[i], "--download-rate-noise="))
         download_per_second_noise = atoi (strchr (argv[i], '=') + 1);
+      else if (strcmp (argv[i], "--half-shutdowns") == 0)
+        half_shutdowns = TRUE;
+      else if (strcmp (argv[i], "--full-shutdowns") == 0)
+        half_shutdowns = FALSE;
       else
         usage ();
     }
