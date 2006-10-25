@@ -1,4 +1,5 @@
-gsk (1.0.44) [NOT YET RELEASED]
+gsk (1.0.44)
+  * minor possibly bug in HttpClient.
 
 gsk (1.0.43)
   * gsk-throttle-proxy: --{half,full}-shutdowns options
