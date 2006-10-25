@@ -171,6 +171,8 @@ flush_done_requests (GskHttpClient *client)
       client->first_request = request->next;
       if (client->first_request == NULL)
         client->last_request = NULL;
+      if (request == client->outgoing_request)
+        client->outgoing_request = request->next;
 
       /* destroy request */
       request->next = NULL;		/* unnecesssary */
