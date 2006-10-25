@@ -9,15 +9,15 @@ G_BEGIN_DECLS
 typedef struct _GskCompileContext GskCompileContext;
 typedef struct _GskModule GskModule;
 
-GskCompileContext *gsk_compile_context_new ();
-void               gsk_compile_context_add_cflags (GskCompileContext*context,
-                                                   const char *flags);
-void               gsk_compile_context_add_ldflags(GskCompileContext*context,
-                                                   const char       *flags);
-void               gsk_compile_context_add_pkg    (GskCompileContext*context,
-                                                   const char       *pkg);
-void               gsk_compile_context_set_tmp_dir(GskCompileContext*context,
-                                                   const char       *tmp_dir);
+GskCompileContext *gsk_compile_context_new        (void);
+void               gsk_compile_context_add_cflags (GskCompileContext *context,
+                                                   const char        *flags);
+void               gsk_compile_context_add_ldflags(GskCompileContext *context,
+                                                   const char        *flags);
+void               gsk_compile_context_add_pkg    (GskCompileContext *context,
+                                                   const char        *pkg);
+void               gsk_compile_context_set_tmp_dir(GskCompileContext *context,
+                                                   const char        *tmp_dir);
 void               gsk_compile_context_set_gdb    (GskCompileContext *context,
                                                    gboolean           support);
 void               gsk_compile_context_set_verbose(GskCompileContext *context,
