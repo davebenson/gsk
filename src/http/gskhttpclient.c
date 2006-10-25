@@ -164,10 +164,12 @@ set_state_to_reading_response (GskHttpClientRequest *request)
 static void
 flush_done_requests (GskHttpClient *client)
 {
+  GskHttpClientRequest *at;
   while (client->first_request != NULL
      &&  client->first_request->state == DONE)
     {
       GskHttpClientRequest *request = client->first_request;
+      g_assert (request->client == client);
       client->first_request = request->next;
       if (client->first_request == NULL)
         client->last_request = NULL;
@@ -178,6 +180,8 @@ flush_done_requests (GskHttpClient *client)
       request->next = NULL;		/* unnecesssary */
       gsk_http_client_request_destroy (request);
     }
+  for (at = client->first_request; at; at = at->next)
+    g_assert (at->client == client);
 }
 
 /* --- POST/PUT data handling --- */
