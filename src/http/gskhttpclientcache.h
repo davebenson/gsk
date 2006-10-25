@@ -33,6 +33,7 @@ typedef struct _GskHttpClientCache GskHttpClientCache;
 
 struct _GskHttpClientCacheConfig
 {
+  gboolean keepalive;
   guint max_keepalive_clients;
   guint max_idle_millis;
   guint max_connecting;
@@ -68,7 +69,8 @@ void                             gsk_http_client_cache_set_config         (GskHt
  * It is not really important when the user calls gsk_http_client_cache_slot_done(),
  * however, for the sake of getting consistent semantics, you should
  * organize to call slot_done() once you have finished reading the stream,
- * and slot_failed() if their was no response before the client_destroy notify.
+ * slot_failed() if their was no response before the client_destroy notify,
+ * and slot_detached() if we decided to not use the client afterall.
  */
 typedef void (*GskHttpClientCacheFunc)      (GskHttpClientCacheSlot    *slot,
                                              GskHttpClient             *http_client,
@@ -92,6 +94,8 @@ GskSocketAddress   *gsk_http_client_cache_slot_peek_address   (GskHttpClientCach
 GskHttpClientCache *gsk_http_client_cache_slot_peek_cache     (GskHttpClientCacheSlot     *slot);
 GskHttpClient      *gsk_http_client_cache_slot_peek_client    (GskHttpClientCacheSlot     *slot);
 void                gsk_http_client_cache_slot_done           (GskHttpClientCacheSlot     *slot);
+void                gsk_http_client_cache_slot_failed         (GskHttpClientCacheSlot     *slot);
+void                gsk_http_client_cache_slot_detached       (GskHttpClientCacheSlot     *slot);
 
 
 /* --- private (exposed for debugging) --- */
