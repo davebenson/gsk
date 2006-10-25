@@ -1,5 +1,5 @@
 AC_INIT(src/gskmainloop.c)
-GSK_VERSION=1.0.43
+GSK_VERSION=1.0.44
 
 AM_INIT_AUTOMAKE(gsk1.0, $GSK_VERSION)
 

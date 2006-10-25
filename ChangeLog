@@ -1,3 +1,5 @@
+gsk (1.0.44) [NOT YET RELEASED]
+
 gsk (1.0.43)
   * gsk-throttle-proxy: --{half,full}-shutdowns options
   * http-client bug fixes: was forgetting to clear a write
