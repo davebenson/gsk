@@ -1,4 +1,7 @@
-gsk (1.0.46) [NOT YET RELEASED]
+gsk (1.0.47) [NOT YET RELEASED]
+
+gsk (1.0.46)
+  * micro bug fix.
 
 gsk (1.0.45)
   * major fix in HttpServer if not enough data comes in.
