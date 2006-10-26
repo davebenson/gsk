@@ -1,4 +1,9 @@
-gsk (1.0.45) [NOT YET RELEASED]
+gsk (1.0.45)
+  * major fix in HttpServer if not enough data comes in.
+  * GskIO::print_errors.  Setting this flag in a GskIO
+    should print all errors that occur.  The default
+    is FALSE, but if GSK_PRINT_ERRORS=1 in the environment,
+    then the default will become TRUE.
 
 gsk (1.0.44)
   * minor possibly bug in HttpClient.
