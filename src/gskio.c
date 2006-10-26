@@ -302,7 +302,7 @@ gsk_io_class_init (GskIOClass *class)
     {
       const char *env = getenv ("GSK_PRINT_ERRORS");
       if (env)
-        gsk_io_set_default_print_errors (atoi (env));
+        gsk_io_set_default_print_errors (atoi (env) ? 1 : 0);
     }
 }
 
