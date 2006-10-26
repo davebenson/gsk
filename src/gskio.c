@@ -298,7 +298,7 @@ gsk_io_class_init (GskIOClass *class)
 		    G_TYPE_NONE,
 		    0);
 
-  if (has_default_print_errors)
+  if (!has_default_print_errors)
     {
       const char *env = getenv ("GSK_PRINT_ERRORS");
       if (env)
