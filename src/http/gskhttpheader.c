@@ -982,6 +982,7 @@ GskHttpAuthorization *gsk_http_authorization_new_unknown (const char *auth_schem
   auth->mode = GSK_HTTP_AUTH_MODE_UNKNOWN;
   MAYBE_COPY (auth->auth_scheme_name, auth_scheme_name, at);
   MAYBE_COPY (auth->info.unknown.response, response, at);
+  auth->ref_count = 1;
   return auth;
 }
 
@@ -1009,6 +1010,7 @@ GskHttpAuthorization *gsk_http_authorization_new_basic   (const char *user,
   auth->auth_scheme_name = "Basic";
   MAYBE_COPY (auth->info.basic.user, user, at);
   MAYBE_COPY (auth->info.basic.password, password, at);
+  auth->ref_count = 1;
   return auth;
 }
 /**
@@ -1071,6 +1073,7 @@ GskHttpAuthorization *gsk_http_authorization_new_digest  (const char *realm,
     auth->info.digest.algorithm = strcpy (at, algorithm);
   auth->info.digest.response_digest = g_strdup (response_digest);
   auth->info.digest.entity_digest = g_strdup (entity_digest);
+  auth->ref_count = 1;
   return auth;
 }
 
