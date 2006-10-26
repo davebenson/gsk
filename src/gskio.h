@@ -76,6 +76,11 @@ struct _GskIO
 
   /*< public read-only >*/
   guint        error_cause : 4;
+
+  /*< public read-write >*/
+  guint        print_errors : 1;
+
+  /*< public read-only >*/
   GError      *error;
 
   /*< private >*/
@@ -173,6 +178,8 @@ void        gsk_io_set_error (GskIO             *io,
 void        gsk_io_set_gerror (GskIO             *io,
                                GskIOErrorCause    cause,
                                GError            *error);
+
+void        gsk_io_set_default_print_errors (gboolean print_errors);
 
 /*< private >*/
 void _gsk_io_stop_idle_ready (GskIO *io);

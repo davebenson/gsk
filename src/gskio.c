@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "gskio.h"
 #include "gskmacros.h"
 #include "debug.h"
@@ -45,6 +46,16 @@ gsk_io_error_cause_to_string (GskIOErrorCause cause)
     }
 }
 
+static gboolean default_print_errors = FALSE;
+static gboolean has_default_print_errors = FALSE;
+
+void
+gsk_io_set_default_print_errors (gboolean print_errors)
+{
+  has_default_print_errors = TRUE;
+  default_print_errors = print_errors;
+}
+
 static void
 gsk_io_set_error_literal (GskIO           *io,
 			  GskIOErrorCause  cause,
@@ -55,10 +66,11 @@ gsk_io_set_error_literal (GskIO           *io,
     g_error_free (io->error);
   io->error = error;
   io->error_cause = cause;
-  _GSK_DEBUG_PRINTF(GSK_DEBUG_IO,
-		    ("gsk_io_set_error_literal: cause=%s: %s",
-		     gsk_io_error_cause_to_string (cause),
-		     error->message));
+  if (GSK_IS_DEBUGGING (IO) || io->print_errors)
+    g_message ("I/O Error [%s,%p]: cause=%s: %s",
+               G_OBJECT_TYPE_NAME (io), io,
+	       gsk_io_error_cause_to_string (cause),
+	       error->message);
 
   g_signal_emit (io, on_error_signal, 0);
 
@@ -246,6 +258,7 @@ static void
 gsk_io_init (GskIO *io)
 {
   gsk_io_mark_shutdown_on_error (io);
+  io->print_errors = default_print_errors;
   GSK_HOOK_INIT (io, GskIO, read_hook,
 		 GSK_HOOK_CAN_HAVE_SHUTDOWN_ERROR,
 		 set_poll_read, shutdown_read);
@@ -284,6 +297,13 @@ gsk_io_class_init (GskIOClass *class)
 		    g_cclosure_marshal_VOID__VOID,
 		    G_TYPE_NONE,
 		    0);
+
+  if (has_default_print_errors)
+    {
+      const char *env = getenv ("GSK_PRINT_ERRORS");
+      if (env)
+        gsk_io_set_default_print_errors (atoi (env));
+    }
 }
 
 GType gsk_io_get_type()
