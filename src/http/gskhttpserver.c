@@ -42,6 +42,7 @@ struct _GskHttpServerResponse
 
   /* all outgoing data goes here first temporarily */
   GskBuffer      outgoing;
+  guint content_received;
 
   /* members from gsk_http_server_respond */
   GskHttpResponse *response;
@@ -171,11 +172,12 @@ handle_content_is_readable (GskStream *content_stream, gpointer data)
           gsk_buffer_append_string (&trapped_response->outgoing, len_prefix);
           gsk_buffer_append (&trapped_response->outgoing, buf, n_read);
           gsk_buffer_append (&trapped_response->outgoing, "\r\n", 2);
+          trapped_response->content_received += n_read;
         }
     }
   else
     {
-      gsk_stream_read_buffer (content_stream, &trapped_response->outgoing, &error);
+      trapped_response->content_received += gsk_stream_read_buffer (content_stream, &trapped_response->outgoing, &error);
     }
   if (error != NULL)
     goto handle_error;
@@ -203,6 +205,7 @@ handle_content_shutdown (GskStream *content_stream, gpointer data)
 {
   GskHttpServer *server = GSK_HTTP_SERVER (data);
   GskHttpServerResponse *trapped_response = server->trapped_response;
+  gint content_length;
   g_return_val_if_fail (trapped_response != NULL && trapped_response->content == content_stream, FALSE);
   trapped_response->content = NULL;
   server->trapped_response = NULL;
@@ -212,6 +215,13 @@ handle_content_shutdown (GskStream *content_stream, gpointer data)
       gsk_buffer_append_string (&trapped_response->outgoing, "0\n");
       if (was_empty)
 	gsk_io_mark_idle_notify_read (server);
+    }
+  content_length = GSK_HTTP_HEADER (trapped_response->response)->content_length;
+  if (content_length >= 0)
+    {
+      if (trapped_response->content_received != (guint)content_length)
+        g_warning ("gsk-http-server: expected %u bytes of data, got %u",
+                   content_length, trapped_response->content_received);
     }
   if (trapped_response->outgoing.size == 0)
     {
@@ -434,6 +444,7 @@ create_new_response (GskHttpServer *server)
   response->post_data = NULL;
   response->parse_state = INIT;
   gsk_buffer_construct (&response->outgoing);
+  response->content_received = 0;
   response->response = NULL;
   response->content = NULL;
   response->is_done_writing = 0;
