@@ -48,6 +48,8 @@ struct _Side
   GskBuffer buffer;
 
   guint max_buffer;/* should be set to max_xfer_per_second or a bit more */
+
+  guint total_read, total_written;
 };
 
 struct _GskThrottleProxyConnection
@@ -140,6 +142,7 @@ handle_side_writable (GskStream *stream,
       g_error_free (error);
     }
   n_bytes_written_total += written;
+  side->total_written += written;
   update_write_block (side);
   update_read_block (side);
   if (written == 0 && side->read_side == NULL && side->buffer.size == 0)
@@ -220,6 +223,7 @@ handle_side_readable (GskStream *stream,
 
   g_free (tmp);
   n_bytes_read_total += nread;
+  side->total_read += nread;
 
   side->xferred_in_last_second += nread;
   g_assert (side->xferred_in_last_second <= side->max_xfer_per_second);
@@ -271,6 +275,8 @@ side_init (Side      *side,
   side->xferred_in_last_second = 0;
   gsk_buffer_construct (&side->buffer);
   side->max_buffer = max_xfer_per_second;
+  side->total_read = 0;
+  side->total_written = 0;
 
   conn->ref_count += 2;
 
@@ -378,13 +384,14 @@ usage (void)
 static void
 dump_side_to_buffer (Side *side, GskBuffer *out)
 {
-  gsk_buffer_printf (out, "<td>%sreadable%s, %swritable%s, %u buffered</td>\n",
+  gsk_buffer_printf (out, "<td>%sreadable%s, %swritable%s, %u buffered [total read/written=%u/%u]</td>\n",
                      side->read_side ? "" : "NOT ",
                      side->throttled ? " [throttled]" :
                           side->read_side_blocked ? " [blocked]" : "",
                      side->write_side ? "" : "NOT ",
                      side->write_side_blocked ? " [blocked]" : "",
-                     side->buffer.size);
+                     side->buffer.size,
+                     side->total_read, side->total_written);
 }
 
 static GskHttpContentResult
