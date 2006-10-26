@@ -220,8 +220,15 @@ handle_content_shutdown (GskStream *content_stream, gpointer data)
   if (content_length >= 0)
     {
       if (trapped_response->content_received != (guint)content_length)
-        g_warning ("gsk-http-server: expected %u bytes of data, got %u",
-                   content_length, trapped_response->content_received);
+        {
+          gsk_io_set_error (GSK_IO (server), GSK_IO_ERROR_READ,
+                            GSK_ERROR_INVALID_STATE,
+                            "expected %u bytes of data, got %u",
+                            content_length,
+                            trapped_response->content_received);
+          g_object_unref (content_stream);
+          return FALSE;
+        }
     }
   if (trapped_response->outgoing.size == 0)
     {
