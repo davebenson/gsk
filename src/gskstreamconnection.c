@@ -17,32 +17,6 @@ struct _GskStreamConnectionClass
 {
   GObjectClass object_class;
 };
-struct _GskStreamConnection 
-{
-  GObject      object;
-
-  /* The stream to read from. */
-  GskStream *read_side;
-
-  /* The stream to write to. */
-  GskStream *write_side;
-
-  /* Whether we are blocking the read-side because the buffer is 0 length. */
-  guint blocking_write_side : 1;
-
-  /* Whether we are blocking the write-side because the buffer is too long. */
-  guint blocking_read_side : 1;
-
-  /* Data which is to be transferred from read_side to write_side,
-     which hasn't been processed on the write side. */
-  GskBuffer buffer;
-
-  /* The maximum number of bytes to store in buffer. */
-  guint max_buffered;
-
-  /* The maximum number of bytes to read atomically from the input stream. */
-  guint atomic_read_size;
-};
 /*
  * strategy:
  * - When attaching, trap the relevant read and write hooks.
