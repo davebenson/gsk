@@ -1,3 +1,5 @@
+gsk (1.0.46) [NOT YET RELEASED]
+
 gsk (1.0.45)
   * major fix in HttpServer if not enough data comes in.
   * GskIO::print_errors.  Setting this flag in a GskIO
