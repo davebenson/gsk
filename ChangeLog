@@ -1,3 +1,5 @@
+gsk (1.0.48) [NOT YET RELEASED]
+
 gsk (1.0.47)
   * GskStreamWatchdog: a stream that closes automatically after
     a certain amount of inactivity.
