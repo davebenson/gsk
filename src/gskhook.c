@@ -274,8 +274,7 @@ gsk_hook_set_poll (GskHook *hook)
   GSK_HOOK_SET_FLAG (hook, HAS_POLL);
   if (GSK_HOOK_TEST_FLAG (hook, IDLE_NOTIFY))
     gsk_hook_add_to_nonblocking_list (hook);
-  else
-    gsk_hook_call_set_poll_func (hook, TRUE);
+  gsk_hook_call_set_poll_func (hook, TRUE);
 }
 
 static inline void
