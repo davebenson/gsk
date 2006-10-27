@@ -893,10 +893,14 @@ gsk_http_client_request  (GskHttpClient         *client,
 {
   GskHttpClientRequest *request;
 
-  /* you must should not give a request after another that
+  /* you must not issue another request after one which
      uses EOF to mark the end-of-request cycle:
      that request can never by processed. */
   g_return_if_fail (!TEST_CLIENT_USER_FLAG (client, REQUIRES_READ_SHUTDOWN));
+
+  /* you must not issue another request after calling
+     gsk_http_client_shutdown_when_done() */
+  g_return_if_fail (!TEST_CLIENT_USER_FLAG (client, DEFERRED_SHUTDOWN));
 
   request = gsk_http_client_request_alloc ();
   request->client = client;
@@ -1031,6 +1035,7 @@ gsk_http_client_content_stream_shutdown_read   (GskIO      *io,
 						GError    **error)
 {
   GskHttpClientContentStream *content_stream = GSK_HTTP_CLIENT_CONTENT_STREAM  (io);
+  /* XXX: why do we need to do this? */
   if (content_stream->http_client != NULL
    && (content_stream->http_client->last_request == NULL
     || content_stream->http_client->last_request->content_stream == content_stream)
@@ -1038,6 +1043,11 @@ gsk_http_client_content_stream_shutdown_read   (GskIO      *io,
                               GSK_HTTP_CLIENT_DEFERRED_SHUTDOWN
                             | GSK_HTTP_CLIENT_REQUIRES_READ_SHUTDOWN))
     {
+      /* this should be true, since gsk_http_client_request()
+         does not allow additional requests after DEFERRED_SHUTDOWN
+         or REQUIRES_READ_SHUTDOWN. */
+      g_assert (content_stream->http_client->last_request == NULL
+             || content_stream->http_client->last_request->next == NULL);
       gsk_io_notify_shutdown (GSK_IO (content_stream->http_client));
     }
   gsk_http_client_content_stream_clear_client_write_block (content_stream);
