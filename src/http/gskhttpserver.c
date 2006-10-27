@@ -934,6 +934,14 @@ gsk_http_server_post_stream_process (GskHttpServerPostStream *post_stream)
     ended = process_unencoded (post_stream);
   gsk_io_set_idle_notify_read (GSK_IO (post_stream),
 			       post_stream->buffer.size > 0);
+  if (post_stream->buffer.size > MAX_POST_BUFFER
+   && !post_stream->blocking_server_write
+   && post_stream->server != NULL               /* always true, i think */
+   && !ended)
+    {
+      post_stream->blocking_server_write = 1;
+      gsk_io_unblock_write (post_stream->server);
+    }
   if (ended)
     {
       post_stream->ended = 1;
