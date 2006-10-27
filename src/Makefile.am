@@ -63,6 +63,7 @@ gskstreamfd.h \
 gskstreamlistener.h \
 gskstreamlistenersocket.h \
 gskstreamtransferrequest.h \
+gskstreamwatchdog.h \
 gskthreadpool.h \
 gsktree.h \
 gsktypes.h \
@@ -114,6 +115,7 @@ gskstreamfd.c \
 gskstreamlistener.c \
 gskstreamlistenersocket.c \
 gskstreamtransferrequest.c \
+gskstreamwatchdog.c \
 gskthreadpool.c \
 gsktree.c \
 gsktypes.c \
