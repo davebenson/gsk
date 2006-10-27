@@ -1,6 +1,8 @@
 gsk (1.0.47) [NOT YET RELEASED]
   * GskStreamWatchdog: a stream that closes automatically after
     a certain amount of inactivity.
+  * gsk_hook_set_poll(), etc: call the set_poll function even
+    if idle notification is enabled.
 
 gsk (1.0.46)
   * micro bug fix.
