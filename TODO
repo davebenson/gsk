@@ -16,6 +16,7 @@
   it needs to be adjustable (ie a signal or trap)
   (or a bunch of bits to suppress certain errors, EPIPE, ECONNREFUSED etc)
 - optimization: use read_buffer() and write_buffer() in gskstreamconnection
+- http: Chunked-Body doesn't support a Trailer.
 - HTTP authentication.
   - DONE: most of the structures and parsing are in place.
     Still some TODOs in the parsing code that may require structural changes.
