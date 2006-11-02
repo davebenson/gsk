@@ -514,6 +514,8 @@ gsk_http_header_finalize (GObject *object)
       gsk_http_range_set_free (header->accepted_range_units);
       header->accepted_range_units = next;
     }
+  if (header->g_error)
+    g_error_free (header->g_error);
   g_free (header->unrecognized_transfer_encoding);
   g_free (header->unrecognized_content_encoding);
   if (header->header_lines)
