@@ -1,4 +1,7 @@
-gsk (1.0.48) [NOT YET RELEASED]
+gsk (1.0.48)
+  * gsk_zlib_inflator_new2() and
+    gsk_zlib_deflator_new2() allow you to use gzip compression
+    and decompression.  These require zlib >= 1.2.0 to work right.
 
 gsk (1.0.47)
   * GskStreamWatchdog: a stream that closes automatically after
