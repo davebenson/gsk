@@ -1,3 +1,5 @@
+gsk (1.0.49) [NOT YET RELEASED]
+
 gsk (1.0.48)
   * gsk_zlib_inflator_new2() and
     gsk_zlib_deflator_new2() allow you to use gzip compression
