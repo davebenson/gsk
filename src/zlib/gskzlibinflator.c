@@ -8,6 +8,12 @@ static GObjectClass *parent_class = NULL;
 
 #define MAX_BUFFER_SIZE	4096
 
+enum
+{
+  PROP_0,
+  PROP_USE_GZIP
+};
+
 static guint
 gsk_zlib_inflator_raw_read      (GskStream     *stream,
 			 	 gpointer       data,
@@ -100,7 +106,9 @@ gsk_zlib_inflator_raw_write     (GskStream     *stream,
       zst->zalloc = NULL;
       zst->zfree = NULL;
       zst->opaque = NULL;
-      inflateInit (zst);
+      inflateInit2 (zst,
+                    15|32               /* windowSize: see zlib.h */
+                   );
     }
   else
     {
@@ -137,6 +145,42 @@ gsk_zlib_inflator_raw_write     (GskStream     *stream,
 }
 
 static void
+gsk_zlib_inflator_set_property	      (GObject        *object,
+				       guint           property_id,
+				       const GValue   *value,
+				       GParamSpec     *pspec)
+{
+  GskZlibInflator *zlib_inflator = GSK_ZLIB_INFLATOR (object);
+  switch (property_id)
+    {
+    case PROP_USE_GZIP:
+      zlib_inflator->use_gzip = g_value_get_boolean (value);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+      break;
+    }
+}
+
+static void
+gsk_zlib_inflator_get_property	      (GObject        *object,
+				       guint           property_id,
+				       GValue         *value,
+				       GParamSpec     *pspec)
+{
+  GskZlibInflator *zlib_inflator = GSK_ZLIB_INFLATOR (object);
+  switch (property_id)
+    {
+    case PROP_USE_GZIP:
+      g_value_set_boolean (value, zlib_inflator->use_gzip);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+      break;
+    }
+}
+
+static void
 gsk_zlib_inflator_finalize     (GObject *object)
 {
   GskZlibInflator *inflator = GSK_ZLIB_INFLATOR (object);
@@ -163,11 +207,20 @@ gsk_zlib_inflator_class_init (GskZlibInflatorClass *class)
   GskIOClass *io_class = GSK_IO_CLASS (class);
   GskStreamClass *stream_class = GSK_STREAM_CLASS (class);
   GObjectClass *object_class = G_OBJECT_CLASS (class);
+  GParamSpec *pspec;
   parent_class = g_type_class_peek_parent (class);
   stream_class->raw_read = gsk_zlib_inflator_raw_read;
   stream_class->raw_write = gsk_zlib_inflator_raw_write;
   io_class->shutdown_write = gsk_zlib_inflator_shutdown_write;
+  object_class->set_property = gsk_zlib_inflator_set_property;
+  object_class->get_property = gsk_zlib_inflator_get_property;
   object_class->finalize = gsk_zlib_inflator_finalize;
+
+  pspec = g_param_spec_boolean ("use-gzip", "Use Gzip",
+                                "whether to expect gzip-encapsulated data",
+			        FALSE,
+                                G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE);
+  g_object_class_install_property (object_class, PROP_USE_GZIP, pspec);
 }
 
 GType gsk_zlib_inflator_get_type()
@@ -207,4 +260,11 @@ GskStream *
 gsk_zlib_inflator_new (void)
 {
   return g_object_new (GSK_TYPE_ZLIB_INFLATOR, NULL);
+}
+GskStream *
+gsk_zlib_inflator_new2 (gboolean use_gzip)
+{
+  return g_object_new (GSK_TYPE_ZLIB_INFLATOR, 
+                       "use-gzip", use_gzip,
+                       NULL);
 }

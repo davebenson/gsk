@@ -74,6 +74,7 @@ struct _GskSource
 
   /* only for timers */
   guint                  timer_adjusted_while_running : 1;
+  guint                  timer_is_red : 1;
 
   GskMainLoop           *main_loop;
 

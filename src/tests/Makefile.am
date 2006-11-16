@@ -71,6 +71,7 @@ diagnostic_programs = \
 	test-persistent-connection \
 	test-http-redirect \
 	time-0 \
+	test-zlib-stream \
  	$(ssl_tests)
 
 # all programs to build.

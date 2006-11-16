@@ -20,7 +20,8 @@ enum
 {
   PROP_0,
   PROP_LEVEL,
-  PROP_FLUSH_TIMEOUT
+  PROP_FLUSH_TIMEOUT,
+  PROP_USE_GZIP
 };
 
 static guint
@@ -159,7 +160,13 @@ gsk_zlib_deflator_raw_write     (GskStream     *stream,
       zst->zalloc = my_alloc;
       zst->zfree = my_free;
       zst->opaque = NULL;
-      deflateInit (zst, zlib_deflator->level);
+      g_message ("deflateInit2: use_gzip=%d, level=%d", zlib_deflator->use_gzip, zlib_deflator->level);
+      deflateInit2 (zst,
+                    zlib_deflator->level,
+                    Z_DEFLATED,
+                    (zlib_deflator->use_gzip ? 16 : 0) | 15, /* windowBits */
+                    8,                          /* mem_level */
+                    Z_DEFAULT_STRATEGY);
     }
   else
     {
@@ -278,6 +285,9 @@ gsk_zlib_deflator_set_property	      (GObject        *object,
 	  }
 	break;
       }
+    case PROP_USE_GZIP:
+      zlib_deflator->use_gzip = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -298,6 +308,9 @@ gsk_zlib_deflator_get_property	      (GObject        *object,
       break;
     case PROP_FLUSH_TIMEOUT:
       g_value_set_int (value, deflator->flush_millis);
+      break;
+    case PROP_USE_GZIP:
+      g_value_set_boolean (value, deflator->use_gzip);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -352,6 +365,10 @@ gsk_zlib_deflator_class_init (GskZlibDeflatorClass *class)
 			    -1, G_MAXINT, DEFAULT_FLUSH_MILLIS,
 			    G_PARAM_READWRITE);
   g_object_class_install_property (object_class, PROP_FLUSH_TIMEOUT, pspec);
+
+  pspec = g_param_spec_boolean ("use-gzip", _("Use Gzip"), "whether to gzip encapsulate the data",
+			        FALSE, G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE);
+  g_object_class_install_property (object_class, PROP_USE_GZIP, pspec);
 }
 
 GType gsk_zlib_deflator_get_type()
@@ -385,6 +402,8 @@ GType gsk_zlib_deflator_get_type()
  * in exchange for running slower.
  * @flush_millis: number of milliseconds to wait before
  * flushing all input characters to the output.
+ * Use -1 to not set timeouts, which means the buffers
+ * are only flushed after a write-shutdown.
  *
  * Create a new Zlib deflation stream.
  * This stream is written uncompressed input,
@@ -400,5 +419,19 @@ GskStream *gsk_zlib_deflator_new (int compression_level,
     compression_level = DEFAULT_LEVEL;
   return g_object_new (GSK_TYPE_ZLIB_DEFLATOR,
 		       "level", compression_level,
+                       "flush-timeout", flush_millis,
+		       NULL);
+}
+
+GskStream *gsk_zlib_deflator_new2 (int compression_level,
+                                   int flush_millis,
+                                   gboolean use_gzip)
+{
+  if (compression_level == -1)
+    compression_level = DEFAULT_LEVEL;
+  return g_object_new (GSK_TYPE_ZLIB_DEFLATOR,
+		       "level", compression_level,
+                       "flush-timeout", flush_millis,
+                       "use-gzip", use_gzip,
 		       NULL);
 }

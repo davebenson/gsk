@@ -31,6 +31,7 @@ struct _GskZlibDeflator
   guint          level;
   gint           flush_millis;
   GskSource     *flush_source;
+  gboolean       use_gzip;
 };
 
 /* --- prototypes --- */
@@ -39,6 +40,9 @@ struct _GskZlibDeflator
 GskStream *gsk_zlib_deflator_new (gint compression_level,
                                   int flush_millis);
 
+GskStream *gsk_zlib_deflator_new2 (int compression_level,
+                                   int flush_millis,
+                                   gboolean use_gzip);
 G_END_DECLS
 
 #endif

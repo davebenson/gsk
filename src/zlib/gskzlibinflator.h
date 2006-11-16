@@ -27,10 +27,12 @@ struct _GskZlibInflator
   GskStream      stream;
   gpointer       private_stream;
   GskBuffer      decompressed;
+  gboolean       use_gzip;
 };
 
 /* --- prototypes --- */
 GskStream *gsk_zlib_inflator_new (void);
+GskStream *gsk_zlib_inflator_new2 (gboolean use_gzip);
 
 G_END_DECLS
 
