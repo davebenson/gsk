@@ -25,8 +25,8 @@ void   gsk_stream_connection_set_atomic_read_size(GskStreamConnection *connectio
               		                       guint                atomic_read_size);
 guint  gsk_stream_connection_get_atomic_read_size(GskStreamConnection *connection);
 
-#define gsk_stream_connection_peek_read_size(conn) ((conn)->read_side)
-#define gsk_stream_connection_peek_write_size(conn) ((conn)->write_side)
+#define gsk_stream_connection_peek_read_side(conn) ((conn)->read_side)
+#define gsk_stream_connection_peek_write_side(conn) ((conn)->write_side)
 
 /* private, but useful for debugging */
 struct _GskStreamConnection 
