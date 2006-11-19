@@ -2,8 +2,6 @@
 #include <zlib.h>
 #include "gskzlib.h"
 
-/* TODO: add raw_read_buffer! */
-
 static GObjectClass *parent_class = NULL;
 
 #define MAX_BUFFER_SIZE	4096
@@ -38,6 +36,27 @@ gsk_zlib_inflator_raw_read      (GskStream     *stream,
 
   return rv;
 }
+
+static guint
+gsk_zlib_inflator_raw_read_buffer(GskStream     *stream,
+			 	  GskBuffer     *buffer,
+			 	  GError       **error)
+{
+  GskZlibInflator *zlib_inflator = GSK_ZLIB_INFLATOR (stream);
+  guint rv = gsk_buffer_drain (buffer, &zlib_inflator->decompressed);
+  if (!gsk_io_get_is_writable (zlib_inflator))
+    {
+       gsk_io_notify_read_shutdown (zlib_inflator);
+    }
+  else
+    {
+      gsk_io_mark_idle_notify_write (zlib_inflator);
+      gsk_io_clear_idle_notify_read (zlib_inflator);
+    }
+
+  return rv;
+}
+
 
 static gboolean
 do_sync (GskZlibInflator *zlib_inflator, GError **error)
@@ -210,6 +229,7 @@ gsk_zlib_inflator_class_init (GskZlibInflatorClass *class)
   GParamSpec *pspec;
   parent_class = g_type_class_peek_parent (class);
   stream_class->raw_read = gsk_zlib_inflator_raw_read;
+  stream_class->raw_read_buffer = gsk_zlib_inflator_raw_read_buffer;
   stream_class->raw_write = gsk_zlib_inflator_raw_write;
   io_class->shutdown_write = gsk_zlib_inflator_shutdown_write;
   object_class->set_property = gsk_zlib_inflator_set_property;

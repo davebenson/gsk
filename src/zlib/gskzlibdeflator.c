@@ -48,6 +48,28 @@ gsk_zlib_deflator_raw_read      (GskStream     *stream,
 
   return rv;
 }
+static guint
+gsk_zlib_deflator_raw_read_buffer(GskStream     *stream,
+			 	  GskBuffer     *buffer,
+			 	  GError       **error)
+{
+  GskZlibDeflator *zlib_deflator = GSK_ZLIB_DEFLATOR (stream);
+  guint rv = gsk_buffer_drain (buffer, &zlib_deflator->compressed);
+
+  if (!gsk_io_get_is_writable (zlib_deflator))
+    {
+      if (rv == 0)
+	gsk_io_notify_read_shutdown (zlib_deflator);
+    }
+  else
+    {
+      gsk_io_mark_idle_notify_write (zlib_deflator);
+      gsk_io_clear_idle_notify_read (zlib_deflator);
+    }
+
+  return rv;
+}
+
 
 static gboolean
 do_sync (GskZlibDeflator *zlib_deflator,
@@ -350,6 +372,7 @@ gsk_zlib_deflator_class_init (GskZlibDeflatorClass *class)
   GParamSpec *pspec;
   parent_class = g_type_class_peek_parent (class);
   stream_class->raw_read = gsk_zlib_deflator_raw_read;
+  stream_class->raw_read_buffer = gsk_zlib_deflator_raw_read_buffer;
   stream_class->raw_write = gsk_zlib_deflator_raw_write;
   io_class->shutdown_write = gsk_zlib_deflator_shutdown_write;
   object_class->set_property = gsk_zlib_deflator_set_property;
