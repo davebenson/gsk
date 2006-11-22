@@ -198,6 +198,16 @@ parse_uint (GskHttpHeader *header,
 }
 
 static gboolean
+parse_uint64 (GskHttpHeader *header,
+	      const char    *value,
+              gpointer       data)
+{
+  guint offset = GPOINTER_TO_UINT (data);
+  G_STRUCT_MEMBER (guint64, header, offset) = g_ascii_strtoull (value, NULL, 10);
+  return TRUE;
+}
+
+static gboolean
 parse_date   (GskHttpHeader *header,
               const char    *value,
               gpointer       data)
@@ -1310,6 +1320,20 @@ handle_allow (GskHttpHeader *header,
 }
 
 static gboolean
+handle_expires        (GskHttpHeader *header,
+		       const char *value,
+		       gpointer data)
+{
+  GskHttpResponse *response = GSK_HTTP_RESPONSE (header);
+  if (!gsk_date_parse_timet (value, &response->expires, GSK_DATE_FORMAT_HTTP))
+    {
+      response->expires = (time_t)-1;
+      gsk_http_header_set_string (header, &response->expires_str, value);
+    }
+  return TRUE;
+}
+
+static gboolean
 handle_content_md5sum (GskHttpHeader *header,
 		       const char *value,
 		       gpointer data)
@@ -1785,6 +1809,8 @@ G_LOCK_DEFINE_STATIC (table_table);
 
 #define UINT_LINE_PARSER(name, struct, member)	\
  { name, parse_uint, GUINT_TO_POINTER (G_STRUCT_OFFSET(struct, member)) }
+#define UINT64_LINE_PARSER(name, struct, member)	\
+ { name, parse_uint64, GUINT_TO_POINTER (G_STRUCT_OFFSET(struct, member)) }
 #define STRING_LINE_PARSER(name, struct, member)	\
  { name, parse_string, GUINT_TO_POINTER (G_STRUCT_OFFSET(struct, member)) }
 #define DATE_LINE_PARSER(name, struct, member)	\
@@ -1794,7 +1820,7 @@ G_LOCK_DEFINE_STATIC (table_table);
 static GskHttpHeaderLineParser common_parsers[] =
 {
   GENERIC_LINE_PARSER ("accept-ranges", handle_accept_ranges),
-  UINT_LINE_PARSER ("content-length", GskHttpHeader, content_length),
+  UINT64_LINE_PARSER ("content-length", GskHttpHeader, content_length),
   GENERIC_LINE_PARSER ("transfer-encoding", handle_transfer_encoding),
   GENERIC_LINE_PARSER ("content-encoding", handle_content_encoding),
   GENERIC_LINE_PARSER ("connection", handle_connection),
@@ -1834,7 +1860,6 @@ static GskHttpHeaderLineParser request_parsers[] =
 static GskHttpHeaderLineParser response_parsers[] =
 {
   DATE_LINE_PARSER ("last-modified", GskHttpResponse, last_modified),
-  DATE_LINE_PARSER ("expires", GskHttpResponse, expires),
   STRING_LINE_PARSER ("e-tag", GskHttpResponse, etag),
   STRING_LINE_PARSER ("etag", GskHttpResponse, etag),/* encountered on the web */
   STRING_LINE_PARSER ("location", GskHttpResponse, location),
@@ -1843,6 +1868,7 @@ static GskHttpHeaderLineParser response_parsers[] =
   GENERIC_LINE_PARSER ("content-range", handle_range),
   GENERIC_LINE_PARSER ("age", handle_age),
   GENERIC_LINE_PARSER ("allow", handle_allow),
+  GENERIC_LINE_PARSER ("expires", handle_expires),
   GENERIC_LINE_PARSER ("content-md5", handle_content_md5sum),
   GENERIC_LINE_PARSER ("retry-after", handle_retry_after),
   GENERIC_LINE_PARSER ("cache-control", handle_response_cache_control),

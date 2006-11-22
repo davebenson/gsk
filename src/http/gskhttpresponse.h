@@ -47,6 +47,7 @@ struct _GskHttpResponse
 
   /* may be set to ((time_t) -1) to omit them. */
   glong                     expires;
+  char                     *expires_str;
 
   /* The ``Entity-Tag'', cf RFC 2616, Sections 14.24, 14.26, 14.44. */
   char                     *etag;
@@ -82,7 +83,7 @@ GskHttpResponse *gsk_http_response_new_redirect (const char    *location);
 
 GskHttpResponse *gsk_http_response_from_request (GskHttpRequest *request,
 						 GskHttpStatus   status_code,
-						 gssize          length);
+						 gint64          length);
 
 gboolean   gsk_http_response_process_first_line (GskHttpResponse *response,
 				                 const char      *line);

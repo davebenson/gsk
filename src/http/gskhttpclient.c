@@ -128,11 +128,12 @@ struct _GskHttpClientRequest
   GHashTable *response_command_table;
 
   RequestState state;
-  guint remaining_data;  /* only during READING_RESPONSE_CONTENT_* */
+  guint64 remaining_data;  /* only during READING_RESPONSE_CONTENT_* */
   GskHttpClientRequest *next;
 };
 static void gsk_http_client_request_destroy (GskHttpClientRequest *request);
-
+#define GET_REMAINING_DATA_UINT(request) \
+  ((guint) MIN ((guint64)(request)->remaining_data, (guint64)G_MAXUINT))
 GSK_DECLARE_POOL_ALLOCATORS (GskHttpClientRequest, gsk_http_client_request, 8)
 
 static inline gboolean
@@ -588,7 +589,7 @@ gsk_http_client_raw_write      (GskStream     *stream,
       else if (request->state == READING_RESPONSE_CONTENT_NO_ENCODING)
 	{
 	  GskHttpClientContentStream *content_stream = request->content_stream;
-	  guint amt = request->remaining_data;
+          guint amt = GET_REMAINING_DATA_UINT (request);
 	  amt = gsk_http_client_content_stream_xfer (content_stream, incoming_data, amt);
 	  request->remaining_data -= amt;
 	  if (request->remaining_data == 0)
@@ -634,7 +635,7 @@ chunk_start:
 	}
       if (request->state == READING_RESPONSE_CONTENT_CHUNK_DATA)
 	{
-	  guint amt = request->remaining_data;
+          guint amt = GET_REMAINING_DATA_UINT (request);
 	  GskHttpClientContentStream *content_stream = request->content_stream;
 	  amt = gsk_http_client_content_stream_xfer (content_stream, incoming_data, amt);
 	  request->remaining_data -= amt;

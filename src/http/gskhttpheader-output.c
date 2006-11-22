@@ -840,7 +840,8 @@ gsk_http_header_print(GskHttpHeader          *http_header,
     {
       char content_length[128];
       g_snprintf (content_length, sizeof (content_length),
-		  "Content-Length: %d", http_header->content_length);
+		  "Content-Length: %"G_GUINT64_FORMAT,
+                  (guint64) http_header->content_length);
       print_func (content_length, print_data);
     }
 
@@ -1036,7 +1037,14 @@ gsk_http_header_print(GskHttpHeader          *http_header,
 	}
 
       /* Add `Expires' */
-      MAYBE_PRINT_DATE (response, expires, "Expires");
+      if (response->expires != (time_t)(-1))
+        {
+          MAYBE_PRINT_DATE (response, expires, "Expires");
+        }
+      else
+        {
+          MAYBE_PRINT_STRING (response, expires_str, "Expires");
+        }
 
       /* Add `ETag' */
       MAYBE_PRINT_STRING (response, etag, "ETag");

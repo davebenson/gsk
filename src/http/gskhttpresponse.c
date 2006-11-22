@@ -523,7 +523,7 @@ gsk_http_response_new_redirect (const char    *location)
 GskHttpResponse  *
 gsk_http_response_from_request (GskHttpRequest *request,
 			        GskHttpStatus   status_code,
-				gssize          length)
+				gint64          length)
 {
   GskHttpHeader *header_request = request ? GSK_HTTP_HEADER (request) : NULL;
   GskHttpResponse *response = gsk_http_response_new_blank ();

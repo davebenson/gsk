@@ -591,7 +591,7 @@ struct _GskHttpHeader
   glong                         date;
 
   /* From the Content-Length header. */
-  gssize                        content_length;
+  gint64                        content_length;
 
   /*< public >*/
 
@@ -698,7 +698,7 @@ void             gsk_http_header_add_accepted_range (GskHttpHeader *header,
 #define gsk_http_header_get_content_encoding(header)			      \
   (GSK_HTTP_HEADER(header)->content_encoding_type)
 #define gsk_http_header_set_content_length(header, len)		              \
-  g_object_set (GSK_HTTP_HEADER(header), "content-length", (gint) (len), NULL)
+  g_object_set (GSK_HTTP_HEADER(header), "content-length", (gint64) (len), NULL)
 #define gsk_http_header_get_content_length(header)			      \
   (GSK_HTTP_HEADER(header)->content_length)
 #define gsk_http_header_set_range(header, start, end)		              \
