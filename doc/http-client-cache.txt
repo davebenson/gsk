@@ -17,6 +17,10 @@ The only user of this API will be GskUrlTransferHttp, probably.
 
 Another aspect to clean up with this rewrite is to add
 automatic retry of an HTTP connection to UrlTransferHttp.
+This will be done as an add-on to the redirect mechanism.
+GskUrlTransferRedirect will become GskUrlTransferAttempt,
+and the is_permanent boolean will become an enum's worth of options.
+See URL TRANSFER EXTENSIONS.
 
 
 HTTP CLIENT CACHE CONFIGURATION
@@ -81,9 +85,25 @@ BACKEND API
 				     HttpRequest      request,
 				     HttpResponse     response);
 
+URL TRANSFER EXTENSIONS
+-----------------------
+The most important thing is that we want to generalize
+the situations in which we start the url transfer process.
+Instead of UrlTransferRedirect we will have UrlTransferAttempt
+with a 'cause' member that can be one of the following
+enum values:
+  GSK_URL_TRANSFER_RETRY_...
+  ...NONFATAL_FAILURE
+  ...PERMANENT_REDIRECT
+  ...TEMPORARY_REDIRECT
+  ...MISSING_AUTHORIZATION   [used to implement http auth]
+
+
+
 WHAT WE ARE NOT DOING
 ---------------------
 Providing an abstraction for HttpClientCache:
 we may allow the user to register certain function-pointers
 but that'll be it, at least for now.
 
+Allowing redirects between url schemes.
