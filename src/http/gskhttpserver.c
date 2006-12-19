@@ -125,7 +125,8 @@ gsk_http_server_response_destroy (GskHttpServerResponse *response,
   gsk_http_server_response_free (response);
 }
 
-static void gsk_http_server_prune_done_responses (GskHttpServer *server);
+static void gsk_http_server_prune_done_responses (GskHttpServer *server,
+                                                  gboolean       may_read_shutdown);
 static inline void
 gsk_http_server_response_fail (GskHttpServerResponse *response,
 			       const char            *explanation)
@@ -240,12 +241,14 @@ handle_content_shutdown (GskStream *content_stream, gpointer data)
             gsk_io_write_shutdown (server, NULL);
         }
     }
-  gsk_http_server_prune_done_responses (server);
+  gsk_http_server_prune_done_responses (server, TRUE);
   g_object_unref (content_stream);
   return FALSE;
 }
 
-static void gsk_http_server_prune_done_responses (GskHttpServer *server)
+static void
+gsk_http_server_prune_done_responses (GskHttpServer *server,
+                                      gboolean       may_read_shutdown)
 {
   GskHttpServerResponse **pthis = &server->first_response;
   GskHttpServerResponse *last = NULL;
@@ -283,8 +286,10 @@ static void gsk_http_server_prune_done_responses (GskHttpServer *server)
     {
       /* The server is no longer readable.
 	 This automatically clears the idle-notify flag. */
-      gsk_io_notify_read_shutdown (server);
-
+      if (may_read_shutdown)
+        gsk_io_notify_read_shutdown (server);
+      else
+        gsk_io_set_idle_notify_read (server, TRUE);
       return;
     }
 
@@ -373,7 +378,7 @@ gsk_http_server_shutdown_write  (GskIO      *io,
         gsk_http_server_response_fail (at, "shutdown when not in done-reading state");
     }
 
-  gsk_http_server_prune_done_responses (server);
+  gsk_http_server_prune_done_responses (server, TRUE);
 
   gsk_io_read_shutdown (GSK_IO (server), NULL);
   return TRUE;
@@ -436,7 +441,7 @@ gsk_http_server_raw_read      (GskStream     *stream,
 	}
     }
 
-  gsk_http_server_prune_done_responses (server);
+  gsk_http_server_prune_done_responses (server, rv == 0);
 
   return rv;
 }
