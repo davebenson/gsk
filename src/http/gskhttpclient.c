@@ -327,6 +327,12 @@ handle_response_header   (GskHttpClientRequest  *request,
 				  GSK_STREAM (request->content_stream),
 				  request->handle_response_data);
 
+      if (response_header->content_length == 0)
+	{
+	  request->state = DONE;
+	  gsk_http_client_content_stream_shutdown (request->content_stream);
+	}
+
       return;
     }
 
