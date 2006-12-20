@@ -596,7 +596,7 @@ gsk_http_server_raw_write     (GskStream     *stream,
   /* TODO: need a zero-copy strategy */
   gsk_buffer_append (&server->incoming, data, length);
 
-  for (;;)
+  while (server->incoming.size > 0)
     {
       if (server->last_response != NULL
        && server->last_response->parse_state != DONE_READING)
@@ -650,10 +650,6 @@ gsk_http_server_raw_write     (GskStream     *stream,
           if (gsk_http_server_post_stream_process (at->post_data))
             at->parse_state = DONE_READING;
           break;
-        case DONE_READING:
-          if (server->incoming.size > 0)
-            break;
-          goto done;
         default:
           goto done;
         }
