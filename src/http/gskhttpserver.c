@@ -406,6 +406,8 @@ gsk_http_server_raw_read      (GskStream     *stream,
   if (at == NULL)
     {
       gsk_io_clear_idle_notify_read (server);
+      if (server->got_close || !gsk_io_get_is_writable (server))
+        gsk_io_notify_read_shutdown (server);
       return 0;
     }
 
@@ -594,59 +596,68 @@ gsk_http_server_raw_write     (GskStream     *stream,
   /* TODO: need a zero-copy strategy */
   gsk_buffer_append (&server->incoming, data, length);
 
-restart:
-  if (server->last_response != NULL
-   && server->last_response->parse_state != DONE_READING)
-    at = server->last_response;
-  else
-    at = create_new_response (server);
+  for (;;)
+    {
+      if (server->last_response != NULL
+       && server->last_response->parse_state != DONE_READING)
+        at = server->last_response;
+      else
+        at = create_new_response (server);
 
-  if (at->parse_state == INIT)
-    {
-      at->parse_state = READING_REQUEST_FIRST_LINE;
+      switch (at->parse_state)
+        {
+        case INIT:
+          at->parse_state = READING_REQUEST_FIRST_LINE;
+          break;
+        case READING_REQUEST_FIRST_LINE:
+          {
+            int nl = gsk_buffer_index_of (&server->incoming, '\n');
+            char *first_line;
+            char *free_line = NULL;
+            if (nl < 0)
+              goto done;
+            if (nl > MAX_STACK_ALLOC - 1)
+              free_line = first_line = g_malloc (nl + 1);
+            else
+              first_line = stack_buf;
+            gsk_buffer_read (&server->incoming, first_line, nl + 1);
+            first_line[nl] = '\0';
+            g_strchomp (first_line);
+            first_line_parser_callback (at, first_line);
+            g_free (free_line);
+          }
+          break;
+
+        case READING_REQUEST:
+          {
+            int nl = gsk_buffer_index_of (&server->incoming, '\n');
+            char *header_line;
+            char *free_line = NULL;
+            if (nl < 0)
+              goto done;
+            if (nl > MAX_STACK_ALLOC - 1)
+              free_line = header_line = g_malloc (nl + 1);
+            else
+              header_line = stack_buf;
+            gsk_buffer_read (&server->incoming, header_line, nl + 1);
+            header_line[nl] = '\0';
+            g_strchomp (header_line);
+            header_line_parser_callback (at, header_line);
+            g_free (free_line);
+          }
+          break;
+        case READING_POST:
+          if (gsk_http_server_post_stream_process (at->post_data))
+            at->parse_state = DONE_READING;
+          break;
+        case DONE_READING:
+          if (server->incoming.size > 0)
+            break;
+          goto done;
+        default:
+          goto done:
+        }
     }
-  if (at->parse_state == READING_REQUEST_FIRST_LINE)
-    {
-      int nl = gsk_buffer_index_of (&server->incoming, '\n');
-      char *first_line;
-      char *free_line = NULL;
-      if (nl < 0)
-	goto done;
-      if (nl > MAX_STACK_ALLOC - 1)
-	free_line = first_line = g_malloc (nl + 1);
-      else
-	first_line = stack_buf;
-      gsk_buffer_read (&server->incoming, first_line, nl + 1);
-      first_line[nl] = '\0';
-      g_strchomp (first_line);
-      first_line_parser_callback (at, first_line);
-      g_free (free_line);
-    }
-  while (at->parse_state == READING_REQUEST)
-    {
-      int nl = gsk_buffer_index_of (&server->incoming, '\n');
-      char *header_line;
-      char *free_line = NULL;
-      if (nl < 0)
-	goto done;
-      if (nl > MAX_STACK_ALLOC - 1)
-	free_line = header_line = g_malloc (nl + 1);
-      else
-	header_line = stack_buf;
-      gsk_buffer_read (&server->incoming, header_line, nl + 1);
-      header_line[nl] = '\0';
-      g_strchomp (header_line);
-      header_line_parser_callback (at, header_line);
-      g_free (free_line);
-    }
-  if (at->parse_state == READING_POST)
-    {
-      if (gsk_http_server_post_stream_process (at->post_data))
-	at->parse_state = DONE_READING;
-    }
-  if (at->parse_state == DONE_READING
-   && server->incoming.size > 0)
-    goto restart;
 
 done:
   return length;
