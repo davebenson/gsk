@@ -655,7 +655,7 @@ gsk_http_server_raw_write     (GskStream     *stream,
             break;
           goto done;
         default:
-          goto done:
+          goto done;
         }
     }
 
