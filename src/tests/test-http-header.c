@@ -748,6 +748,9 @@ int main(int argc, char **argv)
                     //"b", "42",
                     "d", NOT_FOUND_TOKEN,
                     NULL);
+  test_cgi_parsing ("/whaever?a=1&2&b=42", TRUE,
+                    "a", "1",
+                    NULL);
 
   /* example from rfc 2617, page 5 */
   {
@@ -812,5 +815,6 @@ int main(int argc, char **argv)
                    "Content-Type:  text/html; charset=iso-8859-1\r\n"
                    "Connection: close\r\n"
                    "\n");
+
   return 0;
 }
