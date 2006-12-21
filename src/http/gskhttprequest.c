@@ -735,25 +735,15 @@ unescape_cgi_n (const char *q, guint len, GError **error)
 GHashTable *
 gsk_http_request_parse_cgi_query_string  (const char     *query_string)
 {
-  const char *q = strchr (query_string, '?');
+  char **cgi_vars = gsk_http_parse_cgi_query_string (query_string, NULL);
   GHashTable *table;
-  char **pieces;
   guint i;
-  if (q == NULL)
+  if (cgi_vars == NULL)
     return NULL;
   table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-  pieces = g_strsplit (q + 1, "&", 0);
-  for (i = 0; pieces[i] != NULL; i++)
-    {
-      const char *equals = strchr (pieces[i], '=');
-      if (equals != NULL)
-        {
-          char *key = g_strndup (pieces[i], equals - pieces[i]);
-          char *value = unescape_cgi (equals + 1, NULL);
-          g_hash_table_insert (table, key, value);
-        }
-    }
-  g_strfreev (pieces);
+  for (i = 0; cgi_vars[2*i] != NULL; i++)
+    g_hash_table_insert (table, cgi_vars[2*i+0], cgi_vars[2*i+1]);
+  g_free (cgi_vars);
   return table;
 }
 
@@ -777,6 +767,7 @@ gsk_http_parse_cgi_query_string  (const char     *query_string,
   guint i;
   guint n_pieces;
   char **rv;
+  guint n_out = 0;
   if (q == NULL)
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN,
@@ -807,39 +798,43 @@ gsk_http_parse_cgi_query_string  (const char     *query_string,
   at = q + 1;
   for (i = 0; i < n_pieces; i++)
     {
-      const char *equals = strchr (at, '=');     
+      const char *equalsat = at;
       const char *amp;
-      char *tmp = strchr (at, '&');
-      const char *end = tmp;
-
-      if (tmp != NULL) 
-	{
-	  /* skip extra ampersands */
-	  while (*(tmp+1) == '&')
-	    tmp++;
-	}
-      amp = tmp;
-
-      if (equals == NULL)
+      equalsat = at;
+      while (*equalsat != '=')
         {
-          rv[i*2] = NULL;
-          g_strfreev (rv);
-          g_set_error (error, GSK_G_ERROR_DOMAIN,
-                       GSK_ERROR_HTTP_PARSE,
-                       "no '=' found in key-value pair in cgi query string");
-          return NULL;
+          if (*equalsat == '&' || *equalsat == 0)
+            {
+              rv[2*n_out] = NULL;
+              g_strfreev (rv);
+              g_set_error (error, GSK_G_ERROR_DOMAIN,
+                           GSK_ERROR_HTTP_PARSE,
+                           "error parsing '=' query string cgi pairs");
+              return FALSE;
+            }
+          equalsat++;
         }
+      amp = strchr (equalsat + 1, '&');
 
-      rv[i*2+0] = g_strndup (at, equals - at);
-      rv[i*2+1] = amp ? unescape_cgi_n (equals + 1, end - (equals + 1), error)
-                      : unescape_cgi (equals + 1, error);
-      if (rv[i*2+1] == NULL)
+      rv[n_out*2+0] = g_strndup (at, equalsat - at);
+      if (amp != NULL)
+        rv[n_out*2+1] = unescape_cgi_n (equalsat + 1, amp - (equalsat + 1), error);
+      else
+        rv[n_out*2+1] = unescape_cgi (equalsat + 1, error);
+      if (rv[n_out*2+1] == NULL)
         {
           g_strfreev (rv);
           return NULL;
         }
       at = amp ? amp + 1 : NULL;
+      if (amp != NULL) 
+	{
+	  /* skip extra ampersands */
+	  while (*(amp+1) == '&')
+	    amp++;
+	}
+      n_out++;
     }
-  rv[2*n_pieces+0] = NULL;
+  rv[2*n_out+0] = NULL;
   return rv;
 }
