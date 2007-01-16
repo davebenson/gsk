@@ -153,6 +153,8 @@ gboolean        gsk_url_equal               (const GskUrl    *a,
  */
 char           *gsk_url_decode_http         (const char      *encoded);
 char           *gsk_url_encode_http         (const char      *decoded);
+char           *gsk_url_encode_http_binary  (const guint8    *decoded,
+                                             guint            length);
 
 /* Split an "application/x-www-form-urlencoded" format query string into
  * a null-terminated array of strings: key, value, ...
