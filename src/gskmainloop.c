@@ -525,14 +525,6 @@ retry:
 }
 
 
-static inline gint
-delta_in_millis (GTimeVal *a,
-		 GTimeVal *b)
-{
-  return (a->tv_sec - b->tv_sec) * 1000
-       + (a->tv_usec - b->tv_usec) / 1000;
-}
-
 static gboolean
 handle_poll_fd_set (int          fd,
 		    GIOCondition condition,
@@ -581,11 +573,26 @@ gsk_main_loop_run          (GskMainLoop       *main_loop,
   at = gsk_g_tree_min (main_loop->timers);
   if (at != NULL)
     {
-      gint millis = delta_in_millis (&at->data.timer.expire_time, current_time);
-      if (millis < 0)
-	timeout = 0;
-      else if (timeout < 0 || millis < timeout)
-	timeout = millis;
+      /* This rounds upward to the nearest millisecond */
+      GTimeVal *exp_time = &at->data.timer.expire_time;
+      if (exp_time->tv_sec < current_time->tv_sec
+       || (exp_time->tv_sec == current_time->tv_sec
+           && exp_time->tv_usec <= current_time->tv_usec))
+        timeout = 0;
+      else
+        {
+          guint ts = exp_time->tv_sec - current_time->tv_sec;
+          gint tus = exp_time->tv_usec - current_time->tv_usec;
+          gint t;
+          if (tus < 0)
+            {
+              tus += 1000000;
+              ts--;
+            }
+          t = ts * 1000 + (tus + 999) / 1000;
+          if (timeout < 0 || t < timeout)
+            timeout = t;
+        }
     }
 
   /* TODO: this doesn't work for reentrant main-loops. */
