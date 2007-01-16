@@ -102,10 +102,39 @@ make_random_source (void)
   source_count++;
 }
 
+
+static guint count2 = 0;
+static gboolean
+test_timer_2 (gpointer data)
+{
+  GTimeVal tv2;
+  GTimeVal *ct;
+  if (count2 > 100)
+    return FALSE;
+  count2++;
+  g_get_current_time (&tv2);
+  ct = &gsk_main_loop_default ()->current_time;
+  g_message ("%u.%06u / %u.%06u [delta=%d]",
+             (guint)ct->tv_sec, (guint)ct->tv_usec,
+             (guint)tv2.tv_sec, (guint)tv2.tv_usec,
+             (gint)(((gint)tv2.tv_sec - ct->tv_sec)*1000000
+             + ((gint)tv2.tv_usec - ct->tv_usec)));
+  return TRUE;
+}
+static void test_2 (void)
+{
+  gsk_main_loop_add_timer (gsk_main_loop_default (),
+                           test_timer_2, NULL, NULL,
+                           100, 100);
+  while (count2 < 100)
+    gsk_main_loop_run (gsk_main_loop_default (), -1, NULL);
+}
+
 int main (int argc, char **argv)
 {
   guint i;
   gsk_init_without_threads (&argc, &argv);
+  test_2 ();
   last_runtime = gsk_main_loop_default ()->current_time;
   init_second = last_runtime.tv_sec;
   for (i = 0; i < NUM_INITIAL_SOURCES; i++)

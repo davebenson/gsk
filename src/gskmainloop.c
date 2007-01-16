@@ -34,6 +34,7 @@
 #include "gskerror.h"
 #include "gskinit.h"
 #include "gskdebug.h"
+#include "cycle.h"
 #include "debug.h"
 
 /* --- prototypes --- */
@@ -349,6 +350,120 @@ g_time_val_add_millis (GTimeVal  *in_out,
     }
 }
 
+#ifdef HAVE_TICK_COUNTER
+static guint64 last_tick;
+static GTimeVal last_tick_time;
+typedef enum
+{
+  TICK_STATE_INIT,
+  TICK_STATE_HAS_LAST_TICK,
+  TICK_STATE_HAS_TICK_RATE,
+  TICK_STATE_READY,
+  TICK_STATE_FALLBACK
+} TickState;
+
+#if defined(TICKS_PER_USEC)
+static guint usecs_per_tick = USECS_PER_TICK;
+static guint usecs_per_tick_shift = USECS_PER_TICK_SHIFT;
+static TickState tick_state = TICK_STATE_HAS_TICK_RATE;
+static guint64 max_tick_delta = ((1000000ULL * TICKS_PER_USEC_b20) >> 20);
+#else
+static guint usecs_per_tick;
+static guint usecs_per_tick_shift;
+static TickState tick_state = TICK_STATE_INIT;
+static guint64 max_tick_delta;
+#endif
+
+#if GTIMEVAL_EQUALS_SYS_TIMEVAL
+#define _gsk_g_get_current_time(tv) gettimeofday((struct timeval*)(tv), NULL)
+#else
+#define _gsk_g_get_current_time(tv) g_get_current_time(tv)
+#endif
+
+void
+gsk_get_current_time (GTimeVal *tv)
+{
+  switch (tick_state)
+    {
+    case TICK_STATE_INIT:
+      _gsk_g_get_current_time (&last_tick_time);
+      last_tick = getticks ();
+      *tv = last_tick_time;
+      tick_state = TICK_STATE_HAS_LAST_TICK;
+      break;
+    case TICK_STATE_HAS_LAST_TICK:
+      _gsk_g_get_current_time (tv);
+      if (tv->tv_sec > last_tick_time.tv_sec + 3)
+        {
+          /* compute tick rate */
+          gdouble dusec = ((double)tv->tv_usec - last_tick_time.tv_usec)
+                        + 1e6 * ((double)tv->tv_sec - last_tick_time.tv_sec);
+          guint64 this_ticks = getticks ();
+          gint64 dticks = this_ticks - last_tick;
+          gdouble ticks_per_usec_d = (gdouble)dticks / dusec;
+          if (ticks_per_usec_d < 1.0)
+            {
+              g_message ("ticking too slow... not using cpu timer");
+              tick_state = TICK_STATE_FALLBACK;
+              break;
+            }
+          usecs_per_tick_shift = 30;
+          usecs_per_tick = (double)(1 << usecs_per_tick_shift) / ticks_per_usec_d;
+          max_tick_delta = (guint64)(1000000ULL * ticks_per_usec_d);
+          tick_state = TICK_STATE_READY;
+
+          last_tick = this_ticks;
+          last_tick_time = *tv;
+        }
+      break;
+    case TICK_STATE_HAS_TICK_RATE:
+      _gsk_g_get_current_time (&last_tick_time);
+      last_tick = getticks ();
+      *tv = last_tick_time;
+      tick_state = TICK_STATE_READY;
+      break;
+    case TICK_STATE_READY:
+      {
+        guint64 this_ticks = getticks ();
+        guint64 delta = this_ticks - last_tick;
+        if (delta > max_tick_delta)
+          {
+            last_tick = this_ticks;
+            _gsk_g_get_current_time (&last_tick_time);
+            *tv = last_tick_time;
+            //g_message ("resync: %u.%06u [ticks=%llu]",(guint)last_tick_time.tv_sec,(guint)last_tick_time.tv_usec,last_tick);
+          }
+        else
+          {
+            guint usecs = (guint)(((guint64)delta * usecs_per_tick) >> usecs_per_tick_shift);
+            //g_message ("delta=%llu; cached time: usecs=%u", delta,usecs);
+            *tv = last_tick_time;
+            tv->tv_usec += usecs;
+            while (tv->tv_usec >= 1000000)
+              {
+                tv->tv_usec -= 1000000;
+                tv->tv_sec += 1;
+              }
+          }
+        break;
+      }
+    case TICK_STATE_FALLBACK:
+      _gsk_g_get_current_time (tv);
+      break;
+
+    default:
+      g_assert_not_reached ();
+    }
+}
+#else
+void
+gsk_get_current_time (GTimeVal *tv)
+{
+  _gsk_g_get_current_time (tv);
+}
+#endif
+
+
 /**
  * gsk_main_loop_update_current_time:
  * @main_loop: main loop whose notion of time should be updated.
@@ -359,7 +474,7 @@ g_time_val_add_millis (GTimeVal  *in_out,
 void
 gsk_main_loop_update_current_time (GskMainLoop *main_loop)
 {
-  g_get_current_time (&main_loop->current_time);
+  gsk_get_current_time (&main_loop->current_time);
 }
 
 /**

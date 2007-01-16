@@ -151,6 +151,24 @@ else
   AC_MSG_RESULT([yes])
 fi
 
+AC_C_INLINE
+AC_HEADER_TIME
+AC_CHECK_HEADERS([sys/time.h c_asm.h intrinsics.h mach/mach_time.h])
+
+AC_CHECK_TYPE([hrtime_t],[AC_DEFINE(HAVE_HRTIME_T, 1, [Define to 1 if hrtime_t is defined in <sys/time.h>])],,[#if HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif])
+
+AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time])
+
+dnl Cray UNICOS _rtc() (real-time clock) intrinsic
+AC_MSG_CHECKING([for _rtc intrinsic])
+rtc_ok=yes
+AC_TRY_LINK([#ifdef HAVE_INTRINSICS_H
+#include <intrinsics.h>
+#endif], [_rtc()], [AC_DEFINE(HAVE__RTC,1,[Define if you have the UNICOS _rtc() intrinsic.])], [rtc_ok=no])
+AC_MSG_RESULT($rtc_ok)
+
 AC_MSG_CHECKING([for readline support])
 has_readline=0; readline_hdr=
 AC_CHECK_HEADERS([readline.h], [has_readline=1; readline_hdr=readline.h; readline_history_hdr=history.h])
@@ -219,6 +237,33 @@ AC_PATH_PROG(GLIB_MKENUMS, glib-mkenums, no)
 AC_SUBST(GLIB_MKENUMS)
 GLIB_EXTRA_LDFLAGS=`"$PKG_CONFIG" --libs-only-other gobject-2.0 gthread-2.0 gmodule-2.0`
 AC_SUBST(GLIB_EXTRA_LDFLAGS)
+
+AC_MSG_CHECKING([GTimeVal and system timeval are equivalent])
+CFLAGS_BACKUP="$CFLAGS"
+CFLAGS="$GLIB_CFLAGS"
+export CFLAGS
+AC_TRY_COMPILE([#include <sys/time.h>]
+  [#include <time.h>]
+  [#include <glib.h>],
+  [#define COMPILE_IF_EQUAL(a,b) \
+   switch (0) { case FALSE: ; \
+                case (a)==(b): ; }
+   COMPILE_IF_EQUAL(G_STRUCT_OFFSET(struct timeval, tv_sec),
+                    G_STRUCT_OFFSET(GTimeVal, tv_sec))
+   COMPILE_IF_EQUAL(G_STRUCT_OFFSET(struct timeval, tv_usec),
+                    G_STRUCT_OFFSET(GTimeVal, tv_usec))
+   COMPILE_IF_EQUAL(sizeof(struct timeval),
+                    sizeof(GTimeVal))
+  ],
+  [GTIMEVAL_EQUALS_SYS_TIMEVAL=1],
+  [GTIMEVAL_EQUALS_SYS_TIMEVAL=0])
+if test "$GTIMEVAL_EQUALS_SYS_TIMEVAL" = "0" ; then
+  AC_MSG_RESULT([no])
+else
+  AC_DEFINE(GTIMEVAL_EQUALS_SYS_TIMEVAL, 1, [whether we GTimeVal is timeval])
+  AC_MSG_RESULT([yes])
+fi
+CFLAGS="$CFLAGS_BACKUP"
 
 GSK_DEBUG_MODE=0
 AC_ARG_ENABLE(gsk-debug,
