@@ -126,7 +126,7 @@ struct _GskMainLoop
   GskSource     *last_idle;
 
   /* timers */
-  GTree         *timers;
+  GskSource     *timers;
 
   /* i/o handlers by file-descriptor */
   GPtrArray     *read_sources;

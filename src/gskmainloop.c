@@ -28,6 +28,7 @@
 
 #include "gskmainloop.h"
 #include "gskmacros.h"
+#include "gskrbtreemacros.h"
 #include "config.h"
 #include "gskghelpers.h"
 #include "gskerrno.h"
@@ -76,6 +77,7 @@ struct _GskSource
   /* only for timers */
   guint                  timer_adjusted_while_running : 1;
   guint                  timer_is_red : 1;
+  guint                  timer_in_tree : 1;
 
   GskMainLoop           *main_loop;
 
@@ -95,6 +97,7 @@ struct _GskSource
       GTimeVal               expire_time;
       gint64                 milli_period;
       GskMainLoopTimeoutFunc func;
+      GskSource             *left, *right, *parent;
     } timer;
     struct
     {
@@ -134,6 +137,23 @@ struct _GskMainLoopContextList
 #define MAIN_LOOP_CLASS(main_loop) 	GSK_MAIN_LOOP_GET_CLASS(main_loop)
 #define DEBUG_POLL(args)		\
 		_GSK_DEBUG_PRINTF (GSK_DEBUG_MAIN_LOOP,args)
+
+/* gskrbtree of timers */
+#define TIMER_GET_IS_RED(source)    ((source)->timer_is_red)
+#define TIMER_SET_IS_RED(source, v) (source)->timer_is_red=v
+#define TIMEVALS_COMPARE(a,b)                           \
+              (a).tv_sec < (b).tv_sec ? -1              \
+            : (a).tv_sec > (b).tv_sec ? +1              \
+            : (a).tv_usec < (b).tv_usec ? -1            \
+            : (a).tv_usec > (b).tv_usec ? +1            \
+            : 0
+#define TIMER_COMPARE(a,b, rv) \
+  rv = TIMEVALS_COMPARE(a->data.timer.expire_time, b->data.timer.expire_time); \
+  if (rv == 0) { if (a < b) rv = -1; else if (a > b) rv = 1; }
+#define GET_MAIN_LOOP_TIMER_TREE(main_loop) \
+  (main_loop)->timers, GskSource *, TIMER_GET_IS_RED, TIMER_SET_IS_RED,  \
+  data.timer.parent, data.timer.left, data.timer.right, TIMER_COMPARE
+
 
 static inline GIOCondition
 get_io_events (GskMainLoop *main_loop,
@@ -570,7 +590,7 @@ gsk_main_loop_run          (GskMainLoop       *main_loop,
   old_time = *current_time;
   if (main_loop->first_idle != NULL)
     timeout = 0;
-  at = gsk_g_tree_min (main_loop->timers);
+  GSK_RBTREE_FIRST (GET_MAIN_LOOP_TIMER_TREE (main_loop), at);
   if (at != NULL)
     {
       /* This rounds upward to the nearest millisecond */
@@ -712,15 +732,20 @@ retry_query:
     }
 
   /* expire timers */
-  while ((at = gsk_g_tree_min (main_loop->timers)) != NULL)
+  for (;;)
     {
+      GSK_RBTREE_FIRST (GET_MAIN_LOOP_TIMER_TREE (main_loop), at);
+      if (at == NULL)
+        break;
       if (at->data.timer.expire_time.tv_sec > current_time->tv_sec
        || (at->data.timer.expire_time.tv_sec == current_time->tv_sec
         && at->data.timer.expire_time.tv_usec >= current_time->tv_usec))
 	break;
 
       at->run_count++;
-      g_tree_remove (main_loop->timers, at);
+      g_assert (at->timer_in_tree);
+      GSK_RBTREE_REMOVE (GET_MAIN_LOOP_TIMER_TREE (main_loop), at);
+      at->timer_in_tree = 0;
       if (!(*at->data.timer.func) (at->user_data))
 	at->must_remove = 1;
       rv++;
@@ -734,7 +759,13 @@ retry_query:
 	  else
 	    g_time_val_add_millis (&at->data.timer.expire_time, 
 				   at->data.timer.milli_period);
-	  g_tree_insert (main_loop->timers, at, at);
+          g_assert (!at->timer_in_tree);
+          {
+            GskSource *unused;
+            GSK_RBTREE_INSERT (GET_MAIN_LOOP_TIMER_TREE (main_loop),
+                               at, unused);
+            at->timer_in_tree = 1;
+          }
 	}
     }
 
@@ -1119,12 +1150,14 @@ gsk_main_loop_add_timer64  (GskMainLoop       *main_loop,
 			    gint64             milli_period)
 {
   GskSource *source = gsk_source_new (GSK_SOURCE_TYPE_TIMER, main_loop, timer_data, timer_destroy);
+  GskSource *unused;
   source->data.timer.expire_time = main_loop->current_time;
   g_time_val_add_millis (&source->data.timer.expire_time, millis_expire);
   source->data.timer.milli_period = milli_period;
   source->data.timer.func = timer_func;
   source->timer_adjusted_while_running = FALSE;
-  g_tree_insert (main_loop->timers, source, source);
+  GSK_RBTREE_INSERT (GET_MAIN_LOOP_TIMER_TREE (main_loop), source, unused);
+  source->timer_in_tree = 1;
   main_loop->num_sources++;
   return source;
 }
@@ -1168,12 +1201,14 @@ gsk_main_loop_add_timer_absolute (GskMainLoop       *main_loop,
 				  int                unixtime_micro)
 {
   GskSource *source = gsk_source_new (GSK_SOURCE_TYPE_TIMER, main_loop, timer_data, timer_destroy);
+  GskSource *unused;
   source->data.timer.expire_time.tv_sec = unixtime;
   source->data.timer.expire_time.tv_usec = unixtime_micro;
   source->data.timer.milli_period = -1;
   source->data.timer.func = timer_func;
   source->timer_adjusted_while_running = 0;
-  g_tree_insert (main_loop->timers, source, source);
+  GSK_RBTREE_INSERT (GET_MAIN_LOOP_TIMER_TREE (main_loop), source, unused);
+  source->timer_in_tree = 1;
   main_loop->num_sources++;
   return source;
 }
@@ -1197,13 +1232,25 @@ gsk_source_adjust_timer   (GskSource         *timer_source,
 {
   GskMainLoop *main_loop = timer_source->main_loop;
   g_return_if_fail (timer_source->type == GSK_SOURCE_TYPE_TIMER);
-  if (timer_source->run_count == 0)
-    g_tree_remove (main_loop->timers, timer_source);
+  if (timer_source->timer_in_tree)
+    {
+      GSK_RBTREE_REMOVE (GET_MAIN_LOOP_TIMER_TREE (main_loop), timer_source);
+      timer_source->timer_in_tree = 0;
+    }
   timer_source->data.timer.expire_time = main_loop->current_time;
   g_time_val_add_millis (&timer_source->data.timer.expire_time, millis_expire);
   timer_source->data.timer.milli_period = milli_period;
   if (timer_source->run_count == 0)
-    g_tree_insert (main_loop->timers, timer_source, timer_source);
+    {
+      if (!timer_source->timer_in_tree)
+        {
+          GskSource *unused;
+          GSK_RBTREE_INSERT (GET_MAIN_LOOP_TIMER_TREE (main_loop),
+                             timer_source,
+                             unused);
+          timer_source->timer_in_tree = 1;
+        }
+    }
   else
     timer_source->timer_adjusted_while_running = 1;
 }
@@ -1234,7 +1281,11 @@ gsk_main_loop_block_io (GskMainLoop *main_loop,
 	break;
 
       case GSK_SOURCE_TYPE_TIMER:
-	g_tree_remove (main_loop->timers, source);
+        if (source->timer_in_tree)
+          {
+            GSK_RBTREE_REMOVE (GET_MAIN_LOOP_TIMER_TREE (main_loop), source);
+            source->timer_in_tree = 0;
+          }
 	break;
 
       case GSK_SOURCE_TYPE_IO:
@@ -1457,19 +1508,8 @@ gsk_main_loop_destroy_all_sources (GskMainLoop *main_loop)
     }
 
   /* Destroy timers */
-  list = gsk_g_tree_key_slist (main_loop->timers);
-  for (at_list = list; at_list != NULL; at_list = at_list->next)
-    {
-      at = at_list->data;
-      at->run_count++;
-    }
-  for (at_list = list; at_list != NULL; at_list = at_list->next)
-    {
-      at = at_list->data;
-      at->run_count--;
-      gsk_source_remove (at);
-    }
-  g_slist_free (list);
+  while (main_loop->timers)
+    gsk_source_remove (main_loop->timers);
 
   /* Destroy i/o handlers */
   for (i = 0; i < main_loop->read_sources->len; i++)
@@ -1535,12 +1575,11 @@ gsk_main_loop_finalize (GObject *object)
 
   g_assert (main_loop->first_idle == NULL);
   g_assert (main_loop->last_idle == NULL);
-  g_assert (g_tree_nnodes (main_loop->timers) == 0);
+  g_assert (main_loop->timers == NULL);
   g_assert (g_hash_table_size (main_loop->process_source_lists) == 0);
   g_assert (main_loop->running_source == NULL);
   CHECK_INVARIANTS (main_loop);
 
-  g_tree_destroy (main_loop->timers);
   g_hash_table_destroy (main_loop->process_source_lists);
   g_ptr_array_free (main_loop->read_sources, TRUE);
   g_ptr_array_free (main_loop->write_sources, TRUE);
@@ -1552,34 +1591,11 @@ gsk_main_loop_finalize (GObject *object)
   (*parent_class->finalize) (object);
 }
 
-static gint
-sort_timers_ascending (gconstpointer a,
-		       gconstpointer b)
-{
-  const GskSource *timer_a = a;
-  const GskSource *timer_b = b;
-  const GTimeVal *time_a = &timer_a->data.timer.expire_time;
-  const GTimeVal *time_b = &timer_b->data.timer.expire_time;
-  if (time_a->tv_sec < time_b->tv_sec)
-    return -1;
-  if (time_a->tv_sec > time_b->tv_sec)
-    return +1;
-  if (time_a->tv_usec < time_b->tv_usec)
-    return -1;
-  if (time_a->tv_usec > time_b->tv_usec)
-    return +1;
-  if (a < b)
-    return -1;
-  if (a > b)
-    return +1;
-  return 0;
-}
-
 /* --- functions --- */
 static void
 gsk_main_loop_init (GskMainLoop *main_loop)
 {
-  main_loop->timers = g_tree_new (sort_timers_ascending);
+  main_loop->timers = NULL;
   main_loop->read_sources = g_ptr_array_new ();
   main_loop->write_sources = g_ptr_array_new ();
   main_loop->signal_source_lists = g_ptr_array_new ();
