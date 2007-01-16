@@ -122,7 +122,8 @@ gsktypes.c \
 gskutils.c
 
 noinst_HEADERS = \
-debug.h
+debug.h \
+cycle.h
 
 gskerror.lo: gskerror.inc
 
