@@ -142,7 +142,7 @@ gsk_process_info_get (guint          pid,
   /* 'comm' */
   if (*at != LPAREN)
     PARSE_ERROR_EXPECTED ("left-paren");
-  *at++;
+  at++;
   end_name = strchr (at, RPAREN);
   if (end_name == NULL)
     PARSE_ERROR_EXPECTED ("right-paren");
