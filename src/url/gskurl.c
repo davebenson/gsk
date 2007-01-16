@@ -1052,11 +1052,18 @@ gboolean gsk_url_equal (const GskUrl *a,
  * characters are (section 2.3): "upper and lower case letters, decimal
  * digits, and a limited set of punctuation marks and symbols" [see below].
  */
+
+static guint8 should_be_escaped_data[16] =
+{
+  0xff, 0xff, 0xff, 0xff, 0x7d, 0x98, 0x00, 0xfc,
+  0x01, 0x00, 0x00, 0x78, 0x01, 0x00, 0x00, 0xb8,
+};
 static inline gboolean
 should_be_escaped (char c)
 {
-  static const char *unreserved_marks = "-_.!~*'()"; /* sec 2.3 */
-  return !g_ascii_isalnum (c) && (strchr (unreserved_marks, c) == NULL);
+  if (c & 0x80)
+    return TRUE;
+  return (should_be_escaped_data[c>>3] & (1<<(7&c))) != 0;
 }
 
 static const char *hex_characters = "0123456789abcdef";
@@ -1211,6 +1218,45 @@ gsk_url_encode_http (const char *decoded)
 	*rv_at++ = *at;
     }
   *rv_at = '\0';
+  return rv;
+}
+
+/**
+ * gsk_url_encode_http_binary:
+ * @decoded: the raw binary data: may contain NULs.
+ * @length: length of the binary data, in bytes.
+ *
+ * Do what is typically thought of
+ * as "url encoding" in http-land... namely SPACE maps to '+'
+ * and funny characters are encoded
+ * as %xx where 'x' denotes a single hex-digit.
+ *
+ * returns: a newly allocated encoded string that the caller
+ * must free.
+ */
+char *
+gsk_url_encode_http_binary (const guint8 *decoded,
+                            guint         length)
+{
+  guint rv_len = length;
+  char *rv;
+  char *at;
+  guint i;
+  for (i = 0; i < length; i++)
+    if (should_be_escaped (decoded[i]))
+      rv_len += 2;
+  rv = g_malloc (rv_len + 1);
+  at = rv;
+  for (i = 0; i < length; i++)
+    if (should_be_escaped (decoded[i]))
+      {
+        *at++ = '%';
+        *at++ = hex_characters[decoded[i] >> 4];
+        *at++ = hex_characters[decoded[i] & 0xf];
+      }
+    else
+      *at++ = decoded[i];
+  *at = 0;
   return rv;
 }
 
