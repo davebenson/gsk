@@ -381,6 +381,8 @@ gsk_http_server_shutdown_write  (GskIO      *io,
   gsk_http_server_prune_done_responses (server, TRUE);
 
   gsk_io_read_shutdown (GSK_IO (server), NULL);
+
+  gsk_hook_notify_shutdown (GSK_HTTP_SERVER_HOOK (server));
   return TRUE;
 }
 
