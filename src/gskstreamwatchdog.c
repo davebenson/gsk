@@ -76,6 +76,12 @@ gsk_stream_watchdog_set_poll_read   (GskIO      *io,
                                   NULL);
         }
     }
+  else
+    {
+      if (watchdog->underlying != NULL)
+        gsk_stream_untrap_readable (watchdog->underlying);
+
+    }
 }
 
 static gboolean
@@ -127,6 +133,11 @@ gsk_stream_watchdog_set_poll_write   (GskIO      *io,
                                   g_object_ref (watchdog),
                                   NULL);
         }
+    }
+  else
+    {
+      if (watchdog->underlying != NULL)
+        gsk_stream_untrap_writable (watchdog->underlying);
     }
 }
 
