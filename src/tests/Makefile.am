@@ -19,6 +19,7 @@ common_check_programs = \
 	test-mempool \
 	test-mime-multipart-decoder \
 	test-mime-encdec \
+	test-passfd \
 	test-prefix-tree \
 	test-qsortmacro \
 	test-signal-handling \
@@ -110,6 +111,7 @@ test_http_header_SOURCES = test-http-header.c
 test_http_content_SOURCES = test-http-content.c
 test_http_redirect_SOURCES = test-http-redirect.c
 test_http_serverclient_SOURCES = test-http-serverclient.c
+test_passfd_SOURCES = test-passfd.c
 test_persistent_connection_SOURCES = test-persistent-connection.c
 test_prefix_tree_SOURCES = test-prefix-tree.c
 test_serverclient_SOURCES = test-serverclient.c

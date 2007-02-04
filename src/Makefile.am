@@ -44,6 +44,7 @@ gsknetworkinterface.h \
 gskpacket.h \
 gskpacketqueue.h \
 gskpacketqueuefd.h \
+gskpassfd.h \
 gskpersistentconnection.h \
 gskprocessinfo.h \
 gskqsortmacro.h \
@@ -97,6 +98,7 @@ gsknetworkinterface.c \
 gskpacket.c \
 gskpacketqueue.c \
 gskpacketqueuefd.c \
+gskpassfd.c \
 gskpersistentconnection.c \
 gskprocessinfo.c \
 gskrequest.c \

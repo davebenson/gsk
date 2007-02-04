@@ -69,6 +69,9 @@ gsk_stream_listener_socket_new_bind_full(GskSocketAddress *address,
 void    gsk_stream_listener_socket_set_backlog (GskStreamListenerSocket *lis,
 						guint             backlog);
 
+
+/*< private >*/
+void _gsk_socket_address_local_maybe_delete_stale_socket (GskSocketAddress *local_socket);
 G_END_DECLS
 
 #endif

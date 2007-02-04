@@ -297,8 +297,8 @@ gsk_stream_listener_socket_get_property (GObject        *object,
 
    XXX: we should survey what others do here... like x-windows...
  */
-static void
-maybe_delete_stale_socket (GskSocketAddress *local_socket)
+void
+_gsk_socket_address_local_maybe_delete_stale_socket (GskSocketAddress *local_socket)
 {
   const char *path = GSK_SOCKET_ADDRESS_LOCAL (local_socket)->path;
   gboolean is_connected;
@@ -389,7 +389,7 @@ try_init_fd (GskStreamListenerSocket *listener_socket)
     }
 
   if (GSK_IS_SOCKET_ADDRESS_LOCAL (address) && may_reuse_address)
-    maybe_delete_stale_socket (address);
+    _gsk_socket_address_local_maybe_delete_stale_socket (address);
 
   if (bind (fd, addr, sizeof_addr) < 0)
     {
