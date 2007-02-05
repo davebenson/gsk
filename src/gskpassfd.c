@@ -43,6 +43,8 @@
    then delete it. XXX: test if this works right */
 #define DO_DELETE_STALE_SOCKET  1
 
+#define MAX_DATA_LEN            64*1024
+
 /**
  * gsk_pass_fd_make_pair:
  * @sender_fd_out: place to put the file-descriptor
@@ -170,14 +172,31 @@ static gboolean
 send_fd (int           sender_fd,
          const char   *path,
          int           pass_fd,
+         guint         aux_info_len,
+         const guint8 *aux_info_data,
          GError      **error)
 {
   struct msghdr msg;
   char ccmsg[CMSG_SPACE (sizeof (pass_fd))];
   struct cmsghdr *cmsg;
   struct iovec vec;		/* stupidity: must send/receive at least one byte */
-  char *str = "x";
   struct sockaddr_un addr;
+
+  if (aux_info_len == 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN,
+                   GSK_ERROR_INVALID_ARGUMENT,
+                   "aux-info-len must be nonzero");
+      return FALSE;
+    }
+  if (aux_info_len > MAX_DATA_LEN)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN,
+                   GSK_ERROR_INVALID_ARGUMENT,
+                   "cannot pass a buffer of more than %u bytes as aux-data",
+                   MAX_DATA_LEN);
+      return FALSE;
+    }
 
   if (path == NULL)
     {
@@ -201,8 +220,8 @@ send_fd (int           sender_fd,
       msg.msg_namelen = sizeof (struct sockaddr_un);
     }
 
-  vec.iov_base = str;
-  vec.iov_len = 1;
+  vec.iov_base = (void *) aux_info_data;
+  vec.iov_len = aux_info_len;
   msg.msg_iov = &vec;
   msg.msg_iovlen = 1;
 
@@ -237,6 +256,9 @@ send_fd (int           sender_fd,
  * @sender_fd: the file-descriptor allocated with
  * gsk_pass_fd_make_pair().
  * @pass_fd: the file-descriptor to pass.
+ * @aux_info_len: length of auxiliary information to send with the fd.
+ * must be nonzero!
+ * @aux_info_data: auxiliary information to send with the fd.
  * @error: optional location to store error at.
  *
  * Pass a file-descriptor from one process to another
@@ -254,9 +276,11 @@ send_fd (int           sender_fd,
  */
 gboolean gsk_pass_fd_send         (int           sender_fd,
                                    int           pass_fd,
+                                   guint         aux_info_len,
+                                   const guint8 *aux_info_data,
                                    GError      **error)
 {
-  return send_fd (sender_fd, NULL, pass_fd, error);
+  return send_fd (sender_fd, NULL, pass_fd, aux_info_len, aux_info_data, error);
 }
 /**
  * gsk_pass_fd_sendto:
@@ -264,6 +288,9 @@ gboolean gsk_pass_fd_send         (int           sender_fd,
  * gsk_pass_fd_make_sender().
  * @path: the location to send to file-descriptor to.
  * @pass_fd: the file-descriptor to pass.
+ * @aux_info_len: length of auxiliary information to send with the fd.
+ * must be nonzero!
+ * @aux_info_data: auxiliary information to send with the fd.
  * @error: optional location to store error at.
  *
  * Pass a file-descriptor from one process to a named location.
@@ -283,16 +310,21 @@ gboolean gsk_pass_fd_send         (int           sender_fd,
 gboolean gsk_pass_fd_sendto       (int           sender_fd,
                                    const char   *path,
                                    int           pass_fd,
+                                   guint         aux_info_len,
+                                   const guint8 *aux_info_data,
                                    GError      **error)
 {
   g_return_val_if_fail (path != NULL, FALSE);
-  return send_fd (sender_fd, path, pass_fd, error);
+  return send_fd (sender_fd, path, pass_fd, aux_info_len, aux_info_data, error);
 }
 
 /**
  * gsk_pass_fd_receive:
  * @receiver_fd: the file-descriptor from whence to receive
  * a new file-descriptor.
+ * @aux_info_len_out: optional location to store the length of the aux data.
+ * @aux_info_data_out: optional location to store a newly allocated
+ * copy of the aux-data.  If you provide this, then you must g_free the buffer!
  * @error: optional location to store error at.
  *
  * Receive a file-descriptor from a receiver-fd
@@ -311,19 +343,21 @@ gboolean gsk_pass_fd_sendto       (int           sender_fd,
  */
 int
 gsk_pass_fd_receive      (int           receiver_fd,
+                          guint        *aux_info_len_out,
+                          guint8      **aux_info_data_out,
                           GError      **error)
 {
   struct msghdr msg;
   struct iovec iov;
-  char buf[1];
+  guint8 aux_info_buf[MAX_DATA_LEN];
   int rv;
   int connfd = -1;
   char ccmsg[CMSG_SPACE (sizeof (connfd))];
   struct cmsghdr *cmsg;
   int fd;
 
-  iov.iov_base = buf;
-  iov.iov_len = 1;
+  iov.iov_base = aux_info_buf;
+  iov.iov_len = MAX_DATA_LEN;
 
   msg.msg_name = 0;
   msg.msg_namelen = 0;
@@ -350,6 +384,10 @@ gsk_pass_fd_receive      (int           receiver_fd,
     }
   fd = *(int *) CMSG_DATA (cmsg);
   gsk_fd_set_nonblocking (fd);  /* kinda unclear if this is a good idea */
+
+  if (aux_info_len_out != NULL)
+    *aux_info_len_out = rv;
+  if (aux_info_data_out != NULL)
+    *aux_info_data_out = g_memdup (iov.iov_base, rv);
   return fd;
 }
-

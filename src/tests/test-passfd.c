@@ -8,6 +8,10 @@
 #include "../gskutils.h"
 #include "../gskerrno.h"
 
+#define AUX_DATA_STRING "this is aux data"
+#define AUX_DATA_LEN    strlen(AUX_DATA_STRING)
+#define AUX_DATA        ((guint8*) AUX_DATA_STRING)
+
 int do_fork (void)
 {
   int rv;
@@ -43,10 +47,12 @@ int main(int argc, char **argv)
         {
 	  char buf[7];
           int fd;
+          guint msg_len;
+          guint8 *msg;
 	  close (send_fd);
 	  gsk_fd_clear_nonblocking (receive_fd);
 	  retry:
-	  fd = gsk_pass_fd_receive (receive_fd, &error);
+	  fd = gsk_pass_fd_receive (receive_fd, &msg_len, &msg, &error);
 	  if (fd < 0)
 	    {
 	      if (error == NULL)
@@ -57,6 +63,9 @@ int main(int argc, char **argv)
 	  if (gsk_readn (fd, buf, 7) != 7
 	   || memcmp (buf, "hi mom\n", 7) != 0)
 	    g_error ("child for count %u failed", count);
+          if (msg_len != AUX_DATA_LEN 
+           || memcmp (msg, AUX_DATA, AUX_DATA_LEN) != 0)
+           g_error ("aux-data mismatch");
           close (fd);
 	  close (receive_fd);
 	  _exit(0);
@@ -69,7 +78,7 @@ int main(int argc, char **argv)
       /* XXX: race condition */
       sleep(1);
 
-      if (!gsk_pass_fd_send (send_fd, pipe_fds[0], &error))
+      if (!gsk_pass_fd_send (send_fd, pipe_fds[0], AUX_DATA_LEN, AUX_DATA, &error))
         g_error ("gsk_pass_fd_send failed: %s",
 	         error ? error->message : "transient error");
       close (pipe_fds[0]);

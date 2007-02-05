@@ -230,7 +230,11 @@ gsk_main_loop_run_io_sources (GskMainLoop     *main_loop,
   if (condition & G_IO_OUT) 
     write_source = main_loop->write_sources->pdata[fd];
   if (read_source == NULL && write_source == NULL)
-    return 0;
+    {
+      g_message ("WARNING: got event %u for unknown file-descriptor %d",
+                 (guint) condition, fd);
+      return 0;
+    }
   if (read_source == write_source)
     {
       read_source->run_count++;

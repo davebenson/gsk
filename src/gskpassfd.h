@@ -48,6 +48,9 @@
      - the sending of file-descriptors is going
        on in between two processes with an agreed upon
        rendevous point.
+
+   Auxillary information is passed along with the fd.
+   The auxillary info must be at least one byte long!
  */
 
 #ifndef __GSK_PASS_FD_H_
@@ -65,12 +68,18 @@ int      gsk_pass_fd_bind_receiver(const char   *path,
                                    GError      **error);
 gboolean gsk_pass_fd_send         (int           sender_fd,
                                    int           pass_fd,
+                                   guint         aux_info_length,
+                                   const guint8 *aux_info_data,
                                    GError      **error);
 gboolean gsk_pass_fd_sendto       (int           sender_fd,
                                    const char   *path,
                                    int           pass_fd,
+                                   guint         aux_info_length,
+                                   const guint8 *aux_info_data,
                                    GError      **error);
 int      gsk_pass_fd_receive      (int           receiver_fd,
+                                   guint        *aux_info_length_out,
+                                   guint8      **aux_info_data_out,
                                    GError      **error);
 
 G_END_DECLS

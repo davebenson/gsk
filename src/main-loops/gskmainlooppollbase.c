@@ -486,7 +486,6 @@ static void gsk_main_loop_poll_base_init (GskMainLoopPollBase* poll_base)
   G_UNLOCK (waitpid_dispatcher);
 
   gsk_buffer_construct (&poll_base->process_term_notifications);
-  gsk_buffer_construct (&poll_base->process_term_notifications);
 
   poll_base->wakeup_read_fd = poll_base->wakeup_write_fd = -1;
 }
