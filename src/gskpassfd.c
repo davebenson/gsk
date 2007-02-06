@@ -38,6 +38,8 @@
 #include "gskghelpers.h"
 #include "gskutils.h"
 
+#define max_sun_path   (sizeof(((struct sockaddr_un*)NULL)->sun_path))
+
 
 /* if a socket exists but cannot be connected to,
    then delete it. XXX: test if this works right */
@@ -134,22 +136,24 @@ int      gsk_pass_fd_bind_receiver(const char   *path,
   int fd = gsk_pass_fd_make_sender (error);
   struct sockaddr_un addr;
   int one;
+  gboolean did_mkdir = FALSE;
   if (fd < 0)
     return -1;
 
   setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (void*)&one, sizeof(one));
   memset (&addr, 0, sizeof (addr));
-  if (strlen (path) > sizeof (addr.sun_path))
+  if (strlen (path) > max_sun_path)
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN,
                    GSK_ERROR_FILE_NAME_TOO_LONG,
                    "cannot bind to path of length %u: too long (max is %u)",
                    strlen (path),
-                   sizeof (addr.sun_path));
+                   max_sun_path);
       close (fd);
       return -1;
     }
-  strncpy (addr.sun_path, path, sizeof (addr.sun_path));
+  addr.sun_family = AF_UNIX;
+  strncpy (addr.sun_path, path, max_sun_path);
 
   if (DO_DELETE_STALE_SOCKET)
     {
@@ -157,13 +161,32 @@ int      gsk_pass_fd_bind_receiver(const char   *path,
       _gsk_socket_address_local_maybe_delete_stale_socket (gskaddr);
       g_object_unref (gskaddr);
     }
+retry_bind:
   if (bind (fd, (struct sockaddr *) &addr, sizeof (addr)) < 0)
     {
+      int e = errno;
+      if (gsk_errno_is_ignorable (e))
+        goto retry_bind;
+      if (e == ENOENT && !did_mkdir)
+        {
+          const char *last_slash = strrchr (path, '/');
+          if (last_slash != NULL)
+            {
+              char *dir = g_strndup (path, last_slash - path);
+              did_mkdir = TRUE;
+              if (gsk_mkdir_p (dir, 0755, error))
+                {
+                  g_free (dir);
+                  goto retry_bind;
+                }
+              g_free (dir);
+            }
+        }
       g_set_error (error, GSK_G_ERROR_DOMAIN,
-                   gsk_error_code_from_errno (errno),
+                   gsk_error_code_from_errno (e),
                    "bind(2) failed when creating a listener (%s): %s",
                    path, g_strerror (errno));
-      return FALSE;
+      return -1;
     }
   return fd;
 }
@@ -205,17 +228,17 @@ send_fd (int           sender_fd,
     }
   else
     {
-      if (strlen (path) > sizeof (addr.sun_path))
+      if (strlen (path) > max_sun_path)
         {
           g_set_error (error, GSK_G_ERROR_DOMAIN,
                        GSK_ERROR_FILE_NAME_TOO_LONG,
                        "send_fd: path too long at %u chars (max is %u chars)",
-                       strlen (path), sizeof (addr.sun_path));
+                       strlen (path), max_sun_path);
           return FALSE;
         }
       memset (&addr, 0, sizeof (addr));
       addr.sun_family = AF_UNIX;
-      strncpy (addr.sun_path, path, sizeof (addr.sun_path));
+      strncpy (addr.sun_path, path, max_sun_path);
       msg.msg_name = (struct sockaddr *) &addr;
       msg.msg_namelen = sizeof (struct sockaddr_un);
     }
