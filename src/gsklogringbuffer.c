@@ -1,5 +1,7 @@
-#include "gsklogringbuffer.h"
+#include <stdlib.h>
+#include <time.h>
 #include <string.h>
+#include "gsklogringbuffer.h"
 
 struct _GskLogRingBuffer
 {
@@ -107,6 +109,48 @@ gsk_log_ring_buffer_get (const GskLogRingBuffer *buffer)
     }
   rv[buffer->amount_buffered] = 0;
   return rv;
+}
+
+char *
+gsk_substitute_localtime_in_string (const char *str,
+                                    const char *strftime_format)
+{
+  GString *rv = g_string_new ("");
+  char date_buffer[256];
+  char num_buffer[16];
+  time_t last_t = 0;
+  if (strftime_format == NULL)
+    strftime_format = "%Y%m%d %k:%M:%S";
+  while (*str)
+    {
+      const char *endline = strchr (str, '\n');
+      const char *endnum = str + strspn (str, G_CSET_DIGITS);
+      time_t t;
+      struct tm tm;
+      if (endline == NULL)
+        break;
+      if (endnum == str || (gint)(endnum-str) > (gint)(sizeof(num_buffer)-1))
+        {
+          endnum = str;
+          goto pass_line;
+        }
+      memcpy (num_buffer, str, endnum - str);
+      num_buffer[endnum - str] = 0;
+      t = strtol (num_buffer, NULL, 10);
+      if (t != last_t)
+        {
+          localtime_r (&t, &tm);
+          last_t = t;
+        }
+      strftime (date_buffer, sizeof (date_buffer),
+                strftime_format, &tm);
+      g_string_append (rv, date_buffer);
+
+pass_line:
+      g_string_append_len (rv, endnum, endline - endnum + 1);
+      str = endline + 1;                /* skip the newline */
+    }
+  return g_string_free (rv, FALSE);
 }
 
 void gsk_log_ring_buffer_free(GskLogRingBuffer *buffer)
