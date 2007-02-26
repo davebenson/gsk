@@ -11,7 +11,8 @@
  * returns: the number of seconds since the beginning of 1970
  * in Grenwich Mean Time.  (This is also known as unix time)
  */
-guint64
+
+time_t
 gsk_timegm(const struct tm *t)
 {
   static const guint month_starts_in_days[12]
@@ -45,11 +46,11 @@ gsk_timegm(const struct tm *t)
                 - ((ly_year / 100) - (1970 / 100))
                 + ((ly_year / 400) - (1970 / 400));
 
-  g_assert (tm->tm_mon < 12);
-  g_assert (1 <= tm->tm_mday && tm->tm_mday <= 31);
-  g_assert (tm->tm_hour < 24);
-  g_assert (tm->tm_min < 60);
-  g_assert (tm->tm_sec < 61);   /* ??? are leap seconds meaningful in gmt */
+  g_assert (t->tm_mon < 12);
+  g_assert (1 <= t->tm_mday && t->tm_mday <= 31);
+  g_assert (t->tm_hour < 24);
+  g_assert (t->tm_min < 60);
+  g_assert (t->tm_sec < 61);   /* ??? are leap seconds meaningful in gmt */
 
   days_since_epoch = (year - 1970) * 365
                    + n_leaps
