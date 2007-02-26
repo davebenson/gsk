@@ -147,5 +147,19 @@ int main(int argc, char** argv)
     gsk_buffer_destruct (&gskbuffer);
   }
 
+  /* Test str_index_of */
+  {
+    GskBuffer buffer = GSK_BUFFER_STATIC_INIT;
+    gsk_buffer_append_foreign (&buffer, "abc", 3, NULL, NULL);
+    gsk_buffer_append_foreign (&buffer, "def", 3, NULL, NULL);
+    gsk_buffer_append_foreign (&buffer, "gad", 3, NULL, NULL);
+    g_assert (gsk_buffer_str_index_of (&buffer, "cdefg") == 2);
+    g_assert (gsk_buffer_str_index_of (&buffer, "ad") == 7);
+    g_assert (gsk_buffer_str_index_of (&buffer, "ab") == 0);
+    g_assert (gsk_buffer_str_index_of (&buffer, "a") == 0);
+    g_assert (gsk_buffer_str_index_of (&buffer, "g") == 6);
+    gsk_buffer_destruct (&buffer);
+  }
+
   return 0;
 }

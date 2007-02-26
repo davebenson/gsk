@@ -122,6 +122,8 @@ int      gsk_buffer_read_in_fd          (GskBuffer       *write_to,
  */
 int      gsk_buffer_index_of            (GskBuffer    *buffer,
                                          char          char_to_find);
+int      gsk_buffer_str_index_of        (GskBuffer    *buffer,
+                                         const char   *str_to_find);
 int      gsk_buffer_polystr_index_of    (GskBuffer    *buffer,
                                          char        **strings);
 

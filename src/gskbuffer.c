@@ -734,6 +734,72 @@ gsk_buffer_index_of(GskBuffer *buffer,
 }
 
 /**
+ * gsk_buffer_str_index_of:
+ * @buffer: buffer to scan.
+ * @str_to_find: a string to look for.
+ *
+ * Scans for the first instance of the given string.
+ * returns: its index in the buffer, or -1 if the string
+ * is not in the buffer.
+ */
+int 
+gsk_buffer_str_index_of (GskBuffer *buffer,
+                         const char *str_to_find)
+{
+  GskBufferFragment *frag = buffer->first_frag;
+  guint rv = 0;
+  for (frag = buffer->first_frag; frag; frag = frag->next)
+    {
+      const char *frag_at = frag->buf + frag->buf_start;
+      guint frag_rem = frag->buf_length;
+      while (frag_rem > 0)
+        {
+          GskBufferFragment *subfrag;
+          const char *subfrag_at;
+          guint subfrag_rem;
+          const char *str_at;
+          if (G_LIKELY (*frag_at != str_to_find[0]))
+            {
+              frag_at++;
+              frag_rem--;
+              rv++;
+              continue;
+            }
+          subfrag = frag;
+          subfrag_at = frag_at + 1;
+          subfrag_rem = frag_rem - 1;
+          str_at = str_to_find + 1;
+          if (*str_at == '\0')
+            return rv;
+          while (subfrag != NULL)
+            {
+              while (subfrag_rem == 0)
+                {
+                  subfrag = subfrag->next;
+                  if (subfrag == NULL)
+                    goto bad_guess;
+                  subfrag_at = subfrag->buf + subfrag->buf_start;
+                  subfrag_rem = subfrag->buf_length;
+                }
+              while (*str_at != '\0' && subfrag_rem != 0)
+                {
+                  if (*str_at++ != *subfrag_at++)
+                    goto bad_guess;
+                  subfrag_rem--;
+                }
+              if (*str_at == '\0')
+                return rv;
+            }
+bad_guess:
+          frag_at++;
+          frag_rem--;
+          rv++;
+        }
+    }
+  return -1;
+}
+
+/**
  * gsk_buffer_drain:
  * @dst: buffer to add to.
  * @src: buffer to remove from.
