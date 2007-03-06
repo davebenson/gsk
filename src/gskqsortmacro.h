@@ -37,7 +37,7 @@ struct _GskQsortStackNode
                  GSK_QSORT_ASSERT_STACK_SIZE)
 
 #define GSK_QSELECT(array, type, n_elements, n_select, compare)		     \
-  GSK_QSELECT_FULL(array, type, n_elements, compare,                         \
+  GSK_QSELECT_FULL(array, type, n_elements, n_select, compare,               \
                    GSK_INSERTION_SORT_THRESHOLD,                             \
                    GSK_QSORT_STACK_MAX_SIZE,                                 \
                    /* no stack guard assertion */)
@@ -388,6 +388,7 @@ struct _GskQsortStackNode
                     {                                                        \
                       gsk_stack[gsk_stack_size++] = gsk_stack_nodes[0];      \
                       gsk_node = gsk_stack_nodes[1];                         \
+                      ss_assertion;                                          \
                     }                                                        \
                   else                                                       \
                     {                                                        \
@@ -406,7 +407,7 @@ struct _GskQsortStackNode
                     break;                                                   \
                   gsk_node = gsk_stack[--gsk_stack_size];                    \
                 }                                                            \
-          ss_assertion;                                                      \
+            }                                                                \
         }                                                                    \
   }G_STMT_END
 
