@@ -76,17 +76,21 @@ handle_input_event (GskStreamListenerSocket *listener)
     }
   else
     {
+      GskSocketAddress *remote_addr;
       gsk_fd_set_close_on_exec (accept_fd, TRUE);
       gsk_fd_set_nonblocking (accept_fd);
       stream = gsk_stream_fd_new (accept_fd, GSK_STREAM_FD_FOR_NEW_SOCKET);
-      g_object_set_qdata_full (G_OBJECT (stream),
-                               GSK_SOCKET_ADDRESS_REMOTE_QUARK,
-                               gsk_socket_address_from_native (&addr, addr_len),
-                               g_object_unref);
-      g_object_set_qdata_full (G_OBJECT (stream),
-                               GSK_SOCKET_ADDRESS_LOCAL_QUARK,
-                               g_object_ref (listener->listening_address),
-                               g_object_unref);
+      remote_addr = gsk_socket_address_from_native (&addr, addr_len);
+      if (remote_addr != NULL)
+        g_object_set_qdata_full (G_OBJECT (stream),
+                                 GSK_SOCKET_ADDRESS_REMOTE_QUARK,
+                                 remote_addr,
+                                 g_object_unref);
+      if (listener->listening_address != NULL)
+        g_object_set_qdata_full (G_OBJECT (stream),
+                                 GSK_SOCKET_ADDRESS_LOCAL_QUARK,
+                                 g_object_ref (listener->listening_address),
+                                 g_object_unref);
       gsk_stream_listener_notify_accepted (stream_listener, stream);
     }
 }
