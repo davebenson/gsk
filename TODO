@@ -1,4 +1,6 @@
-- searchpath in dns is not obeyed
+- searchpath in dns is not obeyed (gsk-dns-client's client-task needs
+  a "searchpath_index" member that tries the global domain only
+  after all search paths.)
 - deal with raise() bug on RH9.0  (!= kill (getpid(), sig))
 - error handling (mostly marked by XXX/TODO flags)
   - hunt down g_warnings and g_messages that should be GError returns

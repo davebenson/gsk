@@ -1,3 +1,8 @@
+gsk (1.0.51)
+  * bug fix: gskstreamlistenersocket: do not crash if remote or local addr
+    is unavailable.
+  * bug fix: GSK_QSELECT macro was broken
+
 gsk (1.0.50) NOT YET RELEASED
 
 gsk (1.0.49)
