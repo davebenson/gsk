@@ -2,6 +2,8 @@ gsk (1.0.51)
   * bug fix: gskstreamlistenersocket: do not crash if remote or local addr
     is unavailable.
   * bug fix: GSK_QSELECT macro was broken
+  * bug fix: stream-fd was sometimes notifying after shutdown.
+  * minimal support for "100 Continue" messages in gskhttpclient
 
 gsk (1.0.50) NOT YET RELEASED
 
