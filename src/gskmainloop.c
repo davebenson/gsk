@@ -425,7 +425,7 @@ gsk_get_current_time (GTimeVal *tv)
           guint64 this_ticks = getticks ();
           gint64 dticks = this_ticks - last_tick;
           gdouble ticks_per_usec_d = (gdouble)dticks / dusec;
-          if (ticks_per_usec_d < 1.0)
+          if (ticks_per_usec_d <= 1.0)
             {
               g_message ("ticking too slow... not using cpu timer");
               tick_state = TICK_STATE_FALLBACK;
@@ -435,7 +435,12 @@ gsk_get_current_time (GTimeVal *tv)
           usecs_per_tick = (double)(1 << usecs_per_tick_shift) / ticks_per_usec_d;
           max_tick_delta = (guint64)(1000000ULL * ticks_per_usec_d);
           tick_state = TICK_STATE_READY;
-
+          if (usecs_per_tick == 0)
+            {
+              g_message ("ticking miscalc");
+              tick_state = TICK_STATE_FALLBACK;
+              break;
+            }
           last_tick = this_ticks;
           last_tick_time = *tv;
         }
