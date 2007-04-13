@@ -142,7 +142,8 @@ had_eof_terminated_post_data (GskHttpClientRequest *request)
   GskHttpTransferEncoding te = GSK_HTTP_HEADER (request->request)->transfer_encoding_type;
   return (request->request->verb == GSK_HTTP_VERB_POST
        || request->request->verb == GSK_HTTP_VERB_PUT)
-      && te != GSK_HTTP_TRANSFER_ENCODING_CHUNKED;
+      && te != GSK_HTTP_TRANSFER_ENCODING_CHUNKED
+      && GSK_HTTP_HEADER (request->request)->content_length == -1;
 }
 
 static inline void
@@ -306,6 +307,13 @@ handle_response_header   (GskHttpClientRequest  *request,
   if (*line == 0)
     {
       DEBUG ("got whitespace line");
+      if (request->response->status_code == GSK_HTTP_STATUS_CONTINUE)
+        {
+          g_object_unref (request->response);
+          request->response = gsk_http_response_new_blank ();
+          request->state = READING_RESPONSE_HEADER_FIRST_LINE;
+          return;
+        }
 
       request->content_stream = gsk_http_client_content_stream_new (request->client);
       /* done parsing header */
