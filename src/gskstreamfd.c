@@ -95,9 +95,11 @@ handle_stream_fd_events (GskStreamFd *stream_fd,
       return;
     }
   DEBUG ("gsk_stream_fd_source_dispatch: revents=%d", events);
-  if ((events & G_IO_IN) != 0)
+  if ((events & G_IO_IN) != 0
+   && gsk_io_get_is_readable (stream_fd))
     gsk_io_notify_ready_to_read (GSK_IO (stream_fd));
-  if ((events & G_IO_OUT) == G_IO_OUT)
+  if ((events & G_IO_OUT) == G_IO_OUT
+   && gsk_io_get_is_writable (stream_fd))
     gsk_io_notify_ready_to_write (GSK_IO (stream_fd));
   if ((events & G_IO_HUP) == G_IO_HUP)
     {
