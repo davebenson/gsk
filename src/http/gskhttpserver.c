@@ -491,12 +491,13 @@ first_line_parser_callback  (GskHttpServerResponse *response,
   switch (gsk_http_request_parse_first_line (response->request, text, &error))
     {
     case GSK_HTTP_REQUEST_FIRST_LINE_ERROR:
-      gsk_io_set_gerror (GSK_IO (response->server), GSK_IO_ERROR_WRITE, error);
-      if (response->request)
-        {
-          g_object_unref (response->request);
-          response->request = NULL;
-        }
+      {
+        GskHttpRequest *request = response->request;
+        response->request = NULL;
+        gsk_io_set_gerror (GSK_IO (response->server), GSK_IO_ERROR_WRITE, error);
+        if (request != NULL)
+          g_object_unref (request);
+      }
       return;
 
     case GSK_HTTP_REQUEST_FIRST_LINE_SIMPLE:
