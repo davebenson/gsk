@@ -23,6 +23,7 @@ gskdaemonize.h \
 gskdebug.h \
 gskdebugalloc.h \
 gskmainloop.h \
+gskmemorybarrier.h \
 gskerrno.h \
 gskerror.h \
 gskfork.h \
@@ -144,6 +145,8 @@ zlib/libgsk-zlib.la \
 hash/libgsk-hash.la \
 control/libgsk-control.la \
 store/libgsk-store.la
+
+BUILT_SOURCES = gskmemorybarrier.h
 
 gskerror.inc: $(srcdir)/gskerror.h
 	glib-mkenums  --vprod '{@VALUENAME@, "@VALUENAME@", "@valuenick@"},' $(srcdir)/gskerror.h > gskerror.inc
