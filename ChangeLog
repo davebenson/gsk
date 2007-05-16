@@ -1,3 +1,9 @@
+gsk (1.0.52)
+  * bug fix: gsk_date_parse_timet() had a sign-error in its timezone
+    handling.
+  * add gsk_buffer_append_repeated_char().
+  * http server fix
+
 gsk (1.0.51)
   * bug fix: gskstreamlistenersocket: do not crash if remote or local addr
     is unavailable.
