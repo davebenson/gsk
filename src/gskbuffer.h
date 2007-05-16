@@ -81,6 +81,19 @@ void     gsk_buffer_append_string       (GskBuffer    *buffer,
                                          const char   *string);
 void     gsk_buffer_append_char         (GskBuffer    *buffer, 
                                          char          character);
+void     gsk_buffer_append_repeated_char(GskBuffer    *buffer, 
+                                         char          character,
+                                         gsize         count);
+#define gsk_buffer_append_zeros(buffer, count) \
+  gsk_buffer_append_repeated_char ((buffer), 0, (count))
+
+/* XXX: gsk_buffer_append_repeated_data() is UNIMPLEMENTED */
+void     gsk_buffer_append_repeated_data(GskBuffer    *buffer, 
+                                         gconstpointer data_to_repeat,
+                                         gsize         data_length,
+                                         gsize         count);
+
+
 void     gsk_buffer_append_string0      (GskBuffer    *buffer,
                                          const char   *string);
 

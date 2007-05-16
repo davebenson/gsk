@@ -266,6 +266,51 @@ gsk_buffer_append(GskBuffer    *buffer,
   CHECK_INTEGRITY (buffer);
 }
 
+void
+gsk_buffer_append_repeated_char (GskBuffer    *buffer, 
+                                 char          character,
+                                 gsize         count)
+{
+  CHECK_INTEGRITY (buffer);
+  buffer->size += count;
+  while (count > 0)
+    {
+      guint avail;
+      if (!buffer->last_frag)
+	{
+	  buffer->last_frag = buffer->first_frag = new_native_fragment ();
+	  avail = gsk_buffer_fragment_avail (buffer->last_frag);
+	}
+      else
+	{
+	  avail = gsk_buffer_fragment_avail (buffer->last_frag);
+	  if (avail <= 0)
+	    {
+	      buffer->last_frag->next = new_native_fragment ();
+	      avail = gsk_buffer_fragment_avail (buffer->last_frag);
+	      buffer->last_frag = buffer->last_frag->next;
+	    }
+	}
+      if (avail > count)
+	avail = count;
+      memset (gsk_buffer_fragment_end (buffer->last_frag), character, avail);
+      count -= avail;
+      buffer->last_frag->buf_length += avail;
+    }
+  CHECK_INTEGRITY (buffer);
+}
+
+#if 0
+void
+gsk_buffer_append_repeated_data (GskBuffer    *buffer, 
+                                 gconstpointer data_to_repeat,
+                                 gsize         data_length,
+                                 gsize         count)
+{
+  ...
+}
+#endif
+
 /**
  * gsk_buffer_append_string:
  * @buffer: the buffer to add data to.  Data is put at the end of the buffer.
