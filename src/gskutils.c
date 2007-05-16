@@ -255,7 +255,7 @@ gsk_escape_memory (gconstpointer    data,
  * suitable for addition into a C string.
  *
  * returns: a newly allocated string of raw data,
- * which an extra NUL postpended, so that it can
+ * with an extra NUL postpended, so that it can
  * be used as a string.
  */
 gpointer
