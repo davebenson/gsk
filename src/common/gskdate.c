@@ -797,7 +797,7 @@ gboolean gsk_date_parse_timet      (const char        *date_str,
   *out = gsk_timegm (&tm_out);
 #endif
 
-  *out += tz_offset * 60;
+  *out -= tz_offset * 60;
   return TRUE;
 }
 
