@@ -795,6 +795,8 @@ gboolean gsk_date_parse_timet      (const char        *date_str,
   *out -= timezone;
 #else
   *out = gsk_timegm (&tm_out);
+  if (*out == ((time_t)-1))
+    return FALSE;
 #endif
 
   *out -= tz_offset * 60;

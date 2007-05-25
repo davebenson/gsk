@@ -46,11 +46,12 @@ gsk_timegm(const struct tm *t)
                 - ((ly_year / 100) - (1970 / 100))
                 + ((ly_year / 400) - (1970 / 400));
 
-  g_assert (t->tm_mon < 12);
-  g_assert (1 <= t->tm_mday && t->tm_mday <= 31);
-  g_assert (t->tm_hour < 24);
-  g_assert (t->tm_min < 60);
-  g_assert (t->tm_sec < 61);   /* ??? are leap seconds meaningful in gmt */
+  if ((guint)t->tm_mon >= 12
+   || t->tm_mday < 1 || t->tm_mday > 31
+   || (guint)t->tm_hour >= 24
+   || (guint)t->tm_min >= 60
+   || (guint)t->tm_sec >= 61)   /* ??? are leap seconds meaningful in gmt */
+    return (time_t) -1;
 
   days_since_epoch = (year - 1970) * 365
                    + n_leaps
