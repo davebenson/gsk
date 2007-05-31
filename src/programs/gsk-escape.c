@@ -28,7 +28,6 @@ int main(int argc, char **argv)
 
   while ((nread=fread (buf, 1, sizeof (buf), stdin)) != 0)
     {
-      g_message ("appending %u",nread);
       g_byte_array_append (array, buf, nread);
     }
   if (strcmp (argv[1], "escape") == 0)
