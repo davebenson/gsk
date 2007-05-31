@@ -48,9 +48,9 @@ int main(int argc, char **argv)
         g_byte_array_set_size (array, array->len - 1);
       g_byte_array_append (array, &nul, 1);
       out = gsk_unescape_memory ((char *) array->data, FALSE, NULL, &len, &error);
-      fwrite (out, len, 1, stdout);
       if (out == NULL)
         g_error ("error unescaping: %s", error->message);
+      fwrite (out, len, 1, stdout);
       g_free (out);
     }
   else if (strcmp (argv[1], "escape-hex") == 0)

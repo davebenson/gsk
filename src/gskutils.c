@@ -302,8 +302,10 @@ gsk_unescape_memory (const char *quoted,
               /* octal */
               /* XXX: i don't think this really matches
                  how c parses \ooo expressions... */
-              guint c = strtoul (s, &end, 8);
+              char *tmpend;
+              guint c = strtoul (str, &tmpend, 8);
               g_string_append_c (s, c);
+              str = tmpend;
             }
           else
             goto bad_backslashed;
