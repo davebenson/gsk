@@ -76,7 +76,7 @@ diagnostic_programs = \
  	$(ssl_tests)
 
 # all programs to build.
-noinst_PROGRAMS = \
+check_PROGRAMS = \
 	$(diagnostic_programs) \
 	$(makecheck_programs)
 
