@@ -634,6 +634,32 @@ void             gsk_http_header_set_content_encoding(GskHttpHeader *header,
 
 /*content_type; content_subtype; content_charset; content_additional;*/
 
+typedef struct _GskHttpContentTypeInfo GskHttpContentTypeInfo;
+struct _GskHttpContentTypeInfo
+{
+  const char *type_start;
+  guint type_len;
+  const char *subtype_start;
+  guint subtype_len;
+  const char *charset_start;
+  guint charset_len;
+  guint max_additional;         /* unimplemented */
+  guint n_additional;           /* unimplemented */
+  const char **additional_starts; /* unimplemented */
+  guint *additional_lens;         /* unimplemented */
+};
+typedef enum
+{
+  GSK_HTTP_CONTENT_TYPE_PARSE_ADDL = (1<<0) /* unimplemented */
+} GskHttpContentTypeParseFlags;
+
+gboolean gsk_http_content_type_parse (const char *content_type_header,
+                                      GskHttpContentTypeParseFlags flags,
+                                      GskHttpContentTypeInfo *out,
+                                      GError                **error);
+
+
+
 /* --- miscellaneous key/value pairs --- */
 void             gsk_http_header_add_misc     (GskHttpHeader *header,
                                                const char    *key,
@@ -716,6 +742,10 @@ void             gsk_http_header_add_accepted_range (GskHttpHeader *header,
 void gsk_http_header_set_string (gpointer         http_header,
                                  char           **p_str,
                                  const char      *str);
+void gsk_http_header_set_string_len (gpointer         http_header,
+                                     char           **p_str,
+                                     const char      *str,
+                                     guint            len);
 
 void gsk_http_header_set_string_val (gpointer         http_header,
                                      char           **p_str,

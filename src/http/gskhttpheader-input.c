@@ -1355,52 +1355,52 @@ handle_content_md5sum (GskHttpHeader *header,
 }
 
 /* XXX: rename this stupid function */
-static char *
-content_type_parse_token(GskHttpHeader  *header,
+static void
+content_type_parse_token(const char **start_out,
+                         guint      *len_out,
                          const char    **pstr)
 {
   const char *str = *pstr;
   const char *start;
   GSK_SKIP_WHITESPACE (str);
-  start = str;
+  *start_out = str;
   while (*str != 0
-       && !isspace (*str)
+       && !g_ascii_isspace (*str)
        && *str != ';' && *str != '/' && *str != ',')
     str++;
+  *len_out = str - (*start_out);
   *pstr = str;
-  return gsk_http_header_cut_string (header, start, str);
 }
 
-
-static gboolean
-handle_content_type (GskHttpHeader *header,
-		     const char *value,
-		     gpointer data)
+gboolean gsk_http_content_type_parse (const char *content_type_header,
+                                      GskHttpContentTypeParseFlags flags,
+                                      GskHttpContentTypeInfo *out,
+                                      GError                **error)
 {
   GSList *addl_list;
+  const char *value = content_type_header;
   /* TYPE / SUBTYPE [;charset="charset][...] */
-  if (header->has_content_type)
-    {
-      g_warning ("has_content_type already so Content-Type not allowed");
-      return FALSE;
-    }
-  header->has_content_type = 1;
   GSK_SKIP_WHITESPACE (value);
   if (*value == '*')
     {
+      out->type_start = NULL;
+      out->type_len = 0;
       value++;
     }
   else
     {
       /* parse a token */
-      header->content_type = content_type_parse_token (header, &value);
+      content_type_parse_token (&out->type_start, &out->type_len, &value);
     }
   GSK_SKIP_WHITESPACE (value);
 
   /* parse a slash */
   if (*value != '/')
     {
-      g_warning ("value begins %s", value);
+      g_set_error (error,
+                   GSK_G_ERROR_DOMAIN,
+                   GSK_ERROR_BAD_FORMAT,
+                   "value begins %s", value);
       return FALSE;
     }
   value++;
@@ -1409,16 +1409,23 @@ handle_content_type (GskHttpHeader *header,
   /* parse a subtype */
   if (*value == '*')
     {
+      out->subtype_start = NULL;
+      out->subtype_len = 0;
       value++;
     }
   else
     {
       /* parse a token */
-      header->content_subtype = content_type_parse_token (header, &value);
+      content_type_parse_token (&out->subtype_start, &out->subtype_len, &value);
     }
 
+  if ((flags & GSK_HTTP_CONTENT_TYPE_PARSE_ADDL) == 0)
+    out->max_additional = 0;
+  out->n_additional = 0;
+
   /* parse a list of attributes, treating `charset=' specially */
-  addl_list = NULL;
+  out->charset_start = NULL;
+  out->charset_len = 0;
   while (TRUE)
     {
       GSK_SKIP_WHITESPACE (value);
@@ -1440,8 +1447,8 @@ handle_content_type (GskHttpHeader *header,
               while (*end != '\0'
                   && (!isspace (*end) && *end != ',' && *end != ';'))
                 end++;
-              g_free (header->content_charset);
-              header->content_charset = gsk_http_header_cut_string (header, value, end);
+              out->charset_start = value;
+              out->charset_len = end - value;
               GSK_SKIP_WHITESPACE (end);
               while (*end == ';' || *end == ',')
                 end++;
@@ -1451,8 +1458,9 @@ handle_content_type (GskHttpHeader *header,
             }
           else
             {
-              g_slist_foreach (addl_list, (GFunc) g_free, NULL);
-              g_slist_free (addl_list);
+              g_set_error (error, GSK_G_ERROR_DOMAIN,
+                           GSK_ERROR_BAD_FORMAT,
+                           "missing '=' after charset");
               return FALSE;
             }
         }
@@ -1462,16 +1470,60 @@ handle_content_type (GskHttpHeader *header,
 	  char *tmp;
 	  if (end == NULL)
 	    end = strchr (value, 0);
-	  tmp = g_new (char, end - value + 1);
-	  memcpy (tmp, value, end - value);
-	  tmp[end - value] = '\0';
-	  g_strstrip (tmp);
-	  addl_list = g_slist_prepend (addl_list, tmp);
+          GSK_SKIP_WHITESPACE (value);
+          if (out->n_additional < out->max_additional)
+            {
+              const char *start_value = value;
+              const char *end_value = end;
+              while (end_value > start_value
+                  && g_ascii_isspace (end_value[-1]))
+                end_value--;
+              out->additional_starts[out->n_additional] = start_value;
+              out->additional_lens[out->n_additional] = end_value - start_value;
+              out->n_additional++;
+            }
 	  value = end;
 	}
     }
-  if (addl_list != NULL)
-    header->content_additional = g_slist_reverse (addl_list);
+  return TRUE;
+}
+
+static gboolean
+handle_content_type (GskHttpHeader *header,
+		     const char *value,
+		     gpointer data)
+{
+  GskHttpContentTypeInfo type_info;
+  GError *error = NULL;
+  GSList *addl = NULL;
+  guint i;
+  if (header->has_content_type)
+    {
+      g_warning ("has_content_type already so Content-Type not allowed");
+      return FALSE;
+    }
+  type_info.max_additional = 16;
+  type_info.additional_starts = g_newa (const char *, type_info.max_additional);
+  type_info.additional_lens = g_newa (guint, type_info.max_additional);
+  if (!gsk_http_content_type_parse (value,
+                                    GSK_HTTP_CONTENT_TYPE_PARSE_ADDL,
+                                    &type_info,
+                                    &error))
+    {
+      g_warning ("gsk_http_content_type_parse failed: %s",
+                 error->message);
+      g_error_free (error);
+      return FALSE;
+    }
+  header->has_content_type = 1;
+  gsk_http_header_set_string_len (header, &header->content_type, type_info.type_start, type_info.type_len);
+  gsk_http_header_set_string_len (header, &header->content_subtype, type_info.subtype_start, type_info.subtype_len);
+  gsk_http_header_set_string_len (header, &header->content_charset, type_info.charset_start, type_info.charset_len);
+  for (i = 0; i < type_info.n_additional; i++)
+    addl = g_slist_prepend (addl, g_strndup (type_info.additional_starts[i],
+                                             type_info.additional_lens[i]));
+  header->content_additional = g_slist_concat (header->content_additional,
+                                               g_slist_reverse (addl));
   return TRUE;
 }
 

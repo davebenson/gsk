@@ -56,6 +56,20 @@ gsk_http_header_set_string (gpointer         http_header,
   *p_str = cpy;
 }
 
+void
+gsk_http_header_set_string_len (gpointer         http_header,
+                                char           **p_str,
+                                const char      *str,
+                                guint            len)
+{
+  char *cpy;
+  g_return_if_fail (GSK_IS_HTTP_HEADER (http_header));
+  cpy = g_strndup (str, len);
+  if (*p_str)
+    g_free (*p_str);
+  *p_str = cpy;
+}
+
 /**
  * gsk_http_header_set_string_val:
  * @http_header: HTTP header which owns the string.
