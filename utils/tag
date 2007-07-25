@@ -8,5 +8,5 @@ Tag the trunk." 1>&2
   exit 1
 }
 
-root=https://svn.sourceforge.net/svnroot/gsk
+root=https://gsk.svn.sourceforge.net/svnroot/gsk
 svn cp $root/trunk $root/$tag
