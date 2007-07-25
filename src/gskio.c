@@ -127,7 +127,6 @@ gsk_io_set_gerror (GskIO             *io,
 		   GskIOErrorCause    cause,
 		   GError            *error)
 {
-  g_return_if_fail (error->domain == GSK_G_ERROR_DOMAIN);
   gsk_io_set_error_literal (io, cause, error);
 }
 
