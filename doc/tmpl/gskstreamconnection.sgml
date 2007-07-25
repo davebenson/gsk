@@ -26,6 +26,14 @@ An opaque object representing the connection between
 the input of one stream and the output of another.
 </para>
 
+@object: 
+@read_side: 
+@write_side: 
+@blocking_write_side: 
+@blocking_read_side: 
+@buffer: 
+@max_buffered: 
+@atomic_read_size: 
 
 <!-- ##### FUNCTION gsk_stream_connection_new ##### -->
 <para>

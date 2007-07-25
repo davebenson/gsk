@@ -27,6 +27,7 @@ raw (decompressed) data can be read from it.
 @stream: parent instance.
 @private_stream: private zlib object.
 @decompressed: buffer of decompressed data.
+@use_gzip: 
 
 <!-- ##### FUNCTION gsk_zlib_inflator_new ##### -->
 <para>

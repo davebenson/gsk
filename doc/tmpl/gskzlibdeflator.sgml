@@ -35,6 +35,7 @@ read the compressed data from it.
 @flush_millis: milliseconds to wait to flush the buffer
 or -1 to indicate that flush need only be done at end-of-file.
 @flush_source: private: flush timeout source.
+@use_gzip: 
 
 <!-- ##### FUNCTION gsk_zlib_deflator_new ##### -->
 <para>

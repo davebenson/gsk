@@ -41,6 +41,14 @@ given files.
 @Returns: 
 
 
+<!-- ##### MACRO gsk_debug ##### -->
+<para>
+
+</para>
+
+@domain: 
+@...: 
+
 
 <!-- ##### MACRO gsk_warning ##### -->
 <para>
@@ -49,6 +57,7 @@ Messages logged at this level can be fatal in debugging mode.
 </para>
 
 @domain: the log-domain to use to categorize the message.
+@...: 
 
 
 <!-- ##### MACRO gsk_error ##### -->
@@ -59,6 +68,8 @@ Messages logged at this level are always fatal.
 
 @domain:  the log-domain to use to categorize the message.
 @...: printf-style format and arguments.
+@...: 
+
 
 <!-- ##### MACRO gsk_critical ##### -->
 <para>
@@ -68,4 +79,6 @@ Messages logged at this level can be fatal in debugging mode.
 
 @domain:  the log-domain to use to categorize the message.
 @...: printf-style format and arguments.
+@...: 
+
 
