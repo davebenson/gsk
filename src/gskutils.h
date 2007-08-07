@@ -17,6 +17,13 @@ gboolean gsk_mkdir_p (const char *dir,
 gboolean gsk_rm_rf   (const char *dir_or_file,
                       GError    **error);
 
+/* returns -1 on failure. */
+int       gsk_lock_dir   (const char *dir,
+                          gboolean    block,
+                          GError    **error);
+gboolean  gsk_unlock_dir (int         lock_rv,
+                          GError    **error);
+
 /* utility function: escape a string like a C string.
  * return value should be freed by caller. */
 char *gsk_escape_memory (gconstpointer    data,

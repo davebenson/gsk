@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
@@ -10,6 +11,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include "gskerror.h"
+#include "gskerrno.h"
 
 /**
  * gsk_mkdir_p:
@@ -188,6 +190,73 @@ gboolean gsk_rm_rf   (const char *dir_or_file,
     }
   return TRUE;
 }
+
+/**
+ * gsk_lock_dir:
+ * @dir: the directory to lock.
+ * @block: block if the directory is locked.
+ * @error: optional error return location.
+ *
+ * Lock the given directory and return
+ * the file-descriptor associated with
+ * the directory (and the lock).
+ *
+ * The lock is advisory; anyone can still modify the directory,
+ * as long as they have adequate permissions.
+ *
+ * returns: the new file-descriptor, or -1 if the lock fails.
+ */
+int       gsk_lock_dir   (const char *dir,
+                          gboolean    block,
+                          GError    **error)
+{
+  int fd = open (dir, O_RDONLY);
+  if (fd < 0)
+    {
+      gsk_errno_fd_creation_failed ();
+      g_set_error (error, GSK_G_ERROR_DOMAIN,
+                   gsk_error_code_from_errno (errno),
+                   "error opening directory %s for locking: %s",
+                   dir, g_strerror (errno));
+      return -1;
+    }
+  gsk_fd_set_close_on_exec (fd, TRUE);
+  if (flock (fd, LOCK_EX|(block ? 0 : LOCK_NB)) < 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN,
+                   gsk_error_code_from_errno (errno),
+                   "error locking directory %s: %s",
+                   dir, g_strerror (errno));
+      close (fd);
+      return -1;
+    }
+  return fd;
+}
+
+/**
+ * gsk_unlock_dir:
+ * @lock_rv: the return-value from gsk_lock_dir()
+ * @error: optional error return location.
+ *
+ * Unlock a directory locked with gsk_lock_dir().
+ *
+ * returns: whether unlocking succeeded.
+ */
+gboolean  gsk_unlock_dir (int         lock_rv,
+                          GError    **error)
+{
+  if (flock (lock_rv, LOCK_UN) < 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN,
+                   gsk_error_code_from_errno (errno),
+                   "error unlocking directory: %s",
+                   g_strerror (errno));
+      return FALSE;
+    }
+  close (lock_rv);
+  return TRUE;
+}
+
 
 /**
  * gsk_escape_memory:
