@@ -1,3 +1,5 @@
+  * add gsk_lock_dir()
+
 gsk (1.0.54)
   * add gsk_http_content_type_parse() function
   * permit gsk_io_set_gerror to specific a non-GSK domain (remove assertion)
