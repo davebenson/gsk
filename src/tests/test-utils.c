@@ -1,5 +1,6 @@
 #include <glib.h>
 #include "../gskutils.h"
+#include "../common/gsktimegm.h"
 #include <string.h>
 
 int main ()
@@ -41,6 +42,28 @@ int main ()
     g_error ("error deleting %s: %s", tmp, error->message);
   g_assert (!g_file_test (tmp, G_FILE_TEST_EXISTS));
   g_free (tmp);
+
+  {
+    struct tm tm;
+    memset (&tm,0,sizeof(tm));
+    tm.tm_year = 70;
+    tm.tm_mday = 1;
+    g_assert(gsk_timegm (&tm) == 0);
+    tm.tm_year = 71;
+    g_assert(gsk_timegm (&tm) == 365*86400);
+    tm.tm_year = 80;
+    g_assert(gsk_timegm (&tm) == (365*10+2)*86400);
+
+    /* test against a precomputed value */
+    tm.tm_year = 100;
+    tm.tm_mday = 1;
+    tm.tm_mon = 8;
+    tm.tm_mday = 3;
+    tm.tm_hour = 3;
+    tm.tm_min = 34;
+    tm.tm_sec = 17;
+    g_assert (gsk_timegm(&tm) == 967952057);
+  }
   
   return 0;
 }
