@@ -66,6 +66,7 @@ gskstreamlistener.h \
 gskstreamlistenersocket.h \
 gskstreamtransferrequest.h \
 gskstreamwatchdog.h \
+gskstringmatcher.h \
 gskthreadpool.h \
 gsktree.h \
 gsktypes.h \

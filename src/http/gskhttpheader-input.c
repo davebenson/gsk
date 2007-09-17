@@ -1443,12 +1443,16 @@ gboolean gsk_http_content_type_parse (const char *content_type_header,
               const char *end;
               value = test + 1;
               GSK_SKIP_WHITESPACE (value);
+              if (*value == '"' || *value == '\'')
+                value++;
               end = value;
               while (*end != '\0'
                   && (!isspace (*end) && *end != ',' && *end != ';'))
                 end++;
               out->charset_start = value;
               out->charset_len = end - value;
+              if (end > value && (end[-1] == '\'' || end[-1] == '"'))
+                out->charset_len--;
               GSK_SKIP_WHITESPACE (end);
               while (*end == ';' || *end == ',')
                 end++;
