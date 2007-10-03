@@ -185,7 +185,7 @@ handle_input_is_readable (GskIO         *io,
   GError *error = NULL;
   guint num_read, num_written = 0;
   guint atomic_read_size = stream_connection->atomic_read_size;
-  gboolean must_free_buf = (stream_connection->atomic_read_size > MAX_READ_ON_STACK);
+  gboolean must_free_buf = FALSE;
   g_return_val_if_fail (read_side == GSK_STREAM (io), FALSE);
   g_return_val_if_fail (write_side != NULL, FALSE);
 
@@ -194,12 +194,20 @@ handle_input_is_readable (GskIO         *io,
   /* TODO: too harsh a penalty for big atomic reads...
    * maybe we should cache a big one.
    */
-  if (must_free_buf)
-    buf = g_malloc (atomic_read_size);
+  if (stream_connection->use_read_buffer)
+    buf = NULL;
+  else if (stream_connection->atomic_read_size > MAX_READ_ON_STACK)
+    {
+      buf = g_malloc (atomic_read_size);
+      must_free_buf = TRUE;
+    }
   else
     buf = g_alloca (atomic_read_size);
 
-  num_read = gsk_stream_read (read_side, buf, atomic_read_size, &error);
+  if (stream_connection->use_read_buffer)
+    num_read = gsk_stream_read_buffer (read_side, &stream_connection->buffer, &error);
+  else
+    num_read = gsk_stream_read (read_side, buf, atomic_read_size, &error);
   if (error != NULL)
     {
       handle_error (stream_connection, error);
@@ -213,21 +221,35 @@ handle_input_is_readable (GskIO         *io,
         g_free (buf);
       return TRUE;
     }
-  if (stream_connection->buffer.size == 0)
+  if (buf != NULL)
     {
-      num_written = gsk_stream_write (write_side, buf, num_read, &error);
-      if (error != NULL)
-	{
-	  handle_error (stream_connection, error);
-          if (must_free_buf)
-            g_free (buf);
-	  return TRUE;
-	}
+      if (stream_connection->buffer.size == 0)
+        {
+          num_written = gsk_stream_write (write_side, buf, num_read, &error);
+          if (error != NULL)
+            {
+              handle_error (stream_connection, error);
+              if (must_free_buf)
+                g_free (buf);
+              return TRUE;
+            }
+        }
+      if (num_written < num_read)
+        gsk_buffer_append (&stream_connection->buffer,
+                           buf + num_written,
+                           num_read - num_written);
     }
-  if (num_written < num_read)
-    gsk_buffer_append (&stream_connection->buffer,
-		       buf + num_written,
-		       num_read - num_written);
+  else if (stream_connection->buffer.size > 1024)
+    {
+      gsk_stream_write_buffer (write_side,
+                               &stream_connection->buffer,
+                               &error);
+      if (error != NULL)
+        {
+          handle_error (stream_connection, error);
+          return TRUE;
+        }
+    }
 
   check_internal_blocks (stream_connection);
 
@@ -458,6 +480,8 @@ gsk_stream_connection_new   (GskStream        *input_stream,
 			handle_output_shutdown_write,
 			stream_connection,
 			handle_output_is_writable_destroy);
+  if (GSK_STREAM_GET_CLASS (input_stream)->raw_read_buffer != NULL)
+    stream_connection->use_read_buffer = 1;
 
   return stream_connection;
 }

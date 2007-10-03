@@ -1,3 +1,6 @@
+gsk (1.0.57) (NOT YET RELEASED)
+  * gskstreamconnection: use read_buffer on input stream if available.
+
 gsk (1.0.56)
   * fix bug parsing content-charset (remove quotes if necessary)
 

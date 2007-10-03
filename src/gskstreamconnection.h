@@ -45,6 +45,11 @@ struct _GskStreamConnection
   /* Whether we are blocking the write-side because the buffer is too long. */
   guint blocking_read_side : 1;
 
+  /* Whether to use gsk_stream_read_buffer() on the read-side.
+     This is TRUE by default, even though it can cause
+     both max_buffered and atomic_read_size to be violated. */
+  guint use_read_buffer : 1;
+
   /* Data which is to be transferred from read_side to write_side,
      which hasn't been processed on the write side. */
   GskBuffer buffer;
