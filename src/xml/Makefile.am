@@ -1,18 +1,10 @@
 gsk_xml_c_sources = \
 gskxml.c \
-gskxmlbuilder.c \
-gskxmlcontext.c \
-gskxmlnode.c \
-gskxmlstring.c \
 gskxmlparser.c
 
 gskxmlincludedir = $(includedir)/gsk-1.0/gsk/xml
 gskxmlinclude_HEADERS = \
 gskxml.h \
-gskxmlbuilder.h \
-gskxmlcontext.h \
-gskxmlnode.h \
-gskxmlstring.h \
 gskxmlparser.h
 
 

@@ -1,41 +1,44 @@
-#ifndef GSK_XML_NODE_H_IN
-#error "include this file by including gskxml.h"
-#endif
+#ifndef __GSK_XML_PARSER_H_
+#define __GSK_XML_PARSER_H_
 
-G_BEGIN_DECLS
-
-typedef void (*GskXmlParserCallback) (GskXmlNode   *document,
-                                      gpointer      data);
+typedef struct _GskXmlParserConfig GskXmlParserConfig;
+typedef struct _GskXmlParser GskXmlParser;
 
 typedef enum
 {
-  /* by default, "xmlns" and "xmlns:*" attribytes
-     are interpreted, and affect the 'ns'
-     and 'ns_by_abbrev' members.  also 'x:y' element names
-     are replaced with 'y' and the appropriate namespace
-     for 'x', if there is one.  if no namespace with
-     abbreviation 'x' exists, the 'x:y' is retained
-     as the element name. */
-  GSK_XML_PARSE_WITHOUT_NAMESPACE_SUPPORT = (1<<0)
+  GSK_XML_PARSER_IGNORE_NS_TAGS = (1<<0),
+  GSK_XML_PARSER_PASSTHROUGH_UNKNOWN_NS = (1<<1),
+} GskXmlParserFlags;
 
-} GskXmlParseFlags;
+#include "gskxml.h"
+
+GskXmlParserConfig *gsk_xml_parser_config_new          (void);
+GskXmlParserConfig *gsk_xml_parser_config_new_by_depth (guint depth);
+GskXmlParserConfig *gsk_xml_parser_config_ref      (GskXmlParserConfig *);
+void                gsk_xml_parser_config_unref    (GskXmlParserConfig *);
+guint               gsk_xml_parser_config_add_path (GskXmlParserConfig *,
+                                                    const char         *path);
+void                gsk_xml_parser_config_add_ns   (GskXmlParserConfig *,
+                                                    const char         *abbrev,
+						    const char         *url);
+void                gsk_xml_parser_config_set_flags(GskXmlParserConfig *config,
+                                                    GskXmlParserFlags   flags);
+GskXmlParserFlags   gsk_xml_parser_config_get_flags(GskXmlParserConfig *config);
 
 
-typedef struct _GskXmlParser GskXmlParser;
+GskXmlParser *gsk_xml_parser_new_take     (GskXmlParserConfig *config);
+GskXmlParser *gsk_xml_parser_new          (GskXmlParserConfig *config);
+GskXmlParser *gsk_xml_parser_new_by_depth (guint               depth);
+GskXml       *gsk_xml_parser_dequeue      (GskXmlParser       *parser,
+                                           guint               index);
+gboolean      gsk_xml_parser_feed         (GskXmlParser       *parser,
+                                           const guint8       *xml_data,
+					   gsize               len,
+					   GError            **error);
+gboolean      gsk_xml_parser_feed_file    (GskXmlParser       *parser,
+                                           const char         *filename,
+					   GError            **error);
+void          gsk_xml_parser_free         (GskXmlParser       *parser);
 
-GskXmlParser *gsk_xml_parser_new        (GskXmlParseFlags     flags,
-                                         GskXmlParserCallback callback,
-                                         gpointer             data,
-                                         GDestroyNotify       destroy);
-gboolean      gsk_xml_parser_feed       (GskXmlParser        *parser,
-                                         const char          *data,
-                                         gssize               len,
-                                         GError             **error);
-gboolean      gsk_xml_parser_feed_file  (GskXmlParser        *parser,
-                                         const char          *filename,
-                                         GError             **error);
-gboolean      gsk_xml_parser_finish     (GskXmlParser        *parser,
-                                         GError             **error);
-void          gsk_xml_parser_free       (GskXmlParser        *parser);
 
-G_END_DECLS
+#endif

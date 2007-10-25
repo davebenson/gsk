@@ -1,180 +1,304 @@
-#include "gskxml.h"
-#include "../gskerror.h"
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <unistd.h>
+#include "gskxmlparser.h"
 
-/* TODO: proper error handling */
+/* --- GskXmlParserConfig --- */
+typedef struct _GskXmlParserStateTrans GskXmlParserStateTrans;
 
-struct _GskXmlParser
+struct _GskXmlParserStateTrans
 {
-  GskXmlBuilder *builder;
-  GskXmlParserCallback callback;
-  gpointer data;
-  GDestroyNotify destroy;
-  GMarkupParseContext *parse_context;
-};
-static void
-xml_parser_start_element (GMarkupParseContext *context,
-                          const gchar         *element_name,
-                          const gchar        **attribute_names,
-                          const gchar        **attribute_values,
-                          gpointer             user_data,
-                          GError             **error)
-{
-  GskXmlParser *parser = user_data;
-  GskXmlString *elt_name = gsk_xml_string_new (element_name);
-  guint n_attrs = 0;
-  guint i;
-  GskXmlString **attrs;
-  while (attribute_names[n_attrs] != NULL)
-    n_attrs++;
-  attrs = g_newa (GskXmlString *, n_attrs * 2);
-  for (i = 0; i < n_attrs; i++)
-    {
-      attrs[2*i+0] = gsk_xml_string_new (attribute_names[i]);
-      attrs[2*i+1] = gsk_xml_string_new (attribute_values[i]);
-    }
-  gsk_xml_builder_start (parser->builder, elt_name, n_attrs, attrs);
-  for (i = 0; i < n_attrs * 2; i++)
-    gsk_xml_string_unref (attrs[i]);
-  gsk_xml_string_unref (elt_name);
-}
-
-static void
-xml_parser_end_element   (GMarkupParseContext *context,
-                          const gchar         *element_name,
-                          gpointer             user_data,
-                          GError             **error)
-{
-  GskXmlParser *parser = user_data;
-  GskXmlString *name = gsk_xml_string_new (element_name);
-  GskXmlNode *node;
-  gsk_xml_builder_end (parser->builder, name);
-  gsk_xml_string_unref (name);
-  node = gsk_xml_builder_get_doc (parser->builder);
-  if (node != NULL)
-    {
-      parser->callback (node, parser->data);
-      gsk_xml_node_unref (node);
-    }
-}
-
-static void
-xml_parser_text  (GMarkupParseContext *context,
-                  const gchar         *text,
-                  gsize                text_len,  
-                  gpointer             user_data,
-                  GError             **error)
-{
-  if (text_len > 0)
-    {
-      GskXmlParser *parser = user_data;
-      GskXmlString *content = gsk_xml_string_new_len (text, text_len);
-      gsk_xml_builder_text (parser->builder, content);
-      gsk_xml_string_unref (content);
-    }
-}
-
-static void
-xml_parser_error  (GMarkupParseContext *context,
-                   GError              *error,
-                   gpointer             user_data)
-{
-  g_warning ("xml_parser_error: %s", error->message);
-}
-
-
-static GMarkupParser parser_funcs =
-{
-  xml_parser_start_element,
-  xml_parser_end_element,
-  xml_parser_text,
-  NULL,                         /* no passthrough() implementation */
-  xml_parser_error
+  char *name;
+  GskXmlParserStateTrans *new_state;
 };
 
-GskXmlParser *
-gsk_xml_parser_new        (GskXmlParseFlags     flags,
-                           GskXmlParserCallback callback,
-                           gpointer             data,
-                           GDestroyNotify       destroy)
+struct _GskXmlParserState
 {
-  GskXmlParser *parser = g_new (GskXmlParser, 1);
-  parser->builder = gsk_xml_builder_new (flags);
-  parser->callback = callback;
-  parser->data = data;
-  parser->destroy = destroy;
-  parser->parse_context = g_markup_parse_context_new (&parser_funcs,
-                                                      0,
-                                                      parser, NULL);
-  return parser;
+  guint n_trans;
+  GskXmlParserStateTrans *trans;
+
+  GskXmlParserStateTrans *fallback_trans;
+
+  gint emit_index;              /* or -1 */
+};
+  
+
+struct _GskXmlParserConfig
+{
+  GskXmlParserState *init;
+  guint ref_count;
+  guint done : 1;
+  guint ignore_ns_tag : 1;
+  guint passthrough_unknown_ns : 1;
+};
+
+
+
+GskXmlParserConfig *
+gsk_xml_parser_config_new (void)
+{
+  ...
 }
 
-gboolean
-gsk_xml_parser_feed       (GskXmlParser        *parser,
-                           const char          *data,
-                           gssize               len,
-                           GError             **error)
+static GskXmlParserConfig *real_new_by_depth (guint depth)
 {
-  return g_markup_parse_context_parse (parser->parse_context,
-                                       data, len, error);
+  GskXmlParserConfig *n = gsk_xml_parser_config_new ();
+  char *str;
+  gsk_xml_parser_config_set_flags (n, GSK_XML_PARSER_IGNORE_NS_TAGS);
+  str = g_malloc (depth * 2 + 2);
+  for (i = 0; i < depth; i++)
+    {
+      str[2*i+0] = '*';
+      str[2*i+1] = '/';
+    }
+  str[2*i+0] = '*';
+  str[2*i+1] = 0;
+  gsk_xml_parser_config_add_path (n, str);
+  gsk_xml_parser_config_done (n);
+  return n;
 }
 
-gboolean
-gsk_xml_parser_finish     (GskXmlParser        *parser,
-                           GError             **error)
+GskXmlParserConfig *
+gsk_xml_parser_config_new_by_depth (guint depth)
 {
-  return g_markup_parse_context_end_parse (parser->parse_context, error);
+  static GskXmlParserConfig *by_depths[32];
+  if (G_LIKELY (depth < G_N_ELEMENTS (by_depths)))
+    {
+      if (by_depths[depth] == NULL)
+        by_depths[depth] = real_new_by_depth (depth);
+      return gsk_xml_parser_config_ref (by_depths[depth]);
+    }
+  else
+    return real_new_by_depth (depth);
 }
 
-gboolean
-gsk_xml_parser_feed_file  (GskXmlParser        *parser,
-                           const char          *filename,
-                           GError             **error)
+GskXmlParserConfig *
+gsk_xml_parser_config_ref (GskXmlParserConfig *config)
 {
-  int fd = open (filename, O_RDONLY);
-  char buf[4096];
-  gssize nread;
-  if (fd < 0)
-    {
-      int e = errno;
-      g_set_error (error, GSK_G_ERROR_DOMAIN,
-                   gsk_error_code_from_errno (e),
-                   "error opening %s: %s", filename, g_strerror (e));
-      return FALSE;
-    }
-  while ((nread=read (fd, buf, sizeof (buf))) > 0
-     || (nread < 0 && errno == EINTR))
-    {
-      if (nread < 0)
-        continue;
-      if (!gsk_xml_parser_feed (parser, buf, nread, error))
-        {
-          close (fd);
-          return FALSE;
-        }
-    }
-  if (nread < 0)
-    {
-      int e = errno;
-      g_set_error (error, GSK_G_ERROR_DOMAIN,
-                   gsk_error_code_from_errno (e),
-                   "error reading %s: %s", filename, g_strerror (e));
-      close (fd);
-      return FALSE;
-    }
-  close (fd);
-  return TRUE;
+  g_return_val_if_fail (config->done, NULL);
+  g_return_val_if_fail (config->ref_count > 0, NULL);
+  ++(config->ref_count);
+  return config;
 }
 
 void
-gsk_xml_parser_free       (GskXmlParser        *parser)
+gsk_xml_parser_config_unref    (GskXmlParserConfig *config)
 {
-  g_markup_parse_context_free (parser->parse_context);
-  if (parser->destroy)
-    parser->destroy (parser->data);
-  gsk_xml_builder_free (parser->builder);
-  g_free (parser);
+  g_return_if_fail (config->ref_count > 0);
+  if (--(config->ref_count) == 0)
+    {
+      ...
+    }
 }
+
+guint
+gsk_xml_parser_config_add_path (GskXmlParserConfig *config,
+                                const char         *path);
+void
+gsk_xml_parser_config_add_ns   (GskXmlParserConfig *config,
+                                const char         *abbrev,
+                                const char         *url);
+void
+gsk_xml_parser_config_set_flags(GskXmlParserConfig *config,
+                                GskXmlParserFlags   flags)
+{
+  ...
+}
+
+GskXmlParserFlags
+gsk_xml_parser_config_get_flags(GskXmlParserConfig *config)
+{
+  ...
+}
+
+void
+gsk_xml_parser_config_done(GskXmlParserConfig *config)
+{
+  g_return_if_fail (config != NULL);
+  g_return_if_fail (!config->done);
+  g_return_if_fail (config->ref_count > 0);
+  config->done = 1;
+}
+
+
+/* --- GskXmlParser --- */
+struct _ParseLevel
+{
+  GskXmlParserState *state;     /* NULL if past known state */
+  GPtrArray *children;          /* NULL if discardable */
+  guint n_ns;
+  char **ns_map;                /* prefix to canon prefix */
+  ParseLevel *up;
+};
+struct _GskXmlParser
+{
+  GMarkupParseContext *parse_context;
+  ParseLevel *level;
+  GskXmlParserConfig *config;
+};
+
+/* --- without namespace support --- */
+static void 
+without_ns__start_element  (GMarkupParseContext *context,
+                            const gchar         *element_name,
+                            const gchar        **attribute_names,
+                            const gchar        **attribute_values,
+                            gpointer             user_data,
+                            GError             **error)
+{
+  ...
+}
+
+static void 
+without_ns__end_element(GMarkupParseContext *context,
+                        const gchar         *element_name,
+                        gpointer             user_data,
+                        GError             **error)
+{
+  ...
+}
+
+
+/* Called for character data */
+/* text is not nul-terminated */
+static void 
+without_ns__text       (GMarkupParseContext *context,
+                        const gchar         *text,
+                        gsize                text_len,  
+                        gpointer             user_data,
+                        GError             **error)
+{
+  ...
+}
+
+
+static void 
+without_ns__passthrough(GMarkupParseContext *context,
+                        const gchar         *passthrough_text,
+                        gsize                text_len,  
+                        gpointer             user_data,
+                        GError             **error)
+{
+  ...
+}
+
+/* --- with namespace support --- */
+
+static void 
+with_ns__start_element  (GMarkupParseContext *context,
+                         const gchar         *element_name,
+                         const gchar        **attribute_names,
+                         const gchar        **attribute_values,
+                         gpointer             user_data,
+                         GError             **error)
+{
+  ...
+}
+
+static void 
+with_ns__end_element(GMarkupParseContext *context,
+                     const gchar         *element_name,
+                     gpointer             user_data,
+                     GError             **error)
+{
+  ...
+}
+
+
+/* Called for character data */
+/* text is not nul-terminated */
+static void 
+with_ns__text       (GMarkupParseContext *context,
+                     const gchar         *text,
+                     gsize                text_len,  
+                     gpointer             user_data,
+                     GError             **error)
+{
+  ...
+}
+
+
+static void 
+with_ns__passthrough(GMarkupParseContext *context,
+                     const gchar         *passthrough_text,
+                     gsize                text_len,  
+                     gpointer             user_data,
+                     GError             **error)
+{
+  ...
+}
+
+static GMarkupParser without_ns_parser =
+{
+  without_ns__start_element,
+  without_ns__end_element,
+  without_ns__text,
+  without_ns__passthrough,
+  NULL                          /* no error handler */
+};
+static GMarkupParser with_ns_parser =
+{
+  with_ns__start_element,
+  with_ns__end_element,
+  with_ns__text,
+  with_ns__passthrough,
+  NULL                          /* no error handler */
+};
+
+GskXmlParser *
+gsk_xml_parser_new_take (GskXmlParserConfig *config)
+{
+  GskXmlParser *parser;
+  GMarkupParser *p;
+  g_return_val_if_fail (config->done, NULL);
+  parser = g_slice_new (GskXmlParser);
+  p = config->ignore_ns_tag ? &without_ns_parser : &with_ns_parser;
+  parser->parse_context = g_markup_parse_context_new (p, 0, parser, NULL);
+  parser->level = NULL;
+  parser->config = config;
+  return parser;
+}
+
+GskXmlParser *
+gsk_xml_parser_new (GskXmlParserConfig *config)
+{
+  return gsk_xml_parser_new_take (gsk_xml_parser_config_ref (config));
+}
+
+
+GskXmlParser *
+gsk_xml_parser_new_by_depth (guint               depth)
+{
+  GskXmlParserConfig *config = gsk_xml_parser_config_new_by_depth (depth);
+  return gsk_xml_parser_new_take (config);
+}
+
+GskXml *
+gsk_xml_parser_dequeue      (GskXmlParser       *parser,
+                             guint               index)
+{
+  ...
+}
+
+gboolean
+gsk_xml_parser_feed         (GskXmlParser       *parser,
+                             const guint8       *xml_data,
+                             gsize               len,
+                             GError            **error)
+{
+  ...
+}
+
+gboolean
+gsk_xml_parser_feed_file    (GskXmlParser       *parser,
+                             const char         *filename,
+                             GError            **error)
+{
+  ...
+}
+
+void
+gsk_xml_parser_free         (GskXmlParser       *parser)
+{
+  ...
+
+  gsk_xml_parser_config_unref (parser->config);
+}
+
