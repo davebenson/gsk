@@ -1,3 +1,5 @@
+#include <string.h>
+#include <stdlib.h>
 #include "gskxmlparser.h"
 
 /* --- GskXmlParserConfig --- */
@@ -148,26 +150,62 @@ gsk_xml_parser_config_add_ns   (GskXmlParserConfig *config,
   g_array_append_val (config->ns_array, ns_info);
 }
 
+#define ITERATE_THROUGH_FLAGS_AND_BITS() \
+  VISIT (GSK_XML_PARSER_IGNORE_NS_TAGS, ignore_ns_tag) \
+  VISIT (GSK_XML_PARSER_PASSTHROUGH_UNKNOWN_NS, passthrough_unknown_ns)
+
 void
 gsk_xml_parser_config_set_flags(GskXmlParserConfig *config,
                                 GskXmlParserFlags   flags)
 {
   g_return_if_fail (!config->done);
-  ...
+
+#define VISIT(flag, bit) config->bit = (flags & flag) ? 1 : 0;
+  ITERATE_THROUGH_FLAGS_AND_BITS()
+#undef VISIT
 }
 
 GskXmlParserFlags
 gsk_xml_parser_config_get_flags(GskXmlParserConfig *config)
 {
-  ...
+  GskXmlParserFlags rv = 0;
+#define VISIT(flag, bit) { if (config->bit) rv |= flag; }
+  ITERATE_THROUGH_FLAGS_AND_BITS()
+#undef VISIT
+  return rv;
 }
 
+typedef struct _PathIndex PathIndex;
 struct _PathIndex
 {
   guint path_len;
   const char *path_start;
   guint orig_index;
+  gboolean is_start;            /* only set up after sorting by path */
 };
+
+static int
+compare_path_index_by_str (gconstpointer a, gconstpointer b)
+{
+  const PathIndex *a_pi = a;
+  const PathIndex *b_pi = b;
+  int rv;
+  if (a_pi->path_len < b_pi->path_len)
+    {
+      rv = memcmp (a_pi->path_start, b_pi->path_start, a_pi->path_len);
+      if (rv == 0)
+        rv = -1;
+    }
+  else if (a_pi->path_len > b_pi->path_len)
+    {
+      rv = memcmp (a_pi->path_start, b_pi->path_start, b_pi->path_len);
+      if (rv == 0)
+        rv = 1;
+    }
+  else /* a_pi->path_len == b_pi->path_len */
+    rv = memcmp (a_pi->path_start, b_pi->path_start, a_pi->path_len);
+  return rv;
+}
 
 static void
 branch_states_recursive (GskXmlParserState *state,
@@ -179,8 +217,11 @@ branch_states_recursive (GskXmlParserState *state,
   guint i;
   guint n_indices = 0;
   guint n_trans;
+  guint n_star_trans = 0, n_star_outputs = 0;
+  int star_trans_start = -1;
   for (i = 0; i < n_paths; i++)
     {
+      const char *end;
       if (paths[i] == NULL)
         next_paths[i] = NULL;
       else if ((end=strchr (paths[i], '/')) != NULL)
@@ -189,8 +230,8 @@ branch_states_recursive (GskXmlParserState *state,
           indices[n_indices].path_len = end - paths[i];
           indices[n_indices].orig_index = i;
           n_indices++;
-          got_trans = TRUE;          // needed?
-          next_paths[i] = end + 1;
+          //got_trans = TRUE;          // needed?
+          next_paths[i] = (char *) end + 1;
           if (end == paths[i] + 1 && paths[i][0] == '*')
             n_star_trans++;
         }
@@ -200,7 +241,7 @@ branch_states_recursive (GskXmlParserState *state,
           indices[n_indices].path_len = strlen (paths[i]);
           indices[n_indices].orig_index = i;
           n_indices++;
-          got_output = TRUE;          // needed?
+          //got_output = TRUE;          // needed?
           next_paths[i] = NULL;
           if (strcmp (paths[i], "*") == 0)
             n_star_outputs++;
@@ -218,10 +259,12 @@ branch_states_recursive (GskXmlParserState *state,
   for (i = 0; i < n_indices; i++)
     if (i == 0
       || indices[i-1].path_len != indices[i].path_len
-      || memcmp (indices[i-1].path, indices[i].path, indices[i].path_len) != 0)
+      || memcmp (indices[i-1].path_start,
+                 indices[i].path_start,
+                 indices[i].path_len) != 0)
       {
         indices[i].is_start = TRUE;
-        if (indices[i].path_len == 1 && indices[i].path[0] == '*')
+        if (indices[i].path_len == 1 && indices[i].path_start[0] == '*')
           star_trans_start = i;
         else
           n_trans++;
@@ -232,34 +275,57 @@ branch_states_recursive (GskXmlParserState *state,
       }
 
   state->trans = g_new (GskXmlParserStateTrans, n_trans);
+  o = 0;                /* index into state->trans for outputting transitions */
   for (i = 0; i < n_indices; )
     {
       guint end;
       guint n_outputs = n_star_outputs;
-      if (next_paths[indices[i].orig_index])
+      if (next_paths[indices[i].orig_index] == NULL)
         n_outputs++;
       for (end = i + 1; end < n_indices && !indices[end].is_start; end++)
-        if (next_paths[indices[end].orig_index])
+        if (next_paths[indices[end].orig_index] == NULL)
           n_outputs++;
 
-      /* create state->trans[i] */
-      ...
+      /* init state->trans[o] */
+      state->trans[o].name = g_strdup (paths[indices[i].orig_index]);
+      state->trans[o].state = g_new (GskXmlParserState, 1);
 
-      /* write state->trans[i].state->outputs */
+      /* write state->trans[o].new_state->n_emit_indices,emit_indices */
       ...
 
       /* create state_next_paths by copying next_paths
          and zeroing unmatching paths */
       ...
 
-      /* initialize fallback state */
+      /* recurse on state to fill in state->trans[o].state's
+       * transitions and fallback state. */
+      ...
+
+      o++;
+    }
+  g_assert (o == n_trans);
+
+  /* initialize fallback state */
+  if (n_star_outputs || n_star_trans)
+    {
+      state->fallback_state = g_new (GskXmlParserState, 1);
+      state->fallback_state->n_emit_indices = n_star_outputs;
+      state->fallback_state->emit_indices = g_new (guint, n_star_outputs);
+
+      /* find the first '*' in paths[indices[i].orig_index]
+         (which is sorted relative to i) */
+      ...
+
       if (n_star_trans)
         {
-          ...
+          branch_states_recursive (state->fallback_state,
+                                   n_new_paths, new_paths);
         }
-
-      /* recurse on state */
-      ...
+      else
+        {
+          state->fallback_state->n_trans = 0;
+          state->fallback_state->trans = 0;
+        }
     }
 }
 
