@@ -72,7 +72,8 @@ static GskXmlParserConfig *real_new_by_depth (guint depth)
     }
   str[2*i+0] = '*';
   str[2*i+1] = 0;
-  gsk_xml_parser_config_add_path (n, str);
+  if (gsk_xml_parser_config_add_path (n, str, NULL) < 0)
+    g_assert_not_reached ();
   gsk_xml_parser_config_done (n);
   return n;
 }
@@ -129,9 +130,10 @@ gsk_xml_parser_config_unref    (GskXmlParserConfig *config)
 }
 
 
-guint
+gint
 gsk_xml_parser_config_add_path (GskXmlParserConfig *config,
-                                const char         *path)
+                                const char         *path,
+                                GError            **error)
 {
   guint rv = config->paths->len;
   g_ptr_array_add (config->paths, g_strdup (path));
@@ -207,6 +209,25 @@ compare_path_index_by_str (gconstpointer a, gconstpointer b)
   return rv;
 }
 
+static int
+bsearch_path_index_array (guint n_pi,
+                          PathIndex *pi,
+                          const char *str,
+                          guint str_len)
+{
+  PathIndex dummy;
+  PathIndex *rv;
+  dummy.path_start = str;
+  dummy.path_len = str_len;
+  rv = bsearch (&dummy, pi, n_pi, sizeof (PathIndex),
+                compare_path_index_by_str);
+  if (rv == NULL)
+    return -1;
+  while (rv > pi && compare_path_index_by_str (&dummy, rv - 1) == 0)
+    rv--;
+  return rv - pi;
+}
+
 static void
 branch_states_recursive (GskXmlParserState *state,
                          guint              n_paths,
@@ -219,6 +240,7 @@ branch_states_recursive (GskXmlParserState *state,
   guint n_trans;
   guint n_star_trans = 0, n_star_outputs = 0;
   int star_trans_start = -1;
+  guint o;
   for (i = 0; i < n_paths; i++)
     {
       const char *end;
@@ -280,6 +302,10 @@ branch_states_recursive (GskXmlParserState *state,
     {
       guint end;
       guint n_outputs = n_star_outputs;
+      GskXmlParserState *new_state;
+      guint j;
+      guint eio = 0;            /* emit_indices output-index */
+      gint star_index;
       if (next_paths[indices[i].orig_index] == NULL)
         n_outputs++;
       for (end = i + 1; end < n_indices && !indices[end].is_start; end++)
@@ -288,13 +314,31 @@ branch_states_recursive (GskXmlParserState *state,
 
       /* init state->trans[o] */
       state->trans[o].name = g_strdup (paths[indices[i].orig_index]);
-      state->trans[o].state = g_new (GskXmlParserState, 1);
+      new_state = state->trans[o].new_state = g_new (GskXmlParserState, 1);
 
       /* write state->trans[o].new_state->n_emit_indices,emit_indices */
-      ...
+      new_state->n_emit_indices = n_outputs;
+      new_state->emit_indices = g_new (guint, n_outputs);
+      for (j = i; j < end; j++)
+        if (next_paths[indices[j].orig_index] == NULL)
+          new_state->emit_indices[eio++] = indices[j].orig_index;
+      /* write "*" outputs */
+      star_index = bsearch_path_index_array (n_indices, indices, "*", 1);
+      if (star_index >= 0)
+        {
+          j = star_index;
+          for (j = star_index;
+               j < n_indices
+               && indices[j].path_len == 1
+               && indices[j].path_start[0] == '*';
+               j++)
+            if (next_paths[indices[j].orig_index] == NULL)
+              new_state->emit_indices[eio++] = indices[j].orig_index;
+        }
+      g_assert (eio == n_outputs);
 
       /* create state_next_paths by copying next_paths
-         and zeroing unmatching paths */
+       * and zeroing unmatching paths */
       ...
 
       /* recurse on state to fill in state->trans[o].state's

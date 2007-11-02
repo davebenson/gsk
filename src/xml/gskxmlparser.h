@@ -54,8 +54,9 @@ typedef enum
    Then call gsk_xml_parser_config_done().
    Then you may use it to construct XmlParser objects. */
 GskXmlParserConfig *gsk_xml_parser_config_new          (void);
-guint               gsk_xml_parser_config_add_path (GskXmlParserConfig *,
-                                                    const char         *path);
+gint                gsk_xml_parser_config_add_path (GskXmlParserConfig *,
+                                                    const char         *path,
+                                                    GError            **error);
 void                gsk_xml_parser_config_add_ns   (GskXmlParserConfig *,
                                                     const char         *abbrev,
 						    const char         *url);
