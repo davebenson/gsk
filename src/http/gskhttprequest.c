@@ -826,13 +826,13 @@ gsk_http_parse_cgi_query_string  (const char     *query_string,
           g_strfreev (rv);
           return NULL;
         }
-      at = amp ? amp + 1 : NULL;
       if (amp != NULL) 
 	{
 	  /* skip extra ampersands */
 	  while (*(amp+1) == '&')
 	    amp++;
 	}
+      at = amp ? amp + 1 : NULL;
       n_out++;
     }
   rv[2*n_out+0] = NULL;
