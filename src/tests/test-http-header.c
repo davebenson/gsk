@@ -751,6 +751,11 @@ int main(int argc, char **argv)
   test_cgi_parsing ("/whaever?a=1&2&b=42", TRUE,
                     "a", "1",
                     NULL);
+  test_cgi_parsing ("/account-query.php?sk=6666666&&ref=http%3A%2F%2Fwww.cardiowave.net%2F&proxy_hash=sk|ref", TRUE,
+                    "sk", "6666666",
+                    "ref", "http://www.cardiowave.net/",
+                    "proxy_hash", "sk|ref",
+                    NULL);
 
   /* example from rfc 2617, page 5 */
   {

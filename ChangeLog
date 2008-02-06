@@ -1,5 +1,7 @@
-gsk (1.0.57) (NOT YET RELEASED)
+gsk (1.0.57)
   * gskstreamconnection: use read_buffer on input stream if available.
+  * BUG: gsk_http_request_parse_cgi_string() (and friends).
+    Skip past multiple '&' characters as intended.
 
 gsk (1.0.56)
   * fix bug parsing content-charset (remove quotes if necessary)
