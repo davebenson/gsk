@@ -12,7 +12,7 @@ gskhttp.h \
 gskzlib.h \
 gskdns.h
 
-SUBDIRS = main-loops common dns zlib $(ssl_dirs) hash mime http xml xmlrpc url store control . programs tests
+SUBDIRS = main-loops common dns zlib $(ssl_dirs) hash mime http xmlrpc url store control . programs tests
 INCLUDES = @GLIB_CFLAGS@ @GSK_DEBUG_CFLAGS@
 gskincludedir = $(includedir)/gsk-1.0/gsk
 gskinclude_HEADERS = \
@@ -141,7 +141,6 @@ mime/libgsk-mime.la \
 $(ssl_libs) \
 url/libgsk-url.la \
 xmlrpc/libgsk-xmlrpc.la \
-xml/libgsk-xml.la \
 zlib/libgsk-zlib.la \
 hash/libgsk-hash.la \
 control/libgsk-control.la \
