@@ -467,7 +467,6 @@ AC_OUTPUT([Makefile
 	   src/control/Makefile
 	   src/store/Makefile
 	   src/url/Makefile
-	   src/xml/Makefile
 	   src/xmlrpc/Makefile
 	   src/programs/Makefile
 	   src/compile-info.h
