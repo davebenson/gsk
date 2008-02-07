@@ -234,6 +234,7 @@ branch_states_recursive (GskXmlParserState *state,
                          char             **paths)
 {
   char **next_paths =  g_newa (char *, n_paths);
+  char **state_next_paths =  g_newa (char *, n_paths);
   PathIndex *indices = g_newa (PathIndex, n_paths);
   guint i;
   guint n_indices = 0;
@@ -305,7 +306,6 @@ branch_states_recursive (GskXmlParserState *state,
       GskXmlParserState *new_state;
       guint j;
       guint eio = 0;            /* emit_indices output-index */
-      gint star_index;
       if (next_paths[indices[i].orig_index] == NULL)
         n_outputs++;
       for (end = i + 1; end < n_indices && !indices[end].is_start; end++)
@@ -323,11 +323,9 @@ branch_states_recursive (GskXmlParserState *state,
         if (next_paths[indices[j].orig_index] == NULL)
           new_state->emit_indices[eio++] = indices[j].orig_index;
       /* write "*" outputs */
-      star_index = bsearch_path_index_array (n_indices, indices, "*", 1);
-      if (star_index >= 0)
+      if (n_star_outputs)
         {
-          j = star_index;
-          for (j = star_index;
+          for (j = star_trans_start;
                j < n_indices
                && indices[j].path_len == 1
                && indices[j].path_start[0] == '*';
@@ -338,32 +336,52 @@ branch_states_recursive (GskXmlParserState *state,
       g_assert (eio == n_outputs);
 
       /* create state_next_paths by copying next_paths
-       * and zeroing unmatching paths */
-      ...
+       * for the original indices that begin with the current
+       * path component */
+      memset (state_next_paths, 0, sizeof (char *) * n_paths);
+      for (j = i; j < end; j++)
+        {
+          guint oi = indices[j].orig_index;
+          state_next_paths[oi] = next_paths[oi];
+        }
 
       /* recurse on state to fill in state->trans[o].state's
        * transitions and fallback state. */
-      ...
+      branch_states_recursive (new_state, n_paths, state_next_paths);
 
       o++;
+      i = end;
     }
   g_assert (o == n_trans);
 
   /* initialize fallback state */
   if (n_star_outputs || n_star_trans)
     {
+      guint j;
+      guint eio = 0;            /* emit_indices output-index */
       state->fallback_state = g_new (GskXmlParserState, 1);
       state->fallback_state->n_emit_indices = n_star_outputs;
       state->fallback_state->emit_indices = g_new (guint, n_star_outputs);
 
       /* find the first '*' in paths[indices[i].orig_index]
          (which is sorted relative to i) */
-      ...
+      memset (state_next_paths, 0, sizeof (char *) * n_paths);
+      for (j = star_trans_start;
+           j < n_indices
+           && indices[j].path_len == 1
+           && indices[j].path_start[0] == '*';
+           j++)
+        {
+          guint oi = indices[j].orig_index;
+          if (next_paths[oi] == NULL)
+            state->fallback_state->emit_indices[eio++] = oi;
+          state_next_paths[oi] = next_paths[oi];
+        }
 
       if (n_star_trans)
         {
           branch_states_recursive (state->fallback_state,
-                                   n_new_paths, new_paths);
+                                   n_paths, state_next_paths);
         }
       else
         {
@@ -380,13 +398,18 @@ gsk_xml_parser_config_done(GskXmlParserConfig *config)
   g_return_if_fail (!config->done);
   g_return_if_fail (config->ref_count > 0);
   config->done = 1;
-  branch_states_recursive (config->state,
+  config->init = g_new (GskXmlParserState, 1);
+  config->init->n_emit_indices = 0;
+  config->init->emit_indices = NULL;
+
+  branch_states_recursive (config->init,
                            config->paths->len,
                            (char **) config->paths->pdata);
 }
 
 
 /* --- GskXmlParser --- */
+typedef struct _ParseLevel ParseLevel;
 struct _ParseLevel
 {
   GskXmlParserState *state;     /* NULL if past known state */
