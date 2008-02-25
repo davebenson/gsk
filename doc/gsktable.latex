@@ -7,7 +7,7 @@
 \title{GskTable}
 \author{Dave Benson}
 \frenchspacing
-\usepackage{amsfonts,amsmath,amssymb,epsfig,eucal}
+\usepackage{amsfonts,amsmath,amssymb,epsfig,eucal,synttree}
 \pagestyle{headings}
 \begin{document}
 \maketitle
@@ -58,15 +58,15 @@ $2^{59}$ & $2^{64}-1$     & {\small 11111000 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx
 
 \subsection{The Searchable File Abstraction}
 
-\subsection{Querying a BTree File}
-
-\subsection{Building a BTree File}
+\subsection{The Format of a BTree File}
 The btree is organized with the lowest level
 at the beginning of the disk, and the higher levels following.
 Each node of the btree contains just keys and references to values.
 Each node of the btree assumes that the key immediately before it is known.
 It also assumes that it knows whether it is a leaf node (which therefore
 has no child data).
+
+There is a separate value heap file (with the {\tt .value} extension).
 
 The format of the btree node is then:
 \begin{tightitemize}
@@ -89,8 +89,201 @@ Each subtree info is:
 \item length of the child btree node (as a VLI)
 \end{tightitemize}
 
-\subsection{BTree File Format Details}
+\subsection{Querying a BTree File}
 
-\subsection{BTree State Format Details}
+\subsection{Building a BTree File}
+
+We always know the size of the output file to a rough order of magnitude
+(well, up to deletions, which may significantly shrink the file).
+
+We use that to select a height large enough to accomodate the largest
+possible tree, then fill it out ``in-order''.
+Call $N$ the number of nodes in the tree,
+$H$ the height, $B$ the number of branches in a branch,
+and $L$ the number of leaf nodes at the largest level of the tree.
+
+Here is a standard tree:
+
+\begin{minipage}{5.5in}
+Tree with 2 branches
+per branch, 2 values at each leaf node, and height 3
+($H=3, B=2, L=3, N=22$)
+\begin{small}
+\begin{tightitemize}
+\item 0
+\item branch
+ \begin{tightitemize}
+ \item 1
+ \item leaf node: 2 3 4
+ \item 5
+ \item leaf node: 6 7 8
+ \item 9
+ \end{tightitemize}
+\item 10
+\item branch
+ \begin{tightitemize}
+ \item 11
+ \item leaf node: 12 13 14
+ \item 15
+ \item leaf node: 16 17 18
+ \item 19
+ \end{tightitemize}
+\item 20
+\end{tightitemize}
+\end{small}
+\end{minipage}
+
+For a tree of height $H$, the number of branch nodes is
+$$1 + B + B^2 + \dots + B^{H-2} = \frac{B^{H-1} - 1}{B-1},$$
+so the number of value nodes in the branches in
+a full btree is
+$$\frac{(B+1)(B^{H-1} - 1)}{B-1}$$
+and the number of leaf nodes is $B^{H-1}$
+so there are $LB^{H-1}$ values in leaf nodes.
+Thus the total size of a tree given $L,B,H$ is
+$$\frac{(B+1)(B^{H-1} - 1)}{B-1} + LB^{H-1}$$
+Example: if $B=2, L=H=3$, then
+$$N = \frac{(2+1)(2^2 - 1)}{2-1} + 3\cdot 2^{3-1}
+= \frac{3\cdot(4-1)}{1} + 3\cdot 4
+= 9 + 12 = 21.$$
+
+So, let us describe the algorithm for 
+building a tree.  First, we must buffer
+some elements, because we want to have some warning 
+when the end-of-file approaches, so that we can finish
+up all our pending branch nodes.  This requires knowing $H$ elements
+in advance of the end-of-file.  We will discuss end-of-file
+cleanup after the main discussion.
+
+Only the leaf nodes are dumped out on the initial pass,
+but hopefully they comprise the bulk of the data.
+(For a full tree with $B=16, L=32, H=6$ 
+about 96.8\% of the 34.6 million values are in the leaf segment)
+% print 16*(16**5-1)/15 + 32*16**5
+
+\vskip 3ex
+So, suppose we are passing through the data, one entry
+at a time, knowing that we have at least $H$ entries til
+the end-of-file.
+
+We maintain state as a sequence of counters, one for each level of the 
+tree.  Each counter gives the index for the next write for each level.
+Note that even indices in branch nodes are values,
+whereas odd indices in branch nodes are subbranches.
+
+For each values input:
+\begin{itemize}
+\item determine if it enters a branch node (and which level) or a leaf node.
+Do this by iterating through the state array.  If you encounter an
+even element before the last level, stop: write to this branch node.
+Otherwise, write to the leaf level.
+\item increment the state.
+\begin{tightitemize}
+\item if a leaf node rolls over, compress and emit the
+leaf.  write leaf info to pipe.
+\item if a branch node rolls, over, write that info to the pipe.
+\end{tightitemize}
+\end{itemize}
+
+So here are the instructions that can be written to the pipe:
+\begin{itemize}
+\item \verb|child_node|.  A leaf or a branch node has been written
+that must be inserted into the next level up.
+Parameters: location and length of child-node,
+also contains the last child's key in the node.
+\item \verb|branch_value|.  A value that must be inserted into the tree
+at some level.  Parameters: level of branch node and key/value itself.
+\item \verb|branch_ended|.  A branch ended for a level or more up the tree.
+Parameters: level of branch that ended.
+\item \verb|level_ended|.  the end of level.
+\end{itemize}
+
+Now, the first pass (described above) is for level $\ell = H-1$.
+For subsequent passes $H-2 \leq \ell \leq 0$, starting at $H-2$,
+we read from the pipe and write to it.  The user is done giving
+us values.
+
+\vskip 3ex
+Handling end-of-file.
+
+(Then write a \verb|level_ended| message)
+
+\vskip 3ex
+Algorithm for non-leaf passes.
+
+State: $\ell$, the level of the tree being constructed.
+\verb|last_key|, the last value output.
+
+Initialization:  $\ell = H-2$.  \verb|last_key| is the empty string.
+Write the value-offset for the current branch into the branch buffer.
+
+Repeat until done:  read a message from the
+pipe.  Here's how to handle each type of message:
+\begin{itemize}
+\item \verb|child_node|.  Add to branch buffer
+the offset of the child btree node (as a VLI64),
+and length of the child btree node (as a VLI).  Set \verb|last_key|.
+\item \verb|branch_value|.
+\begin{tightitemize}
+\item
+If the level in the message matches $\ell$,
+then write the value into the value heap,
+emit the key (using prefix-compression) and value-reference.
+\begin{tightitemize}
+\item prefix-length (stored as a VLI)
+\item remainder-of-key length (stored as a VLI)
+\item remainder-of-key
+\item value-length (stored as a VLI)
+\end{tightitemize}
+
+Set \verb|last_key|. (necessary?)
+
+\item
+If the level is the message is not $\ell$ (it must be less than $\ell$),
+then just re-write it to the pipe.
+
+Set \verb|last_key|. (necessary?)
+\end{tightitemize}
+\item \verb|branch_ended|.  
+\begin{tightitemize}
+\item
+if the current level's branch ended, then
+prepend the number of elements as a VLI to the branch buffer,
+and write it to disk.
+
+Restart the branch-buffer with the current value offset.
+
+Emit a \verb|child_node| entry to the buffer.
+\item
+pass the \verb|branch_ended| message back into the pipe.
+\end{tightitemize}
+
+\item \verb|level_ended|.  If $\ell=0$, we are done.
+
+Otherwise, emit a level-ended event, decrement $\ell$ and
+continue, reset \verb|last_key| to the empty key.
+\end{itemize}
+
+%%%The building of the btree has two phases:
+%%%\begin{itemize}
+%%%\item write the data to a temporary file
+%%%\item write the bottom, breadth-first, starting at the leaf level
+%%%\end{itemize}
+%%%
+%%%After we have written the data to a temporary file,
+%%%we know how many entries there are.  We first
+%%%calculate the height of the btree.  A full btree of spread $B$ and height $H$
+%%%has
+%%%$\sum_{i=1}^H B^i = \frac{B^{H+1} - 1}{B-1} = N$ entries.
+%%%Therefore, a tree of $N$ entries should have height
+%%%$\log_B (1 + N\cdot (B-1)) - 1$.
+%%%
+%%%We give ourselves a ``fudge factor'' which is how
+%%%much to plump up the lower level in exchange for not
+%%%adding another level to the tree.
+%%%Then the equation for $N$ is
+%%%$$N = \frac{B^{H+1} - 1}{B-1} + F \cdot B^H.$$
+%%%This is the equation we use when deciding whether to round $H$ up or down,
+%%%since our tree is always a constant integer height.
 
 \end{document}

@@ -597,7 +597,7 @@ that is a very important part of the design.
 
 In a similar vein, the design should be {\bf minimal}-- you should not include
 a feature unless you can imagine a situation in which it would be used.
-(and it should be a clean solution to the imaged situation to)
+(and it should be a clean solution to the imagined situation too)
 It is {\em much} easier from a maintainance viewpoint to extend an
 existing interface that to change it, so, if in doubt,
 don't include it.
