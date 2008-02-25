@@ -1,0 +1,96 @@
+\documentclass{article}
+\newenvironment{tightitemize}%
+{\begin{itemize}%
+\setlength{\itemsep}{0pt}%
+\setlength{\parskip}{0pt}}%
+{\end{itemize}}
+\title{GskTable}
+\author{Dave Benson}
+\frenchspacing
+\usepackage{amsfonts,amsmath,amssymb,epsfig,eucal}
+\pagestyle{headings}
+\begin{document}
+\maketitle
+
+\section{Overview}
+A {\tt GskTable} is key-value database which has user-configurable
+behavior when a collision occurs.
+
+\section{Implementation}
+The table consists of a sequence of searchable files, each
+organized like a btree.
+
+\subsection{Variable-length integers}
+Inspired somewhat by UTF-8, these are a nice way to encode length data
+which is often small, but may be larger.
+
+For a uint32, we call then encoding a VLI:
+
+\begin{tabular}{lll}
+{\bf min} & {\bf max} & {\bf bit-pattern} \\
+0 & $3\cdot 2^6 - 1$      & {\small xxxxxxxx (never begins with ``11'')} \\
+$3\cdot 2^6$ & $2^{12}-1$ & {\small 1100xxxx xxxxxxxx} \\
+$2^{12}$ & $2^{20}-1$     & {\small 1101xxxx xxxxxxxx xxxxxxxx} \\
+$2^{20}$ & $2^{28}-1$     & {\small 1110xxxx xxxxxxxx xxxxxxxx xxxxxxxxx} \\
+$2^{28}$ & $2^{32}-1$     & {\small 11110000 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx}
+\end{tabular}
+
+For a uint64, we use a similar scheme, but we have to use 3 bits in the first
+byte to give the length, so 
+
+\begin{tabular}{lll}
+{\bf min} & {\bf max} & {\bf bit-pattern} \\
+0 & $3\cdot 2^6 - 1$ & {\small xxxxxxxx (never begins with ``11'')} \\
+$3\cdot 2^6$ & $2^{11}-1$ & {\small 11000xxx xxxxxxxx} \\
+$2^{11}$ & $2^{19}-1$     & {\small 11001xxx xxxxxxxx xxxxxxxx} \\
+$2^{19}$ & $2^{27}-1$     & {\small 11010xxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
+$2^{27}$ & $2^{35}-1$     & {\small 11011xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
+$2^{35}$ & $2^{43}-1$     & {\small 11100xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
+$2^{43}$ & $2^{51}-1$     & {\small 11101xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
+$2^{51}$ & $2^{59}-1$     & {\small 11110xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx ...} \\
+$2^{59}$ & $2^{64}-1$     & {\small 11111000 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx ...} \\
+\end{tabular}
+
+
+\subsection{Overview - Querying}
+
+\subsection{Overview - Adding}
+
+\subsection{The Searchable File Abstraction}
+
+\subsection{Querying a BTree File}
+
+\subsection{Building a BTree File}
+The btree is organized with the lowest level
+at the beginning of the disk, and the higher levels following.
+Each node of the btree contains just keys and references to values.
+Each node of the btree assumes that the key immediately before it is known.
+It also assumes that it knows whether it is a leaf node (which therefore
+has no child data).
+
+The format of the btree node is then:
+\begin{tightitemize}
+\item the number of entries in this node (stored as a VLI)
+\item the offset of the value information in the value heap (stored as a VLI64)
+\item the key data and value refs, and if not a leaf node, the subtree info
+\end{tightitemize}
+
+Each key-data and value-ref has format:
+\begin{tightitemize}
+\item prefix-length (stored as a VLI)
+\item remainder-of-key length (stored as a VLI)
+\item remainder-of-key
+\item value-length (stored as a VLI)
+\end{tightitemize}
+
+Each subtree info is:
+\begin{tightitemize}
+\item offset of the child btree node (as a VLI64)
+\item length of the child btree node (as a VLI)
+\end{tightitemize}
+
+\subsection{BTree File Format Details}
+
+\subsection{BTree State Format Details}
+
+\end{document}
