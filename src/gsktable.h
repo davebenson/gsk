@@ -14,8 +14,15 @@ typedef struct
 } GskTableBuffer;
 
 G_INLINE_FUNC void    gsk_table_buffer_init    (GskTableBuffer *buffer);
+
+/* calls realloc so beginning of buffer is preserved */
 G_INLINE_FUNC guint8 *gsk_table_buffer_set_len (GskTableBuffer *buffer,
                                                 guint           len);
+
+/* returns pointer to new area in buffer */
+G_INLINE_FUNC guint8 *gsk_table_buffer_append  (GskTableBuffer *buffer,
+                                                guint           len);
+
 G_INLINE_FUNC void    gsk_table_buffer_clear   (GskTableBuffer *buffer);
 
 typedef enum

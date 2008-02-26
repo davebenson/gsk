@@ -9,6 +9,14 @@ struct _BtreeFactory
 };
 
 
+typedef struct _BtreeFileData BtreeFileData;
+struct _BtreeFileData
+{
+  guint key_len, value_len;
+  guint8 *data;
+  guint alloced;
+};
+
 typedef struct _BtreeFile BtreeFile;
 struct _BtreeFile
 {
@@ -27,6 +35,10 @@ struct _BtreeFile
      child btree node, relative to the starting offset for that level */
   guint64 last_child_node_offset;
 
+  GskTableBuffer *child_node_buffer;
+  GskTableBuffer *last_key;
+  guint n_data_in_child_node_buffer;
+
   /* Output the finished tree.
      We will have to go back and setup some metadata. */
   GskTableMmapWriter writer;
@@ -38,7 +50,7 @@ struct _BtreeFile
      nodes, since we need to have some warning before the end-of-file */
   guint first_buffered_data;
   guint n_buffered_data;                /* max buffered is 'height' */
-  MyData *buffered_data;
+  BtreeFileData *buffered_data;
 };
 
 enum
@@ -105,6 +117,76 @@ btree__open_file          (GskTableFileFactory      *factory,
   ...
 }
 
+static void
+emit_branch_value (BtreeFile *f,
+                   guint      level,
+                   BtreeFileData *d)
+{
+  ...
+}
+
+static void
+emit_branch_ended (BtreeFile *f)
+{
+  ...
+}
+
+static void
+emit_child_node (BtreeFile *f)
+{
+  ...
+}
+
+static guint
+find_nchars_equal (const guint8 *a,
+                   const guint8 *b,
+                   guint         len)
+{
+  guint rv = 0;
+  for (rv = 0; rv < len; rv++)
+    if (a[rv] != b[rv])
+      break;
+  return rv;
+}
+
+static void
+add_data_to_child_node_buffer (BtreeFile *f,
+                               BtreeFileData *d)
+{
+  guint8 key_lengths_buf[GSK_TABLE_VLI_MAX_LEN * 2];
+  guint8 value_len_buf[GSK_TABLE_VLI_MAX_LEN];
+  guint key_lengths_len;
+  guint value_len_len;
+  guint tmp;
+  guint prefix_len = find_nchars_equal (f->last_key.data,
+                                        d->key_data,
+                                        MIN (f->last_key.len, d->key_len));
+  gsk_table_vli_encode (key_lengths_buf, prefix_len, &tmp);
+  key_lengths_len = tmp;
+  gsk_table_vli_encode (key_lengths_buf + key_lengths_len,
+                        d->key_len - prefix_len, &tmp);
+  key_lengths_len += tmp;
+  gsk_table_vli_encode (value_len_buf, d->value_len, &value_len_len);
+
+  /* append key length info, key data, value length info */
+  slab = gsk_table_buffer_append (&f->child_node_buffer,
+                                  key_lengths_len + (d->key_len - prefix_len)
+                                  + value_len_len);
+  memcpy (slab, key_lengths_buf, key_lengths_len);
+  slab += key_lengths_len;
+  memcpy (slab, d->key_data + prefix_len, d->key_len - prefix_len);
+  slab += d->key_len - prefix_len;
+  memcpy (slab, value_len_buf, value_len_len);
+
+  /* set last_key */
+  memcpy (gsk_table_buffer_set_len (&f->last_key, d->key_len) + prefix_len,
+          d->key_data + prefix_len,
+          d->key_len - prefix_len);
+
+  /* append to value heap */
+  if (!gsk_table_mmap_writer_write (...))
+    ...
+}
 
 /* methods for a file which is being built */
 static gboolean
@@ -125,7 +207,7 @@ btree__feed_entry       (GskTableFile             *file,
   if (f->n_buffered_data == f->height)
     {
       guint level;
-      MyData *d = &f->buffered_data[f->first_buffered_data];
+      BtreeFileData *d = &f->buffered_data[f->first_buffered_data];
       for (level = 0; level + 1 < file->height; level++)
         if (f->level_indices[level] % 2 == 0)
           break;
@@ -192,7 +274,7 @@ btree__feed_entry       (GskTableFile             *file,
   else
     {
       /* add new data into buffer */
-      MyData *d = &f->buffered_data[f->n_buffered_data];
+      BtreeFileData *d = &f->buffered_data[f->n_buffered_data];
       guint alloced = 16;
       while (alloced < real_key_len + real_value_len)
         alloced *= 2;
@@ -269,7 +351,7 @@ btree__done_feeding     (GskTableFile             *file,
         }
       while (level > 0)
         {
-          MyData *d = &f->buffered_data[f->first_buffered_data];
+          BtreeFileData *d = &f->buffered_data[f->first_buffered_data];
           emit_branch_value (f, level, d);
           emit_branch_ended (f, level);
 

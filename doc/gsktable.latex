@@ -85,6 +85,8 @@ whose length is known before any data is received.
 The format of the btree node is then:
 \begin{tightitemize}
 \item the number of entries in this node (stored as a VLI)
+\item the offset of the first child node (stored as a VLI64, relative to 
+the data for that level)
 \item the offset of the value information in the value heap (stored as a VLI64)
 \item the key data and value refs, and if not a leaf node, the subtree info
 \end{tightitemize}
@@ -100,12 +102,12 @@ The prefix-length is the number of bytes in common
 between this entry and the last in this tree-node (or
 the initial key, if this is the first entry in the node).
 
-Each subtree info is:
+Each subtree info is merely:
 \begin{tightitemize}
-\item offset of the child btree node in that levels area (as a VLI64,
-relative to the level's start, as given by the btree header)
 \item length of the child btree node (as a VLI)
 \end{tightitemize}
+It is assumed that the child nodes are all packed together contiguously,
+so that their offsets can be computed
 
 \subsection{Querying a BTree File}
 
@@ -212,9 +214,9 @@ which serves as a large buffer/queue:
 \begin{itemize}
 \item \verb|child_node|.  A leaf or a branch node has been written
 that must be inserted into the next level up.
-Parameters: location and length of child-node,
-also contains the last child's key in the node.
-Location is relative to the start of the level.
+Parameters: length of child-node.
+It is assumed that the child-nodes are all packed together in a level,
+so that their offsets can be computed.
 \item \verb|branch_value|.  A value that must be inserted into the tree
 at some level.  Parameters: level of branch node and key/value itself.
 \item \verb|branch_ended|.  A branch ended for a level or more up the tree.
@@ -267,6 +269,7 @@ we begin handling the non-leaf levels.
 
 State: $\ell$, the level of the tree being constructed.
 \verb|last_key|, the last key output.
+\verb|cur_child_node_offset|, offset of the last child for this level.
 
 Initialization:  $\ell = H-2$.  \verb|last_key| is the empty string.
 Write the value-offset for the current branch into the branch buffer.
