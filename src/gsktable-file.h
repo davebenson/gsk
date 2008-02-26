@@ -9,16 +9,30 @@ typedef struct _GskTableFileHints GskTableFileHints;
 struct _GskTableFileHints
 {
   guint64 max_entries;
-  guint64 max_bytes;
+  guint64 max_key_bytes;
+  guint64 max_value_bytes;
   guint min_key_size, max_key_size;
   guint min_value_size, max_value_size;
-  gboolean in_memory;
+  gboolean allocate_disk_space_based_on_max_sizes;
 };
 
 struct _GskTableFile
 {
   GskTableFileFactory *factory;
 };
+
+/* Copy "dir" as passed into create_file(), open_building_file(), etc.
+   This isn't necessary b/c the "dir" is always a member of the
+   GskTable, and therefore will always be destroyed AFTER the files. */
+#define GSK_TABLE_FILE_COPY_DIR            0
+
+#if GSK_TABLE_FILE_COPY_DIR
+# define GSK_TABLE_FILE_DIR_MAYBE_STRDUP(dir) g_strdup(dir)
+# define GSK_TABLE_FILE_DIR_MAYBE_FREE(dir)   g_free((char*)(dir))
+#else
+# define GSK_TABLE_FILE_DIR_MAYBE_STRDUP(dir) dir
+# define GSK_TABLE_FILE_DIR_MAYBE_FREE(dir)   do {} while(0)
+#endif
 
 struct _GskTableFileFactory
 {

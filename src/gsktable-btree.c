@@ -1,82 +1,11 @@
 /* Implementation of gsk_table_file_factory_new_btree() */
+#include "gsktable-mmap.h"
 
 struct _BtreeFactory
 {
   GskTableFileFactory base_instance;
   guint branches_per_level;
-  guint swell_factor;
-};
-
-typedef enum
-{
-  /* if the hints don't allow us to start building the tree immediately,
-     we first just store all entries to disk to compute statistics */
-  BTREE_PHASE_COMPUTE_STATS,
-
-  /* small btrees are constructed in-memory;
-     therefore, their "state" consists of all their entries */
-  BTREE_PHASE_IN_MEMORY_BUILD,
-
-  /* for building a large btree, the first level is somewhat different
-     than subsequent levels. */
-  BTREE_PHASE_BUILDING_BOTTOM_LEVEL,
-  BTREE_PHASE_BUILDING_NONBOTTOM_LEVEL,
-
-} BtreePhase;
-
-struct _BtreeFileEntryMemory
-{
-  guint key_len;
-  guint8 *key_data;
-  guint value_len;
-  guint8 *value_data;
-};
-
-typedef struct _BtreeFileInMemoryBuildInfo BtreeFileInMemoryBuildInfo;
-struct _BtreeFileInMemoryBuildInfo
-{
-  guint max_entries;
-  BtreeFileEntryMemory *entries;
-  guint n_entries;
-  GskMemPool mem_pool;
-};
-typedef struct _BtreeFileComputeStatsInfo BtreeFileComputeStatsInfo;
-struct _BtreeFileComputeStatsInfo
-{
-  GskTableMmapWriter writer;
-
-  /* statistics */
-  guint64 n_entries;
-  guint64 n_key_bytes;
-  guint64 n_value_bytes;
-  guint min_key_size;
-  guint max_key_size;
-  guint min_value_size;
-  guint max_value_size;
-};
-struct _BtreeFileBuildingBottomLevelInfo
-{
-  guint height;
-  GskTableMmapReader reader;
-
-  /* Output the bottom level of the tree; we know everything about it
-     since it has no children, so we won't need to pass through this data
-     again (until we start reading from it) */
-  GskTableMmapWriter final_writer;
-
-  GskTableMmapPipe buffer;
-};
-struct _BtreeFileBuildingNonbottomLevelInfo
-{
-  guint height;
-  guint cur_level;                     /* height-2 or less */
-
-  /* Output the bottom level of the tree; we know everything about it
-     since it has no children, so we won't need to pass through this data
-     again (until we start reading from it) */
-  GskTableMmapWriter final_writer;
-
-  GskTableMmapPipe buffer;
+  guint values_per_leaf;
 };
 
 
@@ -84,45 +13,41 @@ typedef struct _BtreeFile BtreeFile;
 struct _BtreeFile
 {
   GskTableFile base_instance;
-  BtreePhase phase;
-  union
-  {
-    BtreeFileInMemoryBuildInfo in_memory_build;
-    BtreeFileComputeStatsInfo compute_stats;
-    BtreeFileBuildingBottomLevelInfo building_bottom_level;
-    BtreeFileBuildingNonbottomLevelInfo building_nonbottom_level;
+  const char *dir;
+  guint64 id;
 
-    struct {
-    } building_nonbottom_level;
-  } info;
+  guint height;
+  guint cur_level;
+
+  guint64 cur_level_start_offset;
+
+  guint *level_indices;         /* only used during leaf level processing */
+
+  /* for non-leaf levels, this is the offset of the last
+     child btree node, relative to the starting offset for that level */
+  guint64 last_child_node_offset;
+
+  /* Output the finished tree.
+     We will have to go back and setup some metadata. */
+  GskTableMmapWriter writer;
+
+  /* Commands are written here, and eventually read out again. */
+  GskTableMmapPipe buffer;
+
+  /* we must maintain a little buffer while writing the leaf
+     nodes, since we need to have some warning before the end-of-file */
+  guint first_buffered_data;
+  guint n_buffered_data;                /* max buffered is 'height' */
+  MyData *buffered_data;
 };
 
-
-/* once we know the exact number of entries,
-   we construct the tree with the children given immediately before their
-   parents.  then we write out the data, with the leaves
-   of the tree first, and the root last.  this is easier because we that's how we have to compress.
-
-   Algorithm.
-
-     Step 1.  Determine the height of the tree.
-       The height is the smallest tree that will accomodate,
-       given the current branches_per_level and swell_factor.
-
-       If S=branches_per_level and W=swell_factor,
-       then a tree of height 1 has at most (S+1)*W
-       nodes.  A tree of height H has (S^(H-1) + S^(H-2) + ... + 1) * (S + 1) * W.
-
-     Step 2.  Scan data emitting the bottom level of the tree.
-       The bottom level will never be too small (if the swell factor
-       is two, then at least half the elements will be in the bottom level).
-
-       The upper level information must be written to a tmp file
-       so that we don't have to rescan the data.
-
-     Step 3.  (Repeat for each level of the tree)
- */
-
+enum
+{
+  MSG__CHILD_NODE=42,   /* params: length as uint32le */
+  MSG__BRANCH_VALUE,    /* params: level as byte, value as remainder of data */
+  MSG__BRANCH_ENDED,    /* params: level as byte */
+  MSG__LEVEL_ENDED      /* params: none */
+} MsgType;
 
 
 static GskTableFile *
@@ -133,33 +58,29 @@ btree__create_file      (GskTableFileFactory      *factory,
                          GError                  **error)
 {
   BtreeFile *rv = g_new (BtreeFile, 1);
-  if (hints->in_memory)
+  BtreeFileComputeStatsInfo *info = &rv->info.compute_stats;
+  guint64 cur_file_size;
+  char fname_buf[GSK_TABLE_MAX_PATH];
+
+  rv->dir = GSK_TABLE_FILE_DIR_MAYBE_STRDUP (dir);
+  rv->id = id;
+  gsk_table_mk_fname (fname_buf, dir, id, "btree");
+  fd = open (fname_buf, O_RDWR|O_CREAT|O_TRUNC, 0644);
+  if (hints->allocate_disk_space_based_on_max_sizes)
     {
-      BtreeFileInMemoryBuildInfo *info = &rv->info.in_memory_build;
-      rv->state = BTREE_PHASE_IN_MEMORY_BUILD;
-      if (hints->max_entries < 16)
-        info->max_entries = hints->max_entries;
-      else
-        info->max_entries = 16;
-      info->entries = g_new (BtreeFileEntryMemory, info->max_entries);
-      info->n_entries = 0;
-      gsk_mem_pool_construct (&info->mem_pool);
+      cur_file_size = (hints->max_entries << 3)
+                    + hints->max_key_bytes
+                    + hints->max_value_bytes;
+      ftruncate (fd, n_bytes);
     }
   else
-    {
-      BtreeFileComputeStatsInfo *info = &rv->info.compute_stats;
-      rv->state = BTREE_PHASE_COMPUTE_STATS;
-      fd = ...;
-      gsk_table_mmap_writer_init (&info->writer, fd);
+    cur_file_size = 0;
+  gsk_table_mmap_writer_init (&info->writer, fd, cur_file_size);
 
-      info->n_entries = 0;
-      info->n_key_bytes = 0;
-      info->n_value_bytes = 0;
-      info->min_key_size = G_MAXUINT;
-      info->max_key_size = 0;
-      info->min_value_size = G_MAXUINT;
-      info->max_value_size = 0;
-    }
+  gsk_table_mk_fname (fname_buf, dir, id, "buffer");
+  fd = open (fname_buf, O_RDWR|O_CREAT|O_TRUNC, 0644);
+  gsk_table_mmap_pipe_init (&info->buffer, fd, 0, 0);
+
   rv->factory = factory;
   return &rv->base_instance;
 }
@@ -188,66 +109,204 @@ btree__open_file          (GskTableFileFactory      *factory,
 /* methods for a file which is being built */
 static gboolean
 btree__feed_entry       (GskTableFile             *file,
-                         guint                     key_len,
-                         const guint8             *key_data,
-                         guint                     value_len,
-                         const guint8             *value_data,
+                         guint                     real_key_len,
+                         const guint8             *real_key_data,
+                         guint                     real_value_len,
+                         const guint8             *real_value_data,
                          GError                  **error)
 {
   BtreeFile *f = (BtreeFile *) file;
-  if (f->phase == BTREE_PHASE_IN_MEMORY_BUILD)
+
+  /* NOTE: we don't generally want to actually process the "real"
+     data, instead we put it in our circular buffer,
+     after processing data that is exactly "height" elements old.
+     The extra elements are used to finish up the tree. */
+
+  if (f->n_buffered_data == f->height)
     {
-      BtreeFileInMemoryBuildInfo *info = &file->info.in_memory_build;
-      BtreeFileEntryMemory *entry;
-      if (G_UNLIKELY (info->n_entries == info->max_entries))
+      guint level;
+      MyData *d = &f->buffered_data[f->first_buffered_data];
+      for (level = 0; level + 1 < file->height; level++)
+        if (f->level_indices[level] % 2 == 0)
+          break;
+      if (level + 1 < file->height)
         {
-          if (G_UNLIKELY (info->max_entries == 0))
-            /* shouldn't happen if the hinting was correct... */
-            info->max_entries = 16;
-          else
-            info->max_entries *= 2;
-          info->entries = g_renew (BtreeFileEntryMemory, info->entries, info->max_entries);
+          /* defer this data for the next pass */
+          emit_branch_value (f, level, d);
+        }
+      else
+        {
+          /* add this data to current leaf node */
+          add_data_to_child_node (f, d);
         }
 
-      /* carve off a new entry */
-      entry = info->entries + info->n_entries++;
+      if (level + 1 == file->height)
+        {
+          if (f->level_indices[level] == f->values_per_leaf)
+            {
+              /* emit child node */
+              emit_child_node (f);
 
-      /* initialize it */
-      entry->key_len = key_len;
-      entry->key_data = gsk_mem_pool_alloc_unaligned (key_len);
-      memcpy (entry->key_data, key_data, key_len);
-      entry->value_len = value_len;
-      entry->value_data = gsk_mem_pool_alloc_unaligned (value_len);
-      memcpy (entry->value_data, value_data, value_len);
-    }
-  else if (f->phase == BTREE_PHASE_COMPUTE_STATS)
-    {
-      ...
+              f->level_indices[level] = 0;
+              level--;
+            }
+          else
+            {
+              f->level_indices[level] += 1;
+              goto done_incrementing_array;
+            }
+        }
+      for (;;)
+        {
+          f->level_indices[level] += 1;
+          if (level == 0)
+            break;
+          if (f->level_indices[level] == f->branches_per_level * 2 + 1)
+            {
+              /* emit branch-end message for level */
+              emit_branch_ended (f, level);
+
+              f->level_indices[level] = 0;
+              level--;
+            }
+        }
+
+      /* replace oldest element with real data */
+      if (G_UNLIKELY (d->alloced < real_key_len + real_value_len))
+        {
+          guint new_alloced = d->alloced * 2;
+          while (new_alloced < real_key_len + real_value_len)
+            new_alloced *= 2;
+          g_free (d->data);
+          d->data = g_malloc (new_alloced);
+        }
+      d->key_len = real_key_len;
+      d->value_len = real_value_len;
+      memcpy (d->data, real_key_data, real_key_len);
+      memcpy (d->data + real_key_len, real_value_data, real_value_len);
+
+      f->first_buffered_data += 1;
+      if (f->first_buffered_data == f->height)
+        f->first_buffered_data = 0;
     }
   else
     {
-      g_assert_not_reached ();
+      /* add new data into buffer */
+      MyData *d = &f->buffered_data[f->n_buffered_data];
+      guint alloced = 16;
+      while (alloced < real_key_len + real_value_len)
+        alloced *= 2;
+
+      d->key_len = real_key_len;
+      d->value_len = real_value_len;
+      d->alloced = alloced;
+      d->data = g_malloc (alloced);
+      memcpy (d->data, real_key_data, real_key_len);
+      memcpy (d->data + real_key_len, real_value_data, real_value_len);
+
+      f->n_buffered_data++;
     }
 }
 
+static void
+update_level_header (BtreeFile *f)
+{
+  guint64 off = f->cur_level_start_offset;
+  guint64 len = gsk_table_mmap_writer_offset (&f->writer) - off;
+  guint64 loc_le[2];
+  loc_le[0] = GUINT64_TO_LE (off);
+  loc_le[1] = GUINT64_TO_LE (len);
+  g_assert (BTREE_HEADER_LEVEL_SIZE == sizeof (loc_le));
+  gsk_table_mmap_writer_pwrite (f->writer,
+                                BTREE_HEADER_SIZE
+                                + BTREE_HEADER_LEVEL_SIZE * f->cur_level,
+                                BTREE_HEADER_LEVEL_SIZE,
+                                (const guint8 *) loc_le);
+}
 static gboolean
 btree__done_feeding     (GskTableFile             *file,
                          gboolean                 *ready_out,
                          GError                  **error)
 {
   BtreeFile *f = (BtreeFile *) file;
-  if (f->phase == BTREE_PHASE_IN_MEMORY_BUILD)
+  guint i;
+  if (f->level_indices[0] == 0)
     {
+      /* a short tree */
       ...
-    }
-  else if (f->phase == BTREE_PHASE_COMPUTE_STATS)
-    {
-      ...
+      *ready_out = TRUE;
+
+      /* free buffer */
+      for (i = 0; i < f->n_buffered_data; i++)
+        g_free (f->buffered_data[i].data);
+      g_free (f->buffered_data);
+      f->buffered_data = NULL;
+
+      return TRUE;
     }
   else
     {
-      g_assert_not_reached ();
+      guint level = 0;
+      while (level < f->height - 1)
+        if (f->level_indices[level] % 2 == 0)
+          break;
+      if (G_LIKELY (level == f->height - 1))
+        {
+          /* add one element to leaf node */
+          add_data_to_child_node (f, f->buffered_data + f->first_buffered_data);
+
+          /* emit child node */
+          emit_child_node (f);
+
+          /* update header to reflect level's offset and length */
+          update_level_header (f);
+
+          f->first_buffered_data++;
+          if (f->first_buffered_data == f->height)
+            f = 0;
+          f->n_buffered_data--;
+          level--;
+        }
+      while (level > 0)
+        {
+          MyData *d = &f->buffered_data[f->first_buffered_data];
+          emit_branch_value (f, level, d);
+          emit_branch_ended (f, level);
+
+          f->first_buffered_data++;
+          if (f->first_buffered_data == f->height)
+            f = 0;
+          g_assert (f->n_buffered_data > 0);
+          f->n_buffered_data--;
+          level--;
+        }
+
+      /* toss extra elements into level 0 */
+      while (f->n_buffered_data > 0)
+        {
+          ...
+        }
+
+      if (f->cur_level == 0)
+        {
+          *ready_out = TRUE;
+
+          /* finishing touches? */
+          ...
+        }
+      else
+        {
+          emit_level_ended (f);
+          f->cur_level--;
+        }
     }
+
+  for (i = 0; i < f->height; i++)
+    g_free (f->buffered_data[i].data);
+  g_free (f->buffered_data);
+  f->buffered_data = NULL;
+
+  return TRUE;
 }
 
 static gboolean
@@ -264,13 +323,61 @@ btree__build_file       (GskTableFile             *file,
                          gboolean                 *ready_out,
                          GError                  **error)
 {
+  guint i;
+  for (i = 0; i < N_MESSAGES_PER_BUILD_FILE; i++)
+    {
+      guint32 msg_le;
+      const guint8 *msg_data;
+      if (G_UNLIKELY (!gsk_table_mmap_pipe_read (&f->pipe, 1, &msg_data)))
+        {
+          g_set_error (...);
+          return FALSE;
+        }
+      switch (msg_data[0])
+        {
+        case MSG__CHILD_NODE:
+          /* write subtree reference into branch */
+          ...
+          break;
+
+        case MSG__BRANCH_VALUE:
+          ...
+          break;
+        case MSG__BRANCH_ENDED:
+          ...
+          break;
+        case MSG__LEVEL_ENDED:
+          ...
+          if (level == 0)
+            goto finished_level0;
+          break;
+
+        default:
+          g_set_error (...);
+          return FALSE;
+        }
+    }
+  *ready_out = FALSE;
+  return TRUE;
+
+finished_level0:
+
+  /* convert writer to reader; close pipe */
   ...
+
+  *ready_out = TRUE;
+  return TRUE;
 }
 
 static void
 btree__release_build_data(GskTableFile            *file)
 {
-  ...
+  BtreeFile *f = (BtreeFile *) file;
+  char fname_buf[GSK_TABLE_MAX_PATH];
+
+  /* unlink pipe */
+  gsk_table_mk_fname (fname_buf, f->dir, f->id, "buffer");
+  unlink (fname_buf);
 }
 
 /* methods for a file which has been constructed */
@@ -314,7 +421,9 @@ btree__destroy_file     (GskTableFile             *file,
                          gboolean                  erase,
                          GError                  **error)
 {
+  BtreeFile *f = (BtreeFile *) file;
   ...
+  GSK_TABLE_FILE_DIR_MAYBE_FREE (f->dir);
 }
 
 static void
@@ -327,22 +436,27 @@ btree__destroy_factory  (GskTableFileFactory      *factory)
 /* for now, return a static factory object */
 GskTableFileFactory *gsk_table_file_factory_new_btree (void)
 {
-  static GskTableFileFactory the_factory =
+  static BtreeFactory the_factory =
     {
-      btree__create_file,
-      btree__open_building_file,
-      btree__open_file,
-      btree__feed_entry,
-      btree__done_feeding,
-      btree__get_build_state,
-      btree__build_file,
-      btree__release_build_data,
-      btree__query_file,
-      btree__create_reader,
-      btree__get_reader_state,
-      btree__recreate_reader,
-      btree__destroy_file,
-      btree__destroy_factory
+      {
+        btree__create_file,
+        btree__open_building_file,
+        btree__open_file,
+        btree__feed_entry,
+        btree__done_feeding,
+        btree__get_build_state,
+        btree__build_file,
+        btree__release_build_data,
+        btree__query_file,
+        btree__create_reader,
+        btree__get_reader_state,
+        btree__recreate_reader,
+        btree__destroy_file,
+        btree__destroy_factory
+      },
+      16,               /* branches_per_level */
+      32                /* values_per_leaf */
     };
-  return &the_factory;
+
+  return &the_factory.base_instance;
 }

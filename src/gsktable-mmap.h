@@ -37,6 +37,7 @@ struct _GskTableMmapWriter
 {
   int fd;
   guint8 *mmapped;
+  guint64 file_size;                /* currently allocated bytes of file */
   guint mmap_size;                  /* number of bytes mmapped */
   guint64 mmapped_offset;           /* offset of 'mmapped' in file */
   guint pos;                        /* offset within 'mmapped' */
@@ -52,7 +53,12 @@ G_INLINE_FUNC void     gsk_table_mmap_writer_write(GskTableMmapWriter *writer,
 /* advance reader to the first page that contains the next byte to read. */
 void                   gsk_table_mmap_writer_advance(GskTableMmapWriter *writer);
 
+#define gsk_table_mmap_writer_offset(writer) \
+  ((writer)->mmapped_offset + (writer)->pos)
 void                   gsk_table_mmap_writer_close   (GskTableMmapWriter *writer);
+
+void                   gsk_table_mmap_writer_to_reader (GskTableMmapWriter *to_destroy,
+                                                        GskTableMmapReader *to_init);
 
 /* --- buffer/pipe: reads and writes in a sequential fashion --- */
 struct _GskTableMmapPipe
@@ -67,6 +73,8 @@ struct _GskTableMmapPipe
   guint write_pos;
   guint64 write_area_offset;
 
+  GByteArray *read_buffer;
+
   /* NOTE: if write_area_offset==read_area_offset then read_area==write_area.
      Otherwise, the write and read areas are disjoint. */
 
@@ -75,10 +83,12 @@ struct _GskTableMmapPipe
 
 void               gsk_table_mmap_pipe_init    (GskTableMmapPipe   *pipe,
                                                 int                 fd);
+
+/* *data_out will be filled with a reference to the data internal
+   to the pipe.  it must NOT be freed by caller. */
 gboolean           gsk_table_mmap_pipe_read    (GskTableMmapPipe   *pipe,
                                                 guint               size,
-                                                guint8            **data_out,
-                                                GByteArray         *pad);
+                                                const guint8      **data_out);
 void               gsk_table_mmap_pipe_write   (GskTableMmapPipe   *pipe,
                                                 guint               len,
                                                 const guint8       *data);

@@ -23,14 +23,6 @@ gsk_snmp_pack_generic        (GskSnmpMsgType           msg_type,
   tmp_len = gsk_asn1_length_encode (community_len, tmp_buf);
   gsk_asn1_buffer_append (&buffer, tmp_buf, tmp_len);
   gsk_asn1_buffer_append (&buffer, (guint8 *) community, community_len);
-  ------
-guint             gsk_asn1_length_encode  (guint         length,
-                                           guint8       *encoded_out);
-  gsk_asn1_buffer_append_length (&buffer,
-
- * \2      INTEGER
- * \1      length of version
- * \0      version
 
 guint8 *gsk_snmp_pack_trap           (const char              *community,
                                       const GskAsn1ObjectName *enterprise,
