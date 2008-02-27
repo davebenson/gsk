@@ -81,10 +81,11 @@ update_idle_notify_writeable (GskMimeMultipartDecoder *multipart_decoder)
   GskHook *relevant_hook;
   gboolean is_writable;
   if (multipart_decoder->feed_stream != NULL)
-    relevant_hook = gsk_buffer_stream_write_hook (multipart_decoder->feed_stream);
+    is_writable = gsk_hook_get_last_poll_state (gsk_buffer_stream_write_hook (multipart_decoder->feed_stream));
   else
-    relevant_hook = _GSK_MIME_MULTIPART_DECODER_HOOK (multipart_decoder);
+    is_writable = multipart_decoder->first_piece == NULL;
   is_writable = gsk_hook_get_last_poll_state (relevant_hook);
+  g_message ("update_idle_notify_writeable: is_writable=%u",is_writable);
   gsk_io_set_idle_notify_write (multipart_decoder, is_writable);
 }
 
@@ -919,6 +920,7 @@ gsk_mime_multipart_decoder_get_piece (GskMimeMultipartDecoder *decoder)
 	{
 	  gsk_hook_notify_shutdown (_GSK_MIME_MULTIPART_DECODER_HOOK (decoder));
 	}
+      update_idle_notify_writeable (decoder);
     }
   return piece;
 }
