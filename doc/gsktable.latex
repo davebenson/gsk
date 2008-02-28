@@ -68,46 +68,175 @@ has no child data).
 
 There is a separate value heap file (with the {\tt .value} extension).
 
+\subsubsection{The format of the btree file.}
 The btree file begins with a bit of metadata,
 whose length is known before any data is received.
+
+\begin{verbatim}
+packed_structure BtreeFile
+{
+  binarydata[4] magic_header
+  byte height
+  byte flags    # bit 0   this file has constant key length
+                # bit 1   this file has constant value length
+  byte reserved1,reserved2  # must be 0
+  uint32le key_length     # if bit0 set in flags, or 0
+  uint32le value_length   # if bit1 set in flags, or 0
+  BtreeHeaderLevel[height] level_info;
+  binarydata[4] end_magic;
+  BtreeLeafNode[(length implied)] leaves;		// very large
+  BtreeBranchNode[(length implied)] branches;		// very large
+}
+\end{verbatim}
+
+(hopefully this ad-hoc representation of the format of the btree file
+is self-explanatory.)  i will describe the substructures and members.
+
 \begin{tightitemize}
-\item a magic header
-\item the height of the tree
-\item whether the key or value is fixed-length, and its length if so
-\item for each level of the tree:
- \begin{tightitemize}
- \item offset of that level (in bytes from start of file), as a LE64.
- \item length of that level in bytes, as a LE64
- \end{tightitemize}
+\item \verb|magic_header|.  the bytes \verb|0x99 0xd9 0x10 0x01|
+\item \verb|height|. the height of the tree
+\item \verb|flags|:  here are the current bits.  all others must be 0.
+  \begin{tightitemize}
+  \item 1: this file has constant key length
+  \item 2: this file has constant value length
+  %\item 4: reserved
+  %\item 8: reserved
+  %\item 16: reserved
+  %\item 32: reserved
+  %\item 64: reserved
+  %\item 128: reserved
+  \end{tightitemize}
+\item \verb|reserved1|, \verb|reserved2|: reserved for future expansion, must be 0
+\item \verb|key_length|. the key length if constant, or 0
+\item \verb|value_length|. the value length if constant, or 0
+\item the remainder of the members are described below.
+\item \verb|level_info|.  Described below.
+\item \verb|end_magic|.  The bytes \verb|0xf0 0x33 0xee 0x9a|.
+\item \verb|leaves| and \verb|branches|. Described below.
 \end{tightitemize}
 
 
-The format of the btree node is then:
+% This metadata is followed by the levels, starting at the lowest (largest) level of the tree
+% and ending at the toplevel level.  It is just a long sequence of btree nodes with no padding.
+
+\subsubsection{{\tt BtreeFile::level\_info}}
+
+\begin{verbatim}
+packed_structure BtreeHeaderLevel
+{
+  uint64le length;		// length of level in .btree file
+  uint64le value_length;	// length of level in .value file
+}
+\end{verbatim}
+
 \begin{tightitemize}
-\item the number of entries in this node (stored as a VLI)
-\item the offset of the first child node (stored as a VLI64, relative to 
-the data for that level)
-\item the offset of the value information in the value heap (stored as a VLI64)
-\item the key data and value refs, and if not a leaf node, the subtree info
+\item \verb|length|.  total size of the data in the {\tt .btree} file for that level.
+\item \verb|value_length|. total size of the data in the {\tt .value} file for that level.
 \end{tightitemize}
 
+The offsets can be computed by accumulating the lengths.
+The start offset for the {\tt .btree} file is the length of metadata (ending right before \verb|leaves|);
+the start offset for the {\tt .value} file starts at 0.
+
+
+\subsubsection{{\tt BtreeFile::leaves} and {\tt BtreeFile::branches}}
+After the metadata above, the btree consists of a lot of btree nodes, packed together.
+Here's the format of a single btree node.
+
+The leaf data is the $\text{\tt height} - 1$ level of the tree;
+all other levels are branch levels.  A single leaf node
+has the structure:
+\begin{verbatim}
+packed_structure BtreeLeafNode
+{
+  uint16le n_values;
+  vli64 first_value_offset;
+  BtreeKeyDataValueRef values[n_values];
+}
+\end{verbatim}
+
+\begin{tightitemize}
+\item \verb|n_values|. the number of values in this node.
+\item \verb|first_child_offset|. the offset of the value information in the value heap (stored as a VLI64)
+\item \verb|values|.  the actual key-data, prefix-compressed, and references to the values stored in the {\tt .values} file.
+\end{tightitemize}
+
+Here is the format of a single key-data and value-ref pair:
+\begin{verbatim}
 Each key-data and value-ref has format:
 \begin{tightitemize}
-\item prefix-length (stored as a VLI)
-\item remainder-of-key length (stored as a VLI)
-\item remainder-of-key
-\item value-length (stored as a VLI)
-\end{tightitemize}
-The prefix-length is the number of bytes in common
-between this entry and the last in this tree-node (or
+packed_structure BtreeKeyDataValueRef
+{
+  vli32 prefix_length;
+  optional vli32 remainder_key_length;  # if not constant key length
+  optional vli32 value_length;          # if not constant value length
+};
+\end{verbatim}
+
+\begin{tightitemize}
+\item \verb|prefix_length|.  Number of bytes in common 
+between this entry and the last key in this tree-node (or
 the initial key, if this is the first entry in the node).
 
-Each subtree info is merely:
-\begin{tightitemize}
-\item length of the child btree node (as a VLI)
+Each key-data is prefixed-compressed:
+we compute the length of the common prefix between the current key
+and the last-key.  For the first key in the node,
+we set last-key to the preceding key in the level above this one.
+(For the top level, we set the first last-key to the empty string.)
+
+\item \verb|remainder_key_length|.  If the key-size is not constant,
+this is the amount of key-data we actually store.  Otherwise, this
+number can be computed by subtracting \verb|prefix_length| from the 
+constant key-size.
+\item \verb|value_length|.  Length of the value.  Omitted
+if the value-size is constant.
+
+Because the values for this node are all packed together, the
+offset for a given value can be determined by
+adding the offset for the first value in this level ($\text{\tt height}-1$ for leaf nodes),
+\verb|first_value_offset| and the sizes of the preceding values.
 \end{tightitemize}
-It is assumed that the child nodes are all packed together contiguously,
-so that their offsets can be computed
+
+The structure is similar for branch nodes, but a little more complicated:
+\begin{verbatim}
+packed_structure BtreeBranchNode
+{
+  uint16le n_values;
+  vli64 first_child_offset;
+  vli64 first_value_offset;
+  pair<BtreeKeyDataValueRef,
+       BtreeChildSize> kv_children[n_values-1];
+  BtreeKeyDataValueRef last_kv;
+}
+\end{verbatim}
+\begin{tightitemize}
+\item \verb|n_values|.  Number of key/value pairs in this node
+(does not include values references by children).
+\item \verb|first_child_offset|.  Offset of the first child node referenced
+by this branch, relative to the start of that level (which is one greater than the
+current level).
+\item \verb|first_value_offset|.  Same as for leaf nodes.
+\item \verb|kv_children|, \verb|last_kv|.  We interleave write the key-data and value-refs
+with the branch data.  The key-value data is always the ``bread'' in the data sandwich,
+because there is always one more key-value pair than children.
+(If ``K'' represents a key-value pair and ``C'' represents a subchild node reference,
+then ``K'', ``KCK'', ``KCKCK'' etc are the allowed ordering)
+(There is exactly one less branch than value.)
+
+The offset for a given child node in the {\tt .btree} file
+can be found by adding the offset of that level (one greater than the current level),
+\verb|first_child_offset|, and the preceding children's sizes.
+\end{tightitemize}
+
+\begin{verbatim}
+packed_structure BtreeChildSize
+{
+  vli32 size;
+};
+\end{verbatim}
+The size of the child node is \verb|size|.
+If $0$, it is treated as an empty subtree.
+
 
 \subsection{Querying a BTree File}
 
