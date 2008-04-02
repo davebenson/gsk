@@ -345,7 +345,10 @@ gsk_stream_fd_raw_write       (GskStream     *stream,
 			       GError       **error)
 {
   GskStreamFd *stream_fd = GSK_STREAM_FD (stream);
-  int rv = write (stream_fd->fd, data, length);
+  int rv;
+  if (stream_fd->fd == -1)
+    return 0;
+  rv = write (stream_fd->fd, data, length);
   if (rv < 0)
     {
       gint e = errno;
@@ -375,6 +378,8 @@ gsk_stream_fd_raw_read_buffer(GskStream    *stream,
 {
   GskStreamFd *stream_fd = GSK_STREAM_FD (stream);
   int rv;
+  if (stream_fd->fd == -1)
+    return 0;
   rv = gsk_buffer_read_in_fd (buffer, stream_fd->fd);
   if (rv < 0)
     {
@@ -400,7 +405,10 @@ gsk_stream_fd_raw_write_buffer (GskStream     *stream,
 			        GError       **error)
 {
   GskStreamFd *stream_fd = GSK_STREAM_FD (stream);
-  int rv = gsk_buffer_writev (buffer, stream_fd->fd);
+  int rv;
+  if (stream_fd->fd == -1)
+    return 0;
+  rv = gsk_buffer_writev (buffer, stream_fd->fd);
   if (rv < 0)
     {
       gint e = errno;
