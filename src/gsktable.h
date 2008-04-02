@@ -5,6 +5,7 @@
  * When multiple values are added with the same
  * key, they are merged, using user-definable semantics.
  */
+typedef struct _GskTableReader GskTableReader;
 
 typedef struct
 {
@@ -84,4 +85,35 @@ gboolean    gsk_table_query       (GskTable              *table,
 const char *gsk_table_peek_dir    (GskTable              *table);
 void        gsk_table_destroy     (GskTable              *table);
 
-/* TODO: iterator */
+
+struct _GskTableReader
+{
+  gboolean eof;
+  GError *error;
+  guint key_len;
+  const guint8 *key_data;
+  guint value_len;
+  const guint8 *value_data;
+
+  gboolean (*advance) (GskTableReader *reader);
+  void (*destroy) (GskTableReader *reader);
+};
+typedef enum
+{
+  GSK_TABLE_BOUND_NONE,
+  GSK_TABLE_BOUND_STRICT,
+  GSK_TABLE_BOUND_INCLUSIVE
+} GskTableBoundType;
+GskTableReader *gsk_table_make_reader_with_bounds (GskTable *table,
+                                       GskTableBoundType start_bound_type,
+                                       guint start_bound_len,
+                                       const guint8 *start_bound_data,
+                                       GskTableBoundType end_bound_type,
+                                       guint end_bound_len,
+                                       const guint8 *end_bound_data,
+                                       GError  **error);
+#define gsk_table_make_reader(table, error) \
+  gsk_table_make_reader_with_bounds (table, \
+                                     GSK_TABLE_BOUND_NONE, 0, NULL, \
+                                     GSK_TABLE_BOUND_NONE, 0, NULL, \
+                                     error)
