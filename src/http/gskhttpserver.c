@@ -686,6 +686,7 @@ gsk_http_server_init (GskHttpServer *http_server)
   GSK_HOOK_MARK_FLAG (&http_server->has_request_hook, IS_AVAILABLE);
   gsk_io_mark_is_readable (http_server);
   gsk_io_mark_is_writable (http_server);
+  gsk_io_set_idle_notify_write (http_server, TRUE);
 }
 
 static void
