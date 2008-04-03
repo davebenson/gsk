@@ -487,7 +487,7 @@ add_trap (const char *domain,
                                      &key, (gpointer *) &trap_list) )
     {
       if (trap_list)
-        g_slist_append (trap_list, trap);
+        trap_list = g_slist_append (trap_list, trap);
       else
         g_hash_table_insert (domain_to_slist_of_traps,
                              (gpointer) domain,
@@ -605,8 +605,11 @@ static void
 trap_print_using_PrintInfo (GskLogTrap *trap,
                             PrintInfo *info)
 {
-  GString *out = g_string_new ("");
+  GString *out;
   guint i;
+  if ((trap->level_mask & info->level) == 0)
+    return;
+  out = g_string_new ("");
   for (i = 0; i < trap->format->n_pieces; i++)
     {
       Piece *piece = trap->format->pieces[i];

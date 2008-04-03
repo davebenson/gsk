@@ -770,9 +770,7 @@ gsk_stream_external_new       (GskStreamExternalFlags      flags,
 						        handle_read_err_fd_ready, external, NULL);
     }
   else
-    {
-      external->read_err_fd = -1;
-    }
+    external->read_err_fd = -1;
 
   external->pid = fork_rv;
   external->process_source = gsk_main_loop_add_waitpid (main_loop, external->pid,

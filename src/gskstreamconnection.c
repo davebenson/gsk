@@ -43,6 +43,7 @@ static inline void
 stream_connection_set_internal_write_block (GskStreamConnection *stream_connection,
 				      gboolean    block)
 {
+  g_message ("stream_connection_set_internal_write_block: block=%u",block);
   if (stream_connection->write_side == NULL)
     return;
   if (block && !stream_connection->blocking_write_side)
@@ -61,6 +62,7 @@ static inline void
 stream_connection_set_internal_read_block (GskStreamConnection *stream_connection,
 				      gboolean    block)
 {
+  g_message ("stream_connection_set_internal_read_block: block=%u",block);
   if (stream_connection->read_side == NULL)
     return;
   if (block && !stream_connection->blocking_read_side)

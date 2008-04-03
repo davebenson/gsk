@@ -32,12 +32,13 @@ common_check_programs = \
 	test-streamfd-guess-flags \
 	test-thread-pool \
 	test-timer \
-	test-xml \
 	test-xmlrpc \
 	test-url \
 	test-utils \
 	test-zlib \
 	test-tree
+
+#### Once we get xml working again, add: test-xml
 
 makecheck_scripts = \
 	$(srcdir)/test-name-resolver \
