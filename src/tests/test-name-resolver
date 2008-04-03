@@ -23,6 +23,6 @@ test_name_fail () {
   fi
 }
 
-test_name_ip umberto.idealab.com 64.208.8.11
+test_name_ip icann.net 208.77.188.103
 # test_name_ip lira.ugcs.caltech.edu 131.215.43.202
 test_name_fail fubar.whatever.asdfasdfas

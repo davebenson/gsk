@@ -182,7 +182,6 @@ gsk_zlib_deflator_raw_write     (GskStream     *stream,
       zst->zalloc = my_alloc;
       zst->zfree = my_free;
       zst->opaque = NULL;
-      g_message ("deflateInit2: use_gzip=%d, level=%d", zlib_deflator->use_gzip, zlib_deflator->level);
       deflateInit2 (zst,
                     zlib_deflator->level,
                     Z_DEFLATED,
@@ -361,6 +360,7 @@ gsk_zlib_deflator_init (GskZlibDeflator *zlib_deflator)
   zlib_deflator->level = DEFAULT_LEVEL;
   gsk_io_mark_is_readable (zlib_deflator);
   gsk_io_mark_is_writable (zlib_deflator);
+  gsk_io_mark_idle_notify_write (zlib_deflator);
 }
 
 static void

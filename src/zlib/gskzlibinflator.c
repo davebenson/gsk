@@ -218,6 +218,7 @@ gsk_zlib_inflator_init (GskZlibInflator *zlib_inflator)
 {
   gsk_io_mark_is_readable (zlib_inflator);
   gsk_io_mark_is_writable (zlib_inflator);
+  gsk_io_mark_idle_notify_write (zlib_inflator);
 }
 
 static void

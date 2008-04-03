@@ -273,8 +273,10 @@ gsk_buffer_stream_init (GskBufferStream *buffer_stream)
 		 GSK_HOOK_IS_AVAILABLE,
 		 buffered_write_set_poll, buffered_write_shutdown);
 
+  buffer_stream->max_write_buffer = 4096;
   gsk_stream_mark_is_writable (buffer_stream);
   gsk_stream_mark_is_readable (buffer_stream);
+  gsk_buffer_stream_changed (buffer_stream);
 }
 static void
 gsk_buffer_stream_class_init (GskBufferStreamClass *class)

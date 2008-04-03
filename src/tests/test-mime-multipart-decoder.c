@@ -20,7 +20,6 @@ handle_new_multipart_piece (GskMimeMultipartDecoder *decoder,
   GskMimeMultipartPiece *piece = gsk_mime_multipart_decoder_get_piece (decoder);
   if (piece)
     g_ptr_array_add (tdata->ptr_array, piece);
-  g_message ("handle_new_multipart_piece: piece=%p", piece);
   return TRUE;
 }
 
@@ -30,7 +29,6 @@ handle_multipart_shutdown (GskMimeMultipartDecoder *decoder,
 {
   T2MPData *tdata = data;
   tdata->ended = TRUE;
-  g_message ("handle_multipart_shutdown");
   return FALSE;
 }
 
@@ -104,7 +102,6 @@ int main (int argc, char **argv)
   piece = array->pdata[0];
   g_assert (piece != NULL);
   g_assert (piece->is_memory);
-  g_message("content-length=%u, tmp_len->len=%u", piece->content_length,strlen(tmp_txt));
   g_assert (piece->content_length == strlen (tmp_txt));
   g_assert (memcmp (tmp_txt, piece->content_data, strlen (tmp_txt)) == 0);
 
