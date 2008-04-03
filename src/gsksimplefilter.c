@@ -159,6 +159,7 @@ gsk_simple_filter_init (GskSimpleFilter *simple_filter)
   simple_filter->max_write_buffer_size = DEFAULT_MAX_WRITE_BUFFER_SIZE;
   gsk_stream_mark_is_readable (stream);
   gsk_stream_mark_is_writable (stream);
+  gsk_stream_mark_idle_notify_write (stream);
 }
 static void
 gsk_simple_filter_class_init (GskSimpleFilterClass *class)

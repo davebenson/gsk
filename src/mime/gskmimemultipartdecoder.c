@@ -78,14 +78,19 @@ enum
 static inline void
 update_idle_notify_writeable (GskMimeMultipartDecoder *multipart_decoder)
 {
-  GskHook *relevant_hook;
   gboolean is_writable;
   if (multipart_decoder->feed_stream != NULL)
-    is_writable = gsk_hook_get_last_poll_state (gsk_buffer_stream_write_hook (multipart_decoder->feed_stream));
+    is_writable = gsk_io_is_polling_for_read (multipart_decoder->feed_stream);
   else
     is_writable = multipart_decoder->first_piece == NULL;
-  is_writable = gsk_hook_get_last_poll_state (relevant_hook);
-  g_message ("update_idle_notify_writeable: is_writable=%u",is_writable);
+  //is_writable = gsk_hook_get_last_poll_state (relevant_hook);
+#if 0
+  g_message ("update_idle_notify_writeable: (feed_stream=%p, feed_stream->read_hook: on: %s; first_piece=%p) => %u",
+             multipart_decoder->feed_stream, 
+             (multipart_decoder->feed_stream ? (is_writable ? "yes" : "no") : "n/a"),
+             multipart_decoder->first_piece,
+             is_writable);
+#endif
   gsk_io_set_idle_notify_write (multipart_decoder, is_writable);
 }
 
@@ -158,7 +163,6 @@ append_to_list (GskMimeMultipartDecoder  *decoder,
       guint npi;
       
       raw_append_to_list (decoder, piece);
-      gsk_hook_notify (_GSK_MIME_MULTIPART_DECODER_HOOK (decoder));
 
       npi = ++(decoder->next_piece_index_to_append);
       if (decoder->piece_index_to_piece != NULL)
@@ -235,7 +239,6 @@ feed_buffer_into_feed_stream (GskMimeMultipartDecoder *multipart_decoder)
       if (n_peeked == 0)
 	break;
       bdy_tmp[n_peeked] = 0;
-      //g_message("peeked: '%s' [boundary_str=%s]", bdy_tmp,multipart_decoder->boundary_str);
       if (n_peeked > 0 && bdy_tmp[0] != '-')
 	could_be_bdy = FALSE;
       if (n_peeked > 1 && bdy_tmp[1] != '-')
@@ -381,6 +384,7 @@ handle_mime_piece_done (GskBuffer *buffer, gpointer data)
   gsk_buffer_peek (buffer, slab, buffer->size);
   gsk_mime_multipart_piece_set_data (pd->piece, slab, size, g_free, slab);
   append_to_list (pd->decoder, pd->piece, pd->piece_index);
+  update_idle_notify_writeable (pd->decoder);
 }
 
 static void
@@ -704,7 +708,11 @@ multipart_decoder_process_buffer (GskMimeMultipartDecoder *multipart_decoder,
 	  {
 	    char *line = gsk_buffer_read_line (&multipart_decoder->buffer);
 	    if (!parse_header_line (multipart_decoder, line, error))
-	      return;
+              {
+                g_free (line);
+                return;
+              }
+            g_free (line);
 	    continue;
 	  }
 
@@ -769,6 +777,7 @@ gsk_mime_multipart_decoder_init (GskMimeMultipartDecoder *mime_multipart_decoder
   GSK_HOOK_SET_FLAG (_GSK_MIME_MULTIPART_DECODER_HOOK (mime_multipart_decoder),
 		     IS_AVAILABLE);
   gsk_io_mark_is_writable (mime_multipart_decoder);
+  gsk_io_set_idle_notify_write (mime_multipart_decoder, TRUE);
 }
 
 static void
