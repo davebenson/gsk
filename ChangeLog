@@ -1,3 +1,5 @@
+gsk (1.0.58) (NOT YET RELEASED)
+
 gsk (1.0.57)
   * gskstreamconnection: use read_buffer on input stream if available.
   * BUG: gsk_http_request_parse_cgi_string() (and friends).
