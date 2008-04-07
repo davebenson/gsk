@@ -20,37 +20,6 @@ behavior when a collision occurs.
 The table consists of a sequence of searchable files, each
 organized like a btree.
 
-\subsection{Variable-length integers}
-Inspired somewhat by UTF-8, these are a nice way to encode length data
-which is often small, but may be larger.
-
-For a uint32, we call then encoding a VLI:
-
-\begin{tabular}{lll}
-{\bf min} & {\bf max} & {\bf bit-pattern} \\
-0 & $3\cdot 2^6 - 1$      & {\small xxxxxxxx (never begins with ``11'')} \\
-$3\cdot 2^6$ & $2^{12}-1$ & {\small 1100xxxx xxxxxxxx} \\
-$2^{12}$ & $2^{20}-1$     & {\small 1101xxxx xxxxxxxx xxxxxxxx} \\
-$2^{20}$ & $2^{28}-1$     & {\small 1110xxxx xxxxxxxx xxxxxxxx xxxxxxxxx} \\
-$2^{28}$ & $2^{32}-1$     & {\small 11110000 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx}
-\end{tabular}
-
-For a uint64, we use a similar scheme, but we have to use 3 bits in the first
-byte to give the length, so 
-
-\begin{tabular}{lll}
-{\bf min} & {\bf max} & {\bf bit-pattern} \\
-0 & $3\cdot 2^6 - 1$ & {\small xxxxxxxx (never begins with ``11'')} \\
-$3\cdot 2^6$ & $2^{11}-1$ & {\small 11000xxx xxxxxxxx} \\
-$2^{11}$ & $2^{19}-1$     & {\small 11001xxx xxxxxxxx xxxxxxxx} \\
-$2^{19}$ & $2^{27}-1$     & {\small 11010xxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
-$2^{27}$ & $2^{35}-1$     & {\small 11011xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
-$2^{35}$ & $2^{43}-1$     & {\small 11100xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
-$2^{43}$ & $2^{51}-1$     & {\small 11101xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
-$2^{51}$ & $2^{59}-1$     & {\small 11110xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx ...} \\
-$2^{59}$ & $2^{64}-1$     & {\small 11111000 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx ...} \\
-\end{tabular}
-
 
 \subsection{Overview - Querying}
 
@@ -68,6 +37,9 @@ has no child data).
 
 There is a separate value heap file (with the {\tt .value} extension).
 
+(But we still consider the {\tt .btree} and {\tt .value} files to be
+a single searchable file according to the {\tt GskTableFile} abstraction.)
+
 \subsubsection{The format of the btree file.}
 The btree file begins with a bit of metadata,
 whose length is known before any data is received.
@@ -75,7 +47,7 @@ whose length is known before any data is received.
 \begin{verbatim}
 packed_structure BtreeFile
 {
-  binarydata[4] magic_header
+  byte[4] magic_header
   byte height
   byte flags    # bit 0   this file has constant key length
                 # bit 1   this file has constant value length
@@ -83,14 +55,15 @@ packed_structure BtreeFile
   uint32le key_length     # if bit0 set in flags, or 0
   uint32le value_length   # if bit1 set in flags, or 0
   BtreeHeaderLevel[height] level_info;
-  binarydata[4] end_magic;
+  byte[4] end_magic;
   BtreeLeafNode[(length implied)] leaves;		// very large
   BtreeBranchNode[(length implied)] branches;		// very large
 }
 \end{verbatim}
 
-(hopefully this ad-hoc representation of the format of the btree file
-is self-explanatory.)  i will describe the substructures and members.
+Hopefully this ad-hoc representation of the format of the btree file
+is self-explanatory; see the appendix for more information.
+I will describe the substructures and members.
 
 \begin{tightitemize}
 \item \verb|magic_header|.  the bytes \verb|0x99 0xd9 0x10 0x01|
@@ -163,8 +136,6 @@ packed_structure BtreeLeafNode
 
 Here is the format of a single key-data and value-ref pair:
 \begin{verbatim}
-Each key-data and value-ref has format:
-\begin{tightitemize}
 packed_structure BtreeKeyDataValueRef
 {
   vli32 prefix_length;
@@ -404,31 +375,63 @@ Initialization:  $\ell = H-2$.  \verb|last_key| is the empty string.
 Write the value-offset for the current branch into the branch buffer.
 
 Repeat until done:  read a message from the
-pipe.  Here's how to handle each type of message:
+pipe.
+
+Each message begins with a single byte that gives the message type:
+
+\begin{tabular}{ll}
+{\bf name} & {\bf value} (decimal) \\
+\verb|child_node| & 42 \\
+\verb|branch_value| & 43 \\
+\verb|branch_ended| & 44 \\
+\verb|level_ended| & 45 \\
+\verb|dummy_branch| & 46
+\end{tabular}
+
+Here's information on the format of each type of message (after the initial identifier byte):
 \begin{itemize}
-\item \verb|child_node|.  Add to branch buffer
-the offset of the child btree node (as a VLI64),
-and length of the child btree node (as a VLI).  Set \verb|last_key|.
+\item \verb|child_node|.
+\begin{verbatim}
+packed_structure MessageChildNode
+{
+  uint32le child_node_length;	# length in .btree file
+};
+\end{verbatim}
+
+\item \verb|branch_value|.
+\begin{verbatim}
+packed_structure MessageBranchValue
+{
+  byte level;
+  uint32le key_len;
+  uint32le value_len;
+};
+\end{verbatim}
+\item \verb|branch_ended|.  
+\item \verb|level_ended|.  If $\ell=0$, we are done.
+\end{tightitemize}
+
+Here's how to handle each type of message:
+\begin{itemize}
+\item \verb|child_node|.
+Add a \verb|BtreeChildSize| object into the
+current child node buffer.
+
 \item \verb|branch_value|.
 \begin{tightitemize}
 \item
-If the level in the message matches $\ell$,
+If the level in the message matches the current level,
 then write the value into the value heap,
-emit the key (using prefix-compression) and value-reference.
-\begin{tightitemize}
-\item prefix-length (stored as a VLI)
-\item remainder-of-key length (stored as a VLI)
-\item remainder-of-key
-\item value-length (stored as a VLI)
-\end{tightitemize}
-Set \verb|last_key|.
+emit the key (using prefix-compression) and value-reference;
+the format of the data to write in the {\tt .btree}
+file is \verb|BtreeKeyDataValueRef| (given above).
+Set \verb|last_key|.  Increment the \verb|child_n_values| counter.
 
 \item
-If the level is the message is not $\ell$ (it must be less than $\ell$),
-then just re-write it to the pipe.
-Set \verb|last_key| if the level is $\ell-1$.
-
+If the level is the message is not current level (it must be less than the current level),
+then just copy the \verb|branch_value| message into to the pipe.
 \end{tightitemize}
+
 \item \verb|branch_ended|.  
 \begin{tightitemize}
 \item
@@ -440,7 +443,7 @@ Restart the branch-buffer with the current value offset.
 
 Emit a \verb|child_node| entry to the buffer.
 \item
-pass the \verb|branch_ended| message back into the pipe.
+otherwise, copy the \verb|branch_ended| message back into the pipe.
 \end{tightitemize}
 
 \item \verb|level_ended|.  If $\ell=0$, we are done.
@@ -455,5 +458,57 @@ We must be able to store btree file state between
 process invocations.  See the \verb|open_building_file|
 and \verb|get_build_state| functions: their implementation is
 governed by the format described here.
+
+\section{Appendix}
+
+\subsection{Data Representation Conventions}
+I have taken to defining things are \verb|packed_structure|s.
+A packed structure is an array of types and member
+names; the data will be encoded as just the values,
+the member names are purely for facilitating discussion.
+
+Here are the types you will often see:
+\begin{itemize}
+\item \verb|uint16le|, \verb|uint32le|.  Little-endian fixed-size integers; ``16''
+and ``32'' refer to the number of bits in the integer.
+\item \verb|vli32|, \verb|vli64|.  These are variable-length integers;
+the number gives their maximum value size; a \verb|vli32| may actually require
+5 bytes and a \verb|vli64| may require 9.  The smaller the value,
+the fewer the bytes needed to store.  See the next section of this Appendix.
+\item \verb|byte|.
+\item {\tt {\sl type}[{\sl size}]}.  An array of fixed-length-- the data are just packed
+together.  Size may be a constant number, or it may reference earlier variables in the structure.
+\end{itemize}
+
+\subsection{Variable-length integers}
+Inspired somewhat by UTF-8, these are a nice way to encode length data
+which is often small, but may be larger.
+
+For a uint32, we call then encoding a VLI:
+
+\begin{tabular}{lll}
+{\bf min} & {\bf max} & {\bf bit-pattern} \\
+0 & $3\cdot 2^6 - 1$      & {\small xxxxxxxx (never begins with ``11'')} \\
+$3\cdot 2^6$ & $2^{12}-1$ & {\small 1100xxxx xxxxxxxx} \\
+$2^{12}$ & $2^{20}-1$     & {\small 1101xxxx xxxxxxxx xxxxxxxx} \\
+$2^{20}$ & $2^{28}-1$     & {\small 1110xxxx xxxxxxxx xxxxxxxx xxxxxxxxx} \\
+$2^{28}$ & $2^{32}-1$     & {\small 11110000 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx}
+\end{tabular}
+
+For a uint64, we use a similar scheme, but we have to use 3 bits in the first
+byte to give the length, so 
+
+\begin{tabular}{lll}
+{\bf min} & {\bf max} & {\bf bit-pattern} \\
+0 & $3\cdot 2^6 - 1$ & {\small xxxxxxxx (never begins with ``11'')} \\
+$3\cdot 2^6$ & $2^{11}-1$ & {\small 11000xxx xxxxxxxx} \\
+$2^{11}$ & $2^{19}-1$     & {\small 11001xxx xxxxxxxx xxxxxxxx} \\
+$2^{19}$ & $2^{27}-1$     & {\small 11010xxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
+$2^{27}$ & $2^{35}-1$     & {\small 11011xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
+$2^{35}$ & $2^{43}-1$     & {\small 11100xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
+$2^{43}$ & $2^{51}-1$     & {\small 11101xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx} \\
+$2^{51}$ & $2^{59}-1$     & {\small 11110xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx ...} \\
+$2^{59}$ & $2^{64}-1$     & {\small 11111000 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx ...} \\
+\end{tabular}
 
 \end{document}
