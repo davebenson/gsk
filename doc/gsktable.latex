@@ -20,12 +20,35 @@ behavior when a collision occurs.
 The table consists of a sequence of searchable files, each
 organized like a btree.
 
+There is a small in-memory tree of the last few entries.
 
 \subsection{Overview - Querying}
 
 \subsection{Overview - Adding}
+A few records in the Table are stored in an in-memory tree.
+Once that gets full, they are flushed to a searchable file.
+
 
 \subsection{The Searchable File Abstraction}
+In order to try out new indexed-file implementations,
+we have abstracted the idea of a searchable file.
+
+The lifetime of a searchable file looks like this:
+\begin{tightitemize}
+\item[1] the file is created
+\item[2] records in sorted order are added to the file by the user
+\item[3] the user tells the searchable file that no more records will be added.
+\item[4] the user tells the searchable file to finish building,
+which can be done in little pieces.  the file will return a code
+to tell the user that it is done building
+\item[5] once the searchable file is built,
+it can be queried for single records, or read in bulk in sorted-order.
+\end{tightitemize}
+
+During phases [2] and [4], the state of the searchable file can be 
+serialized so that it can be started again if the process terminates.
+
+\subsubsection{The Methods of the Searchable File}
 
 \subsection{The Format of a BTree File}
 The btree is organized with the lowest level
@@ -389,7 +412,7 @@ Each message begins with a single byte that gives the message type:
 \end{tabular}
 
 Here's information on the format of each type of message (after the initial identifier byte):
-\begin{itemize}
+\begin{tightitemize}
 \item \verb|child_node|.
 \begin{verbatim}
 packed_structure MessageChildNode
@@ -458,6 +481,26 @@ We must be able to store btree file state between
 process invocations.  See the \verb|open_building_file|
 and \verb|get_build_state| functions: their implementation is
 governed by the format described here.
+
+Things that have to be included in the state data:
+\begin{tightitemize}
+\item The queue of pending messages.
+\item The state of the pipe.
+\item Which pass (aka level) we are building.
+(Note: if we are building the bottom level, then
+we are still ready for more input)
+\item The ``state-array'' (only for leaf-level)
+\end{tightitemize}
+
+\section{Tuning Notes}
+Tunable parameters:
+\begin{itemize}
+\item \verb|max_in_memory_entries|, \verb|max_in_memory_bytes|.
+The maximum size of the in-memory searchable tree.
+It is nice to make this large, to reduce the number of small
+files we will need.  On the other hand, memory used for the tree
+cannot be used for cacheing.
+\end{itemize}
 
 \section{Appendix}
 
