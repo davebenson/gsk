@@ -11,80 +11,6 @@
  * which can delete entries which match some criteria.
  */
 
-/* OLD IDEA:
- * 
- * The overall structure is an array of subtables, each of which
- * consists of three files: a "prefix" file, an "index" file,
- * and a "heap" file.
- *  - the prefix file allows us to implement a sort of
- *    compression.  it consists of about 1024 entries, each of which
- *    is a prefix (some binary data) and a reference into the index file.
- *  - the index file contains a set of subtables (one subtable
- *    per prefix).  the size of each entry in the subtable
- *    is fixed, so that we can binary-search it.
- *  - the heap file contains the remainder of each record (that which
- *    doesn't fit in the prefix and index files).
- *
- *
- * Prefix-files.
- * 
- * The goal is to provide a way to get prefix-compression
- * along with faster lookups.
- * 
- * 1.  Constructing the prefixes for an array of keys.
- * 
- * 2.  Merging two prefix files.
- * 
- * given two prefix files, each consisting of N_i entries,
- * with each entry e_{i,j} containing
- *    e_{i,j} = ( prefix, count )
- * 
- * in order to be searchable, the prefixes must have
- * the property that no prefix may be the subprefix of another.
- * 
- * merge these sets together initially as simply
- * as possible:
- *   - if the prefix files have a common entry,
- *     just add the counts.
- *   - if one file contains an entry that is
- *     the prefix of an entry in the other file,
- *     then the entries must be merged to the shorter prefix.
- * 
- * If the resulting set is too large, we merge entries until
- * we have the right number.  we merge greedily, picking what
- * appears to be best one-at-a-time.  Merging always takes a
- * set of elements to their base prefix.  Therefore,
- * for any potential merge, the cost of merging can be computed
- * by the summing
- *     (size_of_old_prefix - size_of_new_prefix) * n_entries_with_old_prefix
- * the merge that costs the least should be done.
- * (QUESTION: is optimizing for size really the best?)
- * 
- * If the resulting set is too small, we split some existing prefixes.
- * By splitting a prefix, we may need to create up to 256 new prefix entries
- * (though possibly many will not be used.)
- *
- * The prefix file starts with:
- *  heap_offset_size   1 byte:   size of heap offset reference
- *  key_size_size      1 byte:   size of entry size (a byte 1,2,3,4)
- *  value_size_size    1 byte:   size of value size (a byte 1,2,3,4)
- *
- * Each entry of the prefix file is:
- *  prefix_len         4 bytes:  length of prefix
- *  prefix             N bytes:  prefix
- *  index_byte_offset  8 bytes:  index start offset
- *  index_storage      4 bytes:  bytes of entry data to add to each index entry
- */
-
-/* NEW IDEA: two-phase merge.. the heaps are a single file;
-   we will use variable-length integers to save on space.
-   and prefix-compression as we make a binary tree,
-   sorted height-first.
-
-   The first phase of the merge outputs a prefix-compressed, final-merged
-   file.  The second phase outputs a height-sorted tree.  Each tree node
-   contains a prefix, a prefix-length (matching all entries under this
-   tree node) and a reference to the next nodes and its own value. */
 
 struct _TableUserData
 {
@@ -131,8 +57,7 @@ struct _MergeTask
       gboolean is_red;
     } unstarted;
     struct {
-      int output_fd;
-      guint8 *output_mmap;
+      GskTableFile *output;
     } started;
   } info;
 };
@@ -196,12 +121,12 @@ struct _GskTable
   /* tree of merge tasks, sorted by input file ratio */
   MergeTask *unstarted_merges;
 
-  /* heap of merge tasks (sorted by n_entries) */
+  /* heap of merge tasks (sorted by n_entries ascending) */
   MergeTask *started_merges[MAX_RUNNING_MERGES];
 
   /* fixed length keys and values can be optimized by not storing the length. */
-  gsize key_fixed_length;               /* or -1 */
-  gsize value_fixed_length;             /* or -1 */
+  gssize key_fixed_length;               /* or -1 */
+  gssize value_fixed_length;             /* or -1 */
 
   /* used for merging the in-memory data */
   guint8 *tmp_merge_value_data;

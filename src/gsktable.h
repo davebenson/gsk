@@ -69,8 +69,15 @@ struct _GskTableOptions
 GskTableOptions     *gsk_table_options_new    (void);
 void                 gsk_table_options_destroy(GskTableOptions *options);
 
+typedef enum
+{
+  GSK_TABLE_MAY_EXIST = (1<<0),
+  GSK_TABLE_MAY_CREATE = (1<<1)
+} GskTableNewFlags;
+
 GskTable *  gsk_table_new         (const char            *dir,
                                    const GskTableOptions *options,
+                                   GskTableNewFlags       flags,
 	          	           GError               **error);
 void        gsk_table_add         (GskTable              *table,
                                    guint                  key_len,
@@ -96,7 +103,7 @@ struct _GskTableReader
   const guint8 *value_data;
 
   gboolean (*advance) (GskTableReader *reader);
-  void (*destroy) (GskTableReader *reader);
+  void     (*destroy) (GskTableReader *reader);
 };
 typedef enum
 {
@@ -117,3 +124,6 @@ GskTableReader *gsk_table_make_reader_with_bounds (GskTable *table,
                                      GSK_TABLE_BOUND_NONE, 0, NULL, \
                                      GSK_TABLE_BOUND_NONE, 0, NULL, \
                                      error)
+
+gboolean gsk_table_reader_advance (GskTableReader *reader);
+void     gsk_table_reader_destroy (GskTableReader *reader);
