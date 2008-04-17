@@ -43,8 +43,8 @@ struct _GskQsortStackNode
                    /* no stack guard assertion */)
 
 #define GSK_QSORT_FULL(array, type, n_elements, compare, isort_threshold, stack_size, ss_assertion)    \
-  gint gsk_rv;                                                               \
   G_STMT_START{                                                              \
+    gint gsk_rv;                                                             \
     guint gsk_stack_size;                                                    \
     GskQsortStackNode gsk_stack[stack_size];                                 \
     type gsk_tmp_swap;                                                       \
@@ -221,8 +221,8 @@ struct _GskQsortStackNode
 
 /* TODO: do we want GSK_INSERTION_SELECT for use here internally? */
 #define GSK_QSELECT_FULL(array, type, n_elements, n_select, compare, isort_threshold, stack_size, ss_assertion)    \
-  gint gsk_rv;                                                               \
   G_STMT_START{                                                              \
+    gint gsk_rv;                                                             \
     guint gsk_stack_size;                                                    \
     GskQsortStackNode gsk_stack[stack_size];                                 \
     type gsk_tmp_swap;                                                       \
