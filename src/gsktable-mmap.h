@@ -53,6 +53,11 @@ G_INLINE_FUNC gboolean gsk_table_mmap_writer_write(GskTableMmapWriter *writer,
                                                    guint               len,
                                                    const guint8       *data,
                                                    GError            **error);
+G_INLINE_FUNC gboolean gsk_table_mmap_writer_pwrite(GskTableMmapWriter *writer,
+                                                    guint64            offset,
+                                                    guint               len,
+                                                    const guint8       *data,
+                                                    GError            **error);
 
 /* advance reader to the first page that contains the next byte to read. */
 gboolean               gsk_table_mmap_writer_advance(GskTableMmapWriter *writer,

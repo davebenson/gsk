@@ -15,6 +15,12 @@ struct _GskTableFileHints
   guint min_value_size, max_value_size;
   gboolean allocate_disk_space_based_on_max_sizes;
 };
+#define GSK_TABLE_FILE_HINTS_DEFAULTS \
+{ G_MAXUINT64, G_MAXUINT64, G_MAXUINT64, \
+  0, G_MAXUINT, 0, G_MAXUINT,  \
+  FALSE  /* allocate_disk_space_based_on_max_sizes */ \
+}
+
 
 struct _GskTableFile
 {

@@ -291,7 +291,29 @@ static gboolean
 write_short_tree_from_buffer (BtreeFile *f,
                               GError   **error)
 {
+  guint header_level_start = 
+                4               /* magic */
+              + 1               /* height */
+              + 1               /* flags */
+              + 2               /* reserved */
+              + (f->key_is_fixed_length ? 4 : 0)
+              + (f->value_is_fixed_length ? 4 : 0)
+              ;
+
+  /* adjust height to be '1' */
+  TEST_CHAIN_ERROR (gsk_table_mmap_writer_pwrite (&f->writer,
+                                                  4, &one, 1, error));
+
+  /* build leaf node */
+  GByteArray *node = g_byte_array_new ();
+  GByteArray *value_node = g_byte_array_new ();
+  GByteArray *key_prefix = g_byte_array_new ();
   ...
+
+  for (i = 0; i < f->n_buffered_data; f++)
+    {
+
+
 }
 
 /* free and clear the buffered_data */
