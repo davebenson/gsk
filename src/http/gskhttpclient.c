@@ -975,6 +975,18 @@ gsk_http_client_shutdown_when_done (GskHttpClient *client)
     }
 }
 
+/**
+ * gsk_http_client_propagate_content_read_shutdown:
+ * @client: the http client to affect.
+ *
+ * Propagate shutdowns of the content-stream to the http-client.
+ */
+void
+gsk_http_client_propagate_content_read_shutdown (GskHttpClient *client)
+{
+  GSK_HTTP_CLIENT_HOOK (client)->user_flags |= GSK_HTTP_CLIENT_PROPAGATE_CONTENT_READ_SHUTDOWN;
+}
+
 static void
 gsk_http_client_request_destroy (GskHttpClientRequest *request)
 {
@@ -1054,9 +1066,10 @@ gsk_http_client_content_stream_shutdown_read   (GskIO      *io,
   if (content_stream->http_client != NULL
    && (content_stream->http_client->last_request == NULL
     || content_stream->http_client->last_request->content_stream == content_stream)
-   && TEST_CLIENT_USER_FLAGS (content_stream->http_client,
+   &&    (TEST_CLIENT_USER_FLAG (content_stream->http_client, PROPAGATE_CONTENT_READ_SHUTDOWN)
+       || TEST_CLIENT_USER_FLAGS (content_stream->http_client,
                               GSK_HTTP_CLIENT_DEFERRED_SHUTDOWN
-                            | GSK_HTTP_CLIENT_REQUIRES_READ_SHUTDOWN))
+                            | GSK_HTTP_CLIENT_REQUIRES_READ_SHUTDOWN)))
     {
       /* this should be true, since gsk_http_client_request()
          does not allow additional requests after DEFERRED_SHUTDOWN

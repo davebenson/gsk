@@ -339,6 +339,7 @@ handle_name_resolution_succeeded (GskSocketAddress *address,
   http_client = gsk_http_client_new ();
   ++(http->request_count);
   ++(http->undestroyed_requests);
+  gsk_http_client_propagate_content_read_shutdown (http_client);
   gsk_http_client_request (http_client, http_request, upload_stream,
                            handle_http_response,
                            g_object_ref (transfer),

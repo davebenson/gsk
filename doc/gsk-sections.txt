@@ -776,6 +776,7 @@ gsk_http_client_new
 gsk_http_client_notify_fast
 gsk_http_client_request
 gsk_http_client_shutdown_when_done
+gsk_http_client_propagate_content_read_shutdown
 <SUBSECTION Standard>
 GSK_HTTP_CLIENT
 gsk_http_client_get_type

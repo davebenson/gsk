@@ -50,6 +50,7 @@ struct _GskHttpClient
 #define GSK_HTTP_CLIENT_FAST_NOTIFY		(1<<0)
 #define GSK_HTTP_CLIENT_DEFERRED_SHUTDOWN	(1<<1)
 #define GSK_HTTP_CLIENT_REQUIRES_READ_SHUTDOWN	(1<<2)
+#define GSK_HTTP_CLIENT_PROPAGATE_CONTENT_READ_SHUTDOWN (1<<3)
 
 #define GSK_HTTP_CLIENT_HOOK(client)	(&GSK_HTTP_CLIENT (client)->requestable)
 #define GSK_HTTP_CLIENT_IS_FAST(client)	((GSK_HTTP_CLIENT_HOOK (client)->user_flags & GSK_HTTP_CLIENT_FAST_NOTIFY) == GSK_HTTP_CLIENT_FAST_NOTIFY)
@@ -73,6 +74,8 @@ void gsk_http_client_request (GskHttpClient         *client,
 			      GDestroyNotify         hook_destroy);
 
 void gsk_http_client_shutdown_when_done (GskHttpClient *client);
+void gsk_http_client_propagate_content_read_shutdown (GskHttpClient *client);
 G_END_DECLS
+
 
 #endif
