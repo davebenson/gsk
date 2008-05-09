@@ -1,4 +1,6 @@
-gsk (1.0.58) (NOT YET RELEASED)
+gsk (1.0.58)
+  * add gsk_http_client_propagate_content_read_shutdown();
+    use it from gskurltransferhttp.
 
 gsk (1.0.57)
   * gskstreamconnection: use read_buffer on input stream if available.

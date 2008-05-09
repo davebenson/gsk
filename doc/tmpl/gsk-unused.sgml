@@ -633,8 +633,7 @@ gskxmltoken
 
 </para>
 
-@...:
-
+@...: 
 
 <!-- ##### MACRO GSK_HTTP_REQUEST ##### -->
 <para>
@@ -3331,8 +3330,7 @@ possibly in a thread-pool.
 
 </para>
 
-@...:
-
+@...: 
 
 <!-- ##### FUNCTION gsk_g_hash_table_get_keys_slist ##### -->
 <para>
