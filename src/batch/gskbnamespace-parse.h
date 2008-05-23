@@ -21,8 +21,10 @@
         daveb@ffem.org <Dave Benson>
 */
 
-
-typedef struct _GskBatchManager GskBatchManager;
-struct _GskBatchManager
+struct _GskbToken
 {
-
+  guint major;
+  const char *str;
+  guint line, column;
+  const char *filename;
+};

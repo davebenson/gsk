@@ -21,8 +21,50 @@
         daveb@ffem.org <Dave Benson>
 */
 
-
-typedef struct _GskBatchManager GskBatchManager;
-struct _GskBatchManager
+enum FormatIntType : uint8
 {
+  int8,
+  int16,
+  int32,
+  int64,
+  uint8,
+  uint16,
+  uint32,
+  uint64,
+  varlen_int32,
+  varlen_int64,
+  varlen_uint32,
+  varlen_uint64
+};
+
+union Format : uint8
+{
+  FormatIntType v_int;
+  FormatFloatType v_float;
+  v_string;
+  struct {
+    varlen_uint32 length;
+    varlen_int32 format;
+  } v_fixed_array;
+  struct {
+    FormatIntType prefix_type;
+    varlen_int32 format;
+  } v_length_prefixed_array;
+  struct {
+    FormatStructMember[~] members;
+  } v_struct;
+  struct {
+    FormatIntType prefix_type;
+    FormatUnionCase[~] cases;
+  } v_union;
+  struct {
+    struct name;
+    varlen_int32 format;
+  } v_alias;
+};
+
+
+
+
+
 

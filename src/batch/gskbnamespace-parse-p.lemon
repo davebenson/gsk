@@ -1,0 +1,71 @@
+/*
+    GSKB - a batch processing framework
+
+    Copyright (C) 2008 Dave Benson
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA
+
+    Contact:
+        daveb@ffem.org <Dave Benson>
+*/
+
+
+%include {
+#include <string.h>
+#include <stdlib.h>
+#include "gskb.h"
+#include "gskbnamespace-parse.h"
+
+#if G_HAVE_ISO_VARARGS
+#define ADD_ERROR(...) g_ptr_array_add (context->errors, g_error_new (SNAPDB_ERROR_DOMAIN_QUARK, SNAPDB_ERROR_PARSE, __VA_ARGS__))
+#elif defined(G_HAVE_GNUC_VARARGS)
+#define ADD_ERROR(format...) g_ptr_array_add (context->errors, g_error_new (SNAPDB_ERROR_DOMAIN_QUARK, SNAPDB_ERROR_PARSE, format))
+#else
+#error "no vararg macros"
+#endif
+}
+
+%token_type {GskbToken *}
+%token_prefix {GSKB_TOKEN_TYPE_}
+%extra_argument {GskbParseContext *context}
+
+%type member {GskbFormatStructMember}
+
+format(RV) ::= INT8.
+	{ RV = gskb_format_ref (gskb_format_peek_int8 ()); }
+format(RV) ::= INT16.
+	{ RV = gskb_format_ref (gskb_format_peek_int16 ()); }
+format(RV) ::= INT32.
+	{ RV = gskb_format_ref (gskb_format_peek_int32 ()); }
+format(RV) ::= INT64.
+	{ RV = gskb_format_ref (gskb_format_peek_int64 ()); }
+format(RV) ::= UINT8.
+	{ RV = gskb_format_ref (gskb_format_peek_uint8 ()); }
+format(RV) ::= UINT16.
+	{ RV = gskb_format_ref (gskb_format_peek_uint16 ()); }
+format(RV) ::= UINT32.
+	{ RV = gskb_format_ref (gskb_format_peek_uint32 ()); }
+format(RV) ::= UINT64.
+	{ RV = gskb_format_ref (gskb_format_peek_uint64 ()); }
+format(RV) ::= VINT32.
+	{ RV = gskb_format_ref (gskb_format_peek_varlen_int32 ()); }
+format(RV) ::= VINT64.
+	{ RV = gskb_format_ref (gskb_format_peek_varlen_int64 ()); }
+format(RV) ::= VUINT32.
+	{ RV = gskb_format_ref (gskb_format_peek_varlen_uint32 ()); }
+format(RV) ::= VUINT64.
+	{ RV = gskb_format_ref (gskb_format_peek_varlen_uint64 ()); }
+format(RV) ::= STRING.
+	{ RV = gskb_format_ref (gskb_format_peek_string ()); }

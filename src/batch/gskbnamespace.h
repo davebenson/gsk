@@ -22,7 +22,23 @@
 */
 
 
-typedef struct _GskBatchManager GskBatchManager;
-struct _GskBatchManager
+struct _GskbNamespace
 {
+  guint ref_count;
+  GHashTable *name_to_format;
 
+  guint n_formats;
+  GskbFormat **formats;
+  guint formats_alloced;
+};
+
+GskbNamespace *gskb_namespace_new          (void);
+gboolean       gskb_namespace_parse_string (GskbNamespace *ns,
+                                            const char    *str,
+                                            GError       **error);
+gboolean       gskb_namespace_parse_file   (GskbNamespace *ns,
+                                            const char    *filename,
+                                            GError       **error);
+GskbFormat    *gskb_namespace_parse_format (GskbNamespace *ns,
+                                            const char    *str,
+                                            GError       **error);

@@ -21,8 +21,5 @@
         daveb@ffem.org <Dave Benson>
 */
 
-
-typedef struct _GskBatchManager GskBatchManager;
-struct _GskBatchManager
-{
-
+#include "gskbformat.h"
+#include "gskbnamespace.h"
