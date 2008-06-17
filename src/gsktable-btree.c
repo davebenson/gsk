@@ -851,6 +851,7 @@ GskTableFileFactory *gsk_table_file_factory_new_btree (void)
         btree__open_file,
         btree__feed_entry,
         btree__done_feeding,
+        btree__can_get_build_state,
         btree__get_build_state,
         btree__build_file,
         btree__release_build_data,

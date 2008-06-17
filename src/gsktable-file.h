@@ -69,6 +69,9 @@ struct _GskTableFileFactory
   gboolean          (*done_feeding)     (GskTableFile             *file,
                                          gboolean                 *ready_out,
 					 GError                  **error);
+  /* Is the file in a state where it can be checkpointed?
+     If you cannot get the build state, feed_entry() until you can. */
+  gboolean          (*can_get_build_state)(GskTableFile           *file);
   gboolean          (*get_build_state)  (GskTableFile             *file,
                                          guint                    *state_len_out,
                                          guint8                  **state_data_out,
@@ -84,6 +87,7 @@ struct _GskTableFileFactory
 					 GError                  **error);
   GskTableReader   *(*create_reader)    (GskTableFile             *file,
                                          GError                  **error);
+  /* you must always be able to get reader state */
   gboolean          (*get_reader_state) (GskTableFile             *file,
                                          GskTableReader           *reader,
                                          guint                    *state_len_out,
