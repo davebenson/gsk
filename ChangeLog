@@ -1,3 +1,7 @@
+gsk (1.0.60)
+  * bug in gsk_log_rotate_stdio_logs():
+    implement '%s' ourselves instead of using strftime.
+
 gsk (1.0.59)
   * add gsk_log_rotate_stdio_logs()
 

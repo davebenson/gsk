@@ -665,20 +665,46 @@ static char *the_output_file_template = NULL;
 static gboolean output_use_localtime = FALSE;
 static guint output_rotation_period = 3600;
 
+
 static char *
 make_output_filename (guint time)
 {
   char buf[4096];
   time_t t = time;
   struct tm tm;
+  const char *templ = the_output_file_template;
+  GString *str = g_string_new ("");
   t -= t % output_rotation_period;
+
+  while (*templ)
+    {
+      if (*templ == '%')
+        {
+          if (templ[1] == 's')
+            {
+              g_string_append_printf (str, "%u", (guint) t);
+              templ += 2;
+              continue;
+            }
+          else if (templ[1] == '%')
+            {
+              g_string_append (str, "%%");
+              templ += 2;
+              continue;
+            }
+        }
+      g_string_append_c (str, *templ);
+      templ++;
+    }
+
   if (output_use_localtime)
     localtime_r (&t, &tm);
   else
     gmtime_r (&t, &tm);
 
-  strftime (buf, sizeof (buf), the_output_file_template, &tm);
+  strftime (buf, sizeof (buf), str->str, &tm);
   buf[sizeof(buf)-1] = 0;
+  g_string_free (str, TRUE);
 
   return g_strdup (buf);
 }
