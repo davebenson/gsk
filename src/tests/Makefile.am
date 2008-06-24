@@ -72,6 +72,7 @@ diagnostic_programs = \
 	test-http-server \
 	test-persistent-connection \
 	test-http-redirect \
+	test-stdio-rotation \
 	time-0 \
 	test-zlib-stream \
  	$(ssl_tests)
@@ -123,6 +124,7 @@ test_streamfd_guess_flags_SOURCES = test-streamfd-guess-flags.c
 test_url_SOURCES = test-url.c
 test_utils_SOURCES = test-utils.c
 test_zlib_stream_SOURCES = test-utils.c
+test_stdio_rotation_SOURCES = test-stdio-rotation.c
 time_0_SOURCES = time-0.c
 
 # HACK: print list of undefined functions, useful when writing tons of new code

@@ -1,4 +1,5 @@
-gsk (1.0.59) NOT YET RELEASED
+gsk (1.0.59)
+  * add gsk_log_rotate_stdio_logs()
 
 gsk (1.0.58)
   * add gsk_http_client_propagate_content_read_shutdown();

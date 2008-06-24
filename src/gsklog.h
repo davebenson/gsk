@@ -24,6 +24,13 @@ typedef struct _GskLogTrap GskLogTrap;
  */
 void gsk_log_init (void);
 
+/* output_file_template may contain any format specifier
+   as known by strftime. */
+void gsk_log_rotate_stdio_logs (const char *output_file_template,
+                                gboolean    use_localtime,
+                                guint       rotation_period);
+
+
 /* output_format may contain the following escapes:
       %{message}       the message itself.
       %{NNNmessage}    the first NNN characters of message.

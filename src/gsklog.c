@@ -9,6 +9,15 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+/* for stdout/stderr redirection support */
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <errno.h>
+#include "gskmainloop.h"
+
+
 #define DEFAULT_TIME_FORMAT     "%Y-%m-%d %H:%M:%S"
 #define DEFAULT_MODE            "w"             /* or "a" for append */
 
@@ -649,4 +658,82 @@ void gsk_log_init (void)
       g_log_set_default_handler (log_default, NULL);
       log_system_initialized = TRUE;
     }
+}
+
+/* --- support for gsk_log_rotate_stdio_logs() --- */
+static char *the_output_file_template = NULL;
+static gboolean output_use_localtime = FALSE;
+static guint output_rotation_period = 3600;
+
+static char *
+make_output_filename (guint time)
+{
+  char buf[4096];
+  time_t t = time;
+  struct tm tm;
+  t -= t % output_rotation_period;
+  if (output_use_localtime)
+    localtime_r (&t, &tm);
+  else
+    gmtime_r (&t, &tm);
+
+  strftime (buf, sizeof (buf), the_output_file_template, &tm);
+  buf[sizeof(buf)-1] = 0;
+
+  return g_strdup (buf);
+}
+
+static void
+do_stdio_dups (guint time)
+{
+  char *fname = make_output_filename (time);
+  int fd = open (fname, O_CREAT|O_APPEND|O_WRONLY, 0644);
+  if (fd < 0)
+    {
+      g_warning ("error opening %s: %s", fname, g_strerror (errno));
+      g_free (fname);
+      return;
+    }
+  fflush (stdout);
+  fflush (stderr);
+  close (STDOUT_FILENO);
+  dup2 (fd, STDOUT_FILENO);
+  close (STDERR_FILENO);
+  dup2 (fd, STDERR_FILENO);
+  close (fd);
+  g_free (fname);
+}
+
+static gboolean
+handle_stdio_rotation_timeout (gpointer data)
+{
+  guint time = gsk_main_loop_default ()->current_time.tv_sec;
+  guint wait = output_rotation_period - time % output_rotation_period;
+
+  do_stdio_dups (time);
+
+  gsk_main_loop_add_timer (gsk_main_loop_default (),
+                           handle_stdio_rotation_timeout, NULL, NULL,
+                           wait * 1000, -1);
+  return FALSE;
+}
+
+void
+gsk_log_rotate_stdio_logs (const char *output_file_template,
+                           gboolean    use_localtime,
+                           guint       rotation_period)
+{
+  guint time = gsk_main_loop_default ()->current_time.tv_sec;
+  guint wait;
+  g_assert (the_output_file_template == NULL);
+
+  the_output_file_template = g_strdup (output_file_template);
+  output_use_localtime = use_localtime;
+  output_rotation_period = rotation_period;
+
+  do_stdio_dups (time);
+  wait = rotation_period - time % rotation_period;
+  gsk_main_loop_add_timer (gsk_main_loop_default (),
+                           handle_stdio_rotation_timeout, NULL, NULL,
+                           wait * 1000, -1);
 }
