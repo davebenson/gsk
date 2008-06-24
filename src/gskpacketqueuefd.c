@@ -500,6 +500,7 @@ GType gsk_packet_queue_fd_get_type()
 GskPacketQueue *
 gsk_packet_queue_fd_new           (int  fd)
 {
+  gsk_fd_set_nonblocking (fd);
   return g_object_new (GSK_TYPE_PACKET_QUEUE_FD, "file-descriptor", fd, NULL);
 }
 
@@ -537,6 +538,7 @@ retry:
       return NULL;
     }
   gsk_fd_set_close_on_exec (fd, TRUE);
+  gsk_fd_set_nonblocking (fd);
 
   return gsk_packet_queue_fd_new (fd);
 }
