@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -24,7 +25,10 @@ typedef enum
 } WhichFile;
 #define N_FILES 3
 
+/* MUST be a power-of-two */
 #define MMAP_WRITER_SIZE                (512*1024)
+
+#define MAX_MMAP                (1024*1024)
 
 static const char *file_extensions[N_FILES] = { "index", "firstkeys", "data" };
 
@@ -33,9 +37,11 @@ struct _FlatFactory
   GskTableFileFactory base_factory;
   guint bytes_per_chunk;
   guint compression_level;
+  guint n_recycled_builders;
+  guint max_recycled_builders;
+  FlatFileBuilder *recycled_builders;
 };
 
-#define MAX_MMAP                (1024*1024)
 
 struct _MmapReader
 {
@@ -49,7 +55,7 @@ struct _MmapWriter
 {
   gint fd;
   guint64 file_size;
-  guint64 mapped_offset;
+  guint64 mmap_offset;
   guint8 *mmapped;
   guint cur_offset;             /* in mmapped */
   GskTableBuffer tmp_buf;
@@ -73,6 +79,8 @@ struct _FlatFileBuilder
   GskMemPool compressor_allocator;
   guint8 *compressor_allocator_scratchpad;
   gsize compressor_allocator_scratchpad_len;
+
+  FlatFileBuilder *next_recycled_builder;
 };
 
 struct _FlatFile
@@ -142,13 +150,131 @@ mmap_writer_init_at (MmapWriter *writer,
                      guint64     offset,
                      GError    **error)
 {
-  ...
+  guint64 mmap_offset = offset & (MMAP_WRITER_SIZE-1);
+  struct stat stat_buf;
+  guint64 file_size;
+  if (fstat (fd, &stat_buf) < 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN,
+                   GSK_ERROR_FILE_STAT,
+                   "error getting size of file-descriptor %d: %s",
+                   fd, g_strerror (errno));
+      return FALSE;
+    }
+  file_size = stat_buf.st_size;
+  if (mmap_offset >= file_size)
+    {
+      if (ftruncate (fd, mmap_offset + MMAP_WRITER_SIZE) < 0)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN,
+                       GSK_ERROR_FILE_STAT,
+                       "error expanding mmap writer file size: %s",
+                       g_strerror (errno));
+          return FALSE;
+        }
+      file_size = mmap_offset + MMAP_WRITER_SIZE;
+    }
+  writer->file_size = file_size;
+  writer->mmap_offset = mmap_offset;
+  writer->mmapped = mmap (NULL, MMAP_WRITER_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, mmap_offset);
+  if (writer->mmapped == MAP_FAILED)
+    {
+      writer->mmapped = NULL;
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_MMAP,
+                   "error mmapping for writing: %s",
+                   g_strerror (errno));
+      return FALSE;
+    }
+  writer->cur_offset = offset - mmap_offset;
+  gsk_table_buffer_init (&writer->tmp_buf);
+  return TRUE;
 }
 
 static inline guint64
 mmap_writer_offset (MmapWriter *writer)
 {
-  return writer->mapped_offset + writer->cur_offset;
+  return writer->mmap_offset + writer->cur_offset;
+}
+
+static gboolean
+writer_advance_to_next_page (MmapWriter *writer,
+                             GError    **error)
+{
+  munmap (writer->mmapped, MMAP_WRITER_SIZE);
+  if (writer->mmap_offset + MMAP_WRITER_SIZE > writer->file_size)
+    {
+      if (ftruncate (writer->fd, writer->mmap_offset + MMAP_WRITER_SIZE) < 0)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN,
+                       GSK_ERROR_FILE_STAT,
+                       "error expanding mmap writer file size: %s",
+                       g_strerror (errno));
+          return FALSE;
+        }
+      writer->file_size = writer->mmap_offset + MMAP_WRITER_SIZE;
+    }
+  writer->mmapped = mmap (NULL, MMAP_WRITER_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, writer->fd, writer->mmap_offset);
+  if (writer->mmapped == MAP_FAILED)
+    {
+      writer->mmapped = NULL;
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_MMAP,
+                   "mmap failed on writer: %s",
+                   g_strerror (errno));
+      return FALSE;
+    }
+
+  writer->mmap_offset += MMAP_WRITER_SIZE;
+  writer->cur_offset = 0;
+  return TRUE;
+}
+
+static gboolean
+mmap_writer_write (MmapWriter   *writer,
+                   guint         len,
+                   const guint8 *data,
+                   GError      **error)
+{
+  if (G_LIKELY (writer->cur_offset + len < MMAP_WRITER_SIZE))
+    {
+      memcpy (writer->mmapped + writer->cur_offset, data, len);
+      writer->cur_offset += len;
+    }
+  else
+    {
+      guint n_written = MMAP_WRITER_SIZE - writer->cur_offset;
+      memcpy (writer->mmapped + writer->cur_offset, data, n_written);
+
+      /* advance to next page */
+      if (!writer_advance_to_next_page (writer, error))
+        return FALSE;
+
+      while (G_UNLIKELY (n_written + MMAP_WRITER_SIZE <= len))
+        {
+          /* write a full page */
+          memcpy (writer->mmapped, data + n_written, MMAP_WRITER_SIZE);
+          n_written += MMAP_WRITER_SIZE;
+
+          /* advance to next page */
+          if (!writer_advance_to_next_page (writer, error))
+            return FALSE;
+        }
+      if (G_LIKELY (n_written < len))
+        {
+          memcpy (writer->mmapped, data + n_written, len - n_written);
+          writer->cur_offset = len - n_written;
+        }
+    }
+  return TRUE;
+}
+
+static gboolean
+mmap_writer_pread (MmapWriter   *writer,
+                   guint64       offset,
+                   guint         length,
+                   guint8       *data_out,
+                   GError      **error)
+{
+  ...
 }
 
 static void
@@ -251,25 +377,51 @@ reinit_compressor (FlatFileBuilder *builder,
 }
 
 static FlatFileBuilder *
-flat_file_builder_new (guint compression_level)
+flat_file_builder_new (FlatFactory *factory)
 {
-  FlatFileBuilder *builder = g_slice_new (FlatFileBuilder);
-  gsk_table_buffer_init (&builder->input);
-  gsk_table_buffer_init (&builder->first_key);
-  gsk_table_buffer_init (&builder->last_key);
-  gsk_table_buffer_init (&builder->compressed);
-  gsk_table_buffer_init (&builder->uncompressed);
-  builder->compressor_allocator_scratchpad_len = 1024;
-  builder->compressor_allocator_scratchpad = g_malloc (builder->compressor_allocator_scratchpad_len);
-  reinit_compressor (builder, compression_level, FALSE);
-  return builder;
+  if (factory->recycled_builders)
+    {
+      FlatFileBuilder *builder = factory->recycled_builders;
+      factory->recycled_builders = builder->next_recycled_builder;
+      factory->n_recycled_builders--;
+      return builder;
+    }
+  else
+    {
+      FlatFileBuilder *builder = g_slice_new (FlatFileBuilder);
+      gsk_table_buffer_init (&builder->input);
+      gsk_table_buffer_init (&builder->first_key);
+      gsk_table_buffer_init (&builder->last_key);
+      gsk_table_buffer_init (&builder->compressed);
+      gsk_table_buffer_init (&builder->uncompressed);
+      builder->compressor_allocator_scratchpad_len = 1024;
+      builder->compressor_allocator_scratchpad = g_malloc (builder->compressor_allocator_scratchpad_len);
+      reinit_compressor (builder, factory->compression_level, FALSE);
+      return builder;
+    }
 }
 
 static void
 builder_recycle (FlatFactory *ffactory,
                  FlatFileBuilder *builder)
 {
-  ...
+  if (ffactory->n_recycled_builders == ffactory->max_recycled_builders)
+    {
+      gsk_table_buffer_clear (&builder->input);
+      gsk_table_buffer_clear (&builder->first_key);
+      gsk_table_buffer_clear (&builder->last_key);
+      gsk_table_buffer_clear (&builder->compressed);
+      gsk_table_buffer_clear (&builder->uncompressed);
+      gsk_mem_pool_destruct (&builder->compressor_allocator);
+      g_free (builder->compressor_allocator_scratchpad);
+      g_slice_free (FlatFileBuilder, builder);
+    }
+  else
+    {
+      builder->next_recycled_builder = ffactory->recycled_builders;
+      ffactory->recycled_builders = builder;
+      ffactory->n_recycled_builders++;
+    }
 }
 
 typedef enum
@@ -343,7 +495,7 @@ flat__create_file      (GskTableFileFactory      *factory,
       return NULL;
     }
 
-  rv->builder = flat_file_builder_new (ffactory->compression_level);
+  rv->builder = flat_file_builder_new (ffactory);
   rv->has_readers = FALSE;
   return &rv->base_file;
 }
@@ -364,7 +516,7 @@ flat__open_building_file(GskTableFileFactory     *factory,
       return NULL;
     }
 
-  rv->builder = flat_file_builder_new (ffactory->compression_level);
+  rv->builder = flat_file_builder_new (ffactory);
 
   /* seek according to 'state_data' */
   g_assert (state_len == 24);
@@ -651,10 +803,11 @@ flat__done_feeding     (GskTableFile             *file,
 
   /* mmap for reading small files */
   for (f = 0; f < N_FILES; f++)
-    if (!mmap_file_reader_init (&ffile->readers[f], ffile->fds[f], error))
+    if (!mmap_reader_init (&ffile->readers[f], ffile->fds[f], error))
       {
+        guint tmp_f;
         for (tmp_f = 0; tmp_f < f; tmp_f++)
-          mmap_file_reader_clear (&ffile->readers[tmp_f]);
+          mmap_reader_clear (&ffile->readers[tmp_f]);
         return FALSE;
       }
 
@@ -672,12 +825,15 @@ flat__get_build_state  (GskTableFile             *file,
                         GError                  **error)
 {
   guint f;
+  FlatFile *ffile = (FlatFile *) file;
+  FlatFileBuilder *builder = ffile->builder;
+  g_assert (builder != NULL);
   *state_len_out = 1 + 3 * 8;
   *state_data_out = g_malloc (*state_len_out);
   *state_data_out[0] = 0;               /* phase 0; reserved to allow multiphase processing in future */
   for (f = 0; f < N_FILES; f++)
     {
-      guint64 offset = gsk_table_mmap_writer_offset (builder->writers + f);
+      guint64 offset = mmap_writer_offset (builder->writers + f);
       guint64 offset_le = GUINT64_TO_BE (offset);
       memcpy (*state_data_out + 8 * f + 1, &offset_le, 8);
     }
@@ -1026,6 +1182,7 @@ flat__recreate_reader  (GskTableFile             *file,
                         GError                  **error)
 {
   FlatFileReader *freader;
+  guint f;
   if (freader == NULL)
     return NULL;
   switch (state_data[0])
@@ -1167,7 +1324,10 @@ GskTableFileFactory *gsk_table_file_factory_new_flat (void)
         flat__destroy_factory
       },
       16384,
-      3                         /* zlib compression level */
+      3,                        /* zlib compression level */
+      0,                        /* n recycled builders */
+      8,                        /* max recycled builders */
+      NULL                      /* recycled builder list */
     };
 
   return &the_factory.base_instance;
