@@ -1,5 +1,33 @@
+#include <string.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <zlib.h>
+#include <errno.h>
+
+#include "gskerror.h"
+#include "gsktable.h"
+#include "gsktable-file.h"
+#include "gsktable-helpers.h"
 
 typedef struct _FlatFactory FlatFactory;
+typedef struct _MmapReader MmapReader;
+typedef struct _MmapWriter MmapWriter;
+typedef struct _FlatFileBuilder FlatFileBuilder;
+typedef struct _FlatFile FlatFile;
+
+typedef enum
+{
+  FILE_INDEX,
+  FILE_FIRSTKEYS,
+  FILE_DATA
+} WhichFile;
+#define N_FILES 3
+
+#define MMAP_WRITER_SIZE                (512*1024)
+
+static const char *file_extensions[N_FILES] = { "index", "firstkeys", "data" };
+
 struct _FlatFactory
 {
   GskTableFileFactory base_factory;
@@ -7,15 +35,26 @@ struct _FlatFactory
   guint compression_level;
 };
 
-struct _MmapFileReader
+#define MAX_MMAP                (1024*1024)
+
+struct _MmapReader
 {
   gint fd;
   guint64 file_size;
   guint8 *mmapped;
   GskTableBuffer tmp_buf;               /* only if !mmapped */
-
-  MmapUsageState *usage_state;
 };
+
+struct _MmapWriter
+{
+  gint fd;
+  guint64 file_size;
+  guint64 mapped_offset;
+  guint8 *mmapped;
+  guint cur_offset;             /* in mmapped */
+  GskTableBuffer tmp_buf;
+};
+
 
 struct _FlatFileBuilder
 {
@@ -28,7 +67,7 @@ struct _FlatFileBuilder
   GskTableBuffer uncompressed;
   GskTableBuffer compressed;
 
-  MmapFileWriter writers[N_FILES];
+  MmapWriter writers[N_FILES];
  
   z_stream compressor;
   GskMemPool compressor_allocator;
@@ -36,17 +75,6 @@ struct _FlatFileBuilder
   gsize compressor_allocator_scratchpad_len;
 };
 
-typedef enum
-{
-  FILE_INDEX,
-  FILE_FIRSTKEYS
-  FILE_DATA,
-} WhichFile;
-#define N_FILES 3
-
-static const char *file_extensions[N_FILES] = { "index", "firstkeys", "data" };
-
-typedef struct _FlatFile FlatFile;
 struct _FlatFile
 {
   GskTableFile base_file;
@@ -55,28 +83,22 @@ struct _FlatFile
 
   gboolean has_readers;         /* builder and has_readers are exclusive: they
                                    cannot be set at the same time */
-  MmapFileReader readers[N_FILES];
+  MmapReader readers[N_FILES];
 };
 
 
-/* each entry in index file is:
-     4 bytes -- initial key length
-     8 bytes -- initial key offset
-     8 bytes -- data offset
-     4 bytes -- data length
- */
 
 /* --- mmap reading implementation --- */
 static gboolean
-mmap_file_reader_init (MmapFileReader *reader,
-                       gint            fd,
-                       GError        **error)
+mmap_reader_init (MmapReader     *reader,
+                  gint            fd,
+                  GError        **error)
 {
   struct stat stat_buf;
   reader->fd = fd;
   if (fstat (fd, &stat_buf) < 0)
     {
-      g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,
+      g_set_error (error, GSK_G_ERROR_DOMAIN,
                    GSK_ERROR_FILE_STAT,
                    "error stating fd %d: %s",
                    fd, g_strerror (errno));
@@ -84,13 +106,13 @@ mmap_file_reader_init (MmapFileReader *reader,
     }
   reader->file_size = stat_buf.st_size;
 
-  if (reader->file_size < max_mmap)
+  if (reader->file_size < MAX_MMAP)
     {
       reader->mmapped = mmap (NULL, reader->file_size, PROT_READ, MAP_SHARED, fd, 0);
       if (reader->mmapped == NULL || reader->mmapped == MAP_FAILED)
         {
           reader->mmapped = NULL;
-          g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,
+          g_set_error (error, GSK_G_ERROR_DOMAIN,
                        GSK_ERROR_FILE_MMAP,
                        "error mmapping fd %d: %s",
                        fd, g_strerror (errno));
@@ -105,16 +127,118 @@ mmap_file_reader_init (MmapFileReader *reader,
   return TRUE;
 }
 
+static void
+mmap_reader_clear (MmapReader *reader)
+{
+  if (reader->mmapped)
+    munmap (reader->mmapped, reader->file_size);
+  else
+    gsk_table_buffer_clear (&reader->tmp_buf);
+}
+
+static gboolean
+mmap_writer_init_at (MmapWriter *writer,
+                     gint        fd,
+                     guint64     offset,
+                     GError    **error)
+{
+  ...
+}
+
+static inline guint64
+mmap_writer_offset (MmapWriter *writer)
+{
+  return writer->mapped_offset + writer->cur_offset;
+}
+
+static void
+mmap_writer_clear (MmapWriter *writer)
+{
+  munmap (writer->mmapped, MMAP_WRITER_SIZE);
+  gsk_table_buffer_clear (&writer->tmp_buf);
+}
+
+
+/* --- index entry serialization --- */
+typedef struct _IndexEntry IndexEntry;
+struct _IndexEntry
+{
+  guint64 firstkeys_offset;
+  guint32 firstkeys_len;
+  guint64 compressed_data_offset;
+  guint32 compressed_data_len;
+};
+#define SIZEOF_INDEX_ENTRY 24
+/* each entry in index file is:
+     8 bytes -- initial key offset
+     4 bytes -- initial key length
+     8 bytes -- data offset
+     4 bytes -- data length
+ */
+
+static void
+index_entry_serialize (const IndexEntry *index_entry,
+                       guint8           *data_out)
+{
+  guint32 tmp32, tmp32_le;
+  guint64 tmp64, tmp64_le;
+
+  tmp64 = index_entry->firstkeys_offset;
+  tmp64_le = GUINT64_TO_LE (tmp64);
+  memcpy (data_out + 0, &tmp64_le, 8);
+  tmp32 = index_entry->firstkeys_len;
+  tmp32_le = GUINT32_TO_LE (tmp32);
+  memcpy (data_out + 8, &tmp32_le, 4);
+
+  tmp64 = index_entry->compressed_data_offset;
+  tmp64_le = GUINT64_TO_LE (tmp64);
+  memcpy (data_out + 12, &tmp64_le, 8);
+  tmp32 = index_entry->compressed_data_len;
+  tmp32_le = GUINT32_TO_LE (tmp32);
+  memcpy (data_out + 20, &tmp32_le, 4);
+}
+
+static void
+index_entry_deserialize (const guint8     *data_in,
+                         IndexEntry       *index_entry_out)
+{
+  guint32 tmp32_le;
+  guint64 tmp64_le;
+
+  memcpy (&tmp64_le, data_in + 0, 8);
+  index_entry_out->firstkeys_offset = GUINT64_FROM_LE (tmp64_le);
+  memcpy (&tmp32_le, data_in + 8, 4);
+  index_entry_out->firstkeys_len = GUINT32_FROM_LE (tmp32_le);
+  memcpy (&tmp64_le, data_in + 12, 8);
+  index_entry_out->compressed_data_offset = GUINT64_FROM_LE (tmp64_le);
+  memcpy (&tmp32_le, data_in + 20, 4);
+  index_entry_out->compressed_data_len = GUINT32_FROM_LE (tmp32_le);
+}
+
+
+static voidpf my_mem_pool_alloc (voidpf opaque, uInt items, uInt size)
+{
+  FlatFileBuilder *builder = opaque;
+  return gsk_mem_pool_alloc (&builder->compressor_allocator, items*size);
+}
+static void my_mem_pool_free (voidpf opaque, voidpf address)
+{
+}
+
 static inline void
 reinit_compressor (FlatFileBuilder *builder,
                    guint            compression_level,
-                   gboolean         maybe_expand_mempool)
+                   gboolean         preowned_mempool)
 {
-  if (maybe_expand_mempool && builder->compressor_allocator->all_chunk_list != NULL)
+  if (preowned_mempool)
     {
-      builder->compressor_allocator_scratchpad_len *= 2;
-      builder->compressor_allocator_scratchpad = g_realloc (builder->compressor_allocator_scratchpad,
-                                                            builder->compressor_allocator_scratchpad_len);
+      if (builder->compressor_allocator.all_chunk_list != NULL)
+        {
+          gsk_mem_pool_destruct (&builder->compressor_allocator);
+          builder->compressor_allocator_scratchpad_len *= 2;
+          builder->compressor_allocator_scratchpad = g_realloc (builder->compressor_allocator_scratchpad,
+                                                                builder->compressor_allocator_scratchpad_len);
+        }
     }
   gsk_mem_pool_construct_with_scratch_buf (&builder->compressor_allocator,
                                            builder->compressor_allocator_scratchpad,
@@ -139,6 +263,13 @@ flat_file_builder_new (guint compression_level)
   builder->compressor_allocator_scratchpad = g_malloc (builder->compressor_allocator_scratchpad_len);
   reinit_compressor (builder, compression_level, FALSE);
   return builder;
+}
+
+static void
+builder_recycle (FlatFactory *ffactory,
+                 FlatFileBuilder *builder)
+{
+  ...
 }
 
 typedef enum
@@ -181,13 +312,12 @@ open_3_files (FlatFile                 *file,
     {
       gsk_table_mk_fname (fname_buf, dir, id, file_extensions[f]);
       file->fds[f] = open (fname_buf, open_flags, 0644);
-      if (file->index_fd < 0)
+      if (file->fds[f] < 0)
         {
           guint tmp_f;
           for (tmp_f = 0; tmp_f < f; tmp_f++)
             close (file->fds[tmp_f]);
-          RAISE_OPEN_ERROR ();
-          g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,
+          g_set_error (error, GSK_G_ERROR_DOMAIN,
                        GSK_ERROR_FILE_CREATE,
                        "error %s %s: %s",
                        participle, fname_buf, g_strerror (errno));
@@ -240,6 +370,7 @@ flat__open_building_file(GskTableFileFactory     *factory,
   g_assert (state_len == 24);
   {
     guint64 offsets_le[3];
+    guint f;
     memcpy (offsets_le, state_data, 24);
     for (f = 0; f < N_FILES; f++)
       {
@@ -247,10 +378,11 @@ flat__open_building_file(GskTableFileFactory     *factory,
         guint64 offset;
         memcpy (&offset_le, state_data + 8 * f, 8);
         offset = GUINT64_FROM_LE (offset_le);
-        if (!gsk_table_mmap_writer_init_at (&rv->builder->writers[f], rv->fds[f], offset, error))
+        if (!mmap_writer_init_at (&rv->builder->writers[f], rv->fds[f], offset, error))
           {
+            guint tmp_f;
             for (tmp_f = 0; tmp_f < f; tmp_f++)
-              gsk_table_mmap_writer_unmap (&rv->builder->writers[tmp_f]);
+              mmap_writer_clear (&rv->builder->writers[tmp_f]);
             for (tmp_f = 0; tmp_f < N_FILES; tmp_f++)
               close (rv->fds[tmp_f]);
             builder_recycle (ffactory, rv->builder);
@@ -270,8 +402,9 @@ flat__open_file        (GskTableFileFactory      *factory,
                         guint64                   id,
                         GError                  **error)
 {
-  FlatFactory *ffactory = (FlatFactory *) factory;
+  //FlatFactory *ffactory = (FlatFactory *) factory;
   FlatFile *rv = g_slice_new (FlatFile);
+  guint f;
   if (!open_3_files (rv, dir, id, OPEN_MODE_READONLY, error))
     {
       g_slice_free (FlatFile, rv);
@@ -282,13 +415,13 @@ flat__open_file        (GskTableFileFactory      *factory,
   /* mmap small files for reading */
   for (f = 0; f < N_FILES; f++)
     {
-      if (!mmap_file_reader_init (&ffile->readers[f], ffile->fds[f], error))
+      if (!mmap_reader_init (&rv->readers[f], rv->fds[f], error))
         {
           guint tmp_f;
           for (tmp_f = 0; tmp_f < f; tmp_f++)
-            mmap_file_reader_clear (&ffile->readers[tmp_f]);
+            mmap_reader_clear (&rv->readers[tmp_f]);
           for (f = 0; f < N_FILES; f++)
-            close (ffile->fds[f]);
+            close (rv->fds[f]);
           g_slice_free (FlatFile, rv);
           return NULL;
         }
@@ -302,6 +435,19 @@ static inline void
 do_compress (FlatFileBuilder *builder,
              guint            len,
              const guint8    *data)
+{
+  /* ensure there is enough data at the end of 'compressed' */
+  ...
+
+  /* initialize input and output buffers */
+  ...
+
+  /* deflate until all input consumed */
+  ...
+}
+
+static void
+do_compress_flush (FlatFileBuilder *builder)
 {
   ...
 }
@@ -375,19 +521,23 @@ flush_to_files (FlatFileBuilder *builder,
                 GError **error)
 {
   /* emit index, keyfile and data file stuff */
-  guint8 header[2*12];
+  guint8 header[SIZEOF_INDEX_ENTRY];
+  IndexEntry index_entry;
 
   /* flush compressor */
   do_compress_flush (builder);
 
   /* encode index entry */
-  encode_length_offset (header, builder->first_key.len, gsk_table_mmap_writer_offset (builder->firstkeys_writer));
-  encode_length_offset (header + 12, builder->compressed.len, gsk_table_mmap_writer_offset (builder->data_writer));
+  index_entry.firstkeys_offset = mmap_writer_offset (&builder->writers[FILE_FIRSTKEYS]);
+  index_entry.firstkeys_len = builder->first_key.len;
+  index_entry.compressed_data_offset = mmap_writer_offset (&builder->writers[FILE_DATA]);
+  index_entry.compressed_data_len = builder->compressed.len;
+  index_entry_serialize (&index_entry, header);
 
   /* write data to files */
-  if (!gsk_table_mmap_writer_write (builder->index_writer, sizeof(header), header, error)
-   || !gsk_table_mmap_writer_write (builder->firstkeys_writer, builder->first_key.len, builder->first_key.data, error))
-   || !gsk_table_mmap_writer_write (builder->data_writer, builder->first_key.len, builder->first_key.data, error))
+  if (!mmap_writer_write (builder->writers + FILE_INDEX, SIZEOF_INDEX_ENTRY, header, error)
+   || !mmap_writer_write (builder->writers + FILE_FIRSTKEYS, builder->first_key.len, builder->first_key.data, error)
+   || !mmap_writer_write (builder->writers + FILE_DATA, builder->compressed.len, builder->compressed.data, error))
     return FALSE;
   return TRUE;
 }
@@ -405,6 +555,7 @@ flat__feed_entry      (GskTableFile             *file,
   FlatFactory *ffactory = (FlatFactory *) file->factory;
   FlatFileBuilder *builder = ffile->builder;
   guint8 enc_buf[5+5];
+  guint encoded_len, tmp;
 
   g_assert (builder != NULL);
 
@@ -413,7 +564,6 @@ flat__feed_entry      (GskTableFile             *file,
       /* compute prefix length */
       guint prefix_len = 0;
       guint max_prefix_len = MIN (key_len, builder->last_key.len);
-      guint encoded_len, tmp;
       while (prefix_len < max_prefix_len
           && key_data[prefix_len] == builder->last_key.data[prefix_len])
         prefix_len++;
@@ -422,11 +572,11 @@ flat__feed_entry      (GskTableFile             *file,
       encoded_len = uint32_vli_encode (prefix_len, enc_buf);
       tmp = uint32_vli_encode (key_len - prefix_len, enc_buf + encoded_len);
       encoded_len += tmp;
-      memcpy (gsk_table_buffer_set_len (builder->uncompressed, encoded_len)
+      memcpy (gsk_table_buffer_set_len (&builder->uncompressed, encoded_len),
               enc_buf, encoded_len);
 
       /* copy non-prefix portion of key */
-      memcpy (gsk_table_buffer_append (builder->uncompressed, key_len - prefix_len),
+      memcpy (gsk_table_buffer_append (&builder->uncompressed, key_len - prefix_len),
               key_data + prefix_len, key_len - prefix_len);
     }
   else
@@ -441,7 +591,7 @@ flat__feed_entry      (GskTableFile             *file,
 
   /* encode value length */
   encoded_len = uint32_vli_encode (value_len, enc_buf);
-  memcpy (gsk_table_buffer_append (builder->uncompressed, encoded_len)
+  memcpy (gsk_table_buffer_append (&builder->uncompressed, encoded_len),
           enc_buf, encoded_len);
 
   /* compress the non-value portion */
@@ -491,7 +641,7 @@ flat__done_feeding     (GskTableFile             *file,
       mmap_writer_clear (&builder->writers[f]);
       if (ftruncate (ffile->fds[f], offset) < 0)
         {
-          g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,
+          g_set_error (error, GSK_G_ERROR_DOMAIN,
                        GSK_ERROR_FILE_TRUNCATE,
                        "error truncating %s file: %s",
                        file_extensions[f], g_strerror (errno));
@@ -550,6 +700,27 @@ flat__release_build_data(GskTableFile            *file)
 }
 
 /* --- query api --- */
+static gboolean
+do_pread (FlatFile *ffile,
+          WhichFile f,
+          guint64   offset,
+          guint     length,
+          const guint8 *ptr_out,
+          GError   **error)
+{
+  if (ffile->builder)
+    {
+      return mmap_writer_pread (ffile->builder->writers + f,
+                                offset, length, ptr_out, error);
+    }
+  else
+    {
+      g_assert (ffile->has_readers);
+      return mmap_reader_pread (ffile->readers + f,
+                                offset, length, ptr_out, error);
+    }
+}
+
 static gboolean 
 flat__query_file       (GskTableFile             *file,
                         GskTableFileQuery        *query_inout,
@@ -565,7 +736,7 @@ flat__query_file       (GskTableFile             *file,
                     / SIZEOF_INDEX_ENTRY;
   else
     {
-      g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,
+      g_set_error (error, GSK_G_ERROR_DOMAIN,
                    GSK_ERROR_INVALID_STATE,
                    "flat file in error state");
       return FALSE;
@@ -583,13 +754,18 @@ flat__query_file       (GskTableFile             *file,
       guint64 mid = first + n / 2;
 
       /* read index entry */
-      ...
+      if (!do_pread (ffile, FILE_INDEX, mid * SIZEOF_INDEX_ENTRY, SIZEOF_INDEX_ENTRY, &index_entry_data, error))
+        return FALSE;
+      index_entry_deserialize (index_entry_data, &index_entry);
 
       /* read key */
-      ...
+      if (!do_pread (ffile, FILE_FIRSTKEYS, index_entry.firstkeys_offset, index_entry.firstkeys_len,
+                     &firstkeys_data, error))
+        return FALSE;
 
       /* invoke comparator */
-      ...
+      compare_rv = query_inout->compare (index_entry.firstkeys_len, firstkeys_data,
+                                         query_inout->compare_data);
 
       if (compare_rv < 0)
         {
@@ -675,10 +851,15 @@ reader_open_fps (GskTableFile *file,
   freader->base_reader.error = NULL;
   for (f = 0; f < N_FILES; f++)
     {
-      freader->fps[f] = ...;
+      char fname_buf[GSK_TABLE_MAX_PATH];
+      gsk_table_mk_fname (fname_buf, dir, file->id, file_extensions[f]);
+      freader->fps[f] = fopen (fname_buf, "rb");
       if (freader->fps[f] == NULL)
         {
-          ...
+          g_set_error (error, GSK_G_ERROR_DOMAIN,
+                       GSK_ERROR_FILE_OPEN,
+                       "error opening %s for reading: %s",
+                       fname_buf, g_strerror (errno));
           g_slice_free (FlatFileReader, freader);
           return NULL;
         }
@@ -722,7 +903,7 @@ read_and_uncompress_chunk (FlatFileReader *freader)
   /* read firstkey */
   if (FREAD (firstkey, index_entry.firstkey_len, 1, freader->fps[FILE_FIRSTKEYS]) != 1)
     {
-      freader->error = g_error_new (GSK_G_ERROR_DOMAIN_QUARK,
+      freader->error = g_error_new (GSK_G_ERROR_DOMAIN,
                                     GSK_ERROR_PREMATURE_EOF,
                                     "premature eof in firstkey file");
       g_free (firstkey);
@@ -733,7 +914,7 @@ read_and_uncompress_chunk (FlatFileReader *freader)
   compressed_data = g_malloc (index_entry.compressed_data_len);
   if (FREAD (compressed_data, index_entry.compressed_data_len, 1, freader->fps[FILE_FIRSTKEYS]) != 1)
     {
-      freader->error = g_error_new (GSK_G_ERROR_DOMAIN_QUARK,
+      freader->error = g_error_new (GSK_G_ERROR_DOMAIN,
                                     GSK_ERROR_PREMATURE_EOF,
                                     "premature eof in compressed-data file");
       g_free (firstkey);
@@ -801,6 +982,7 @@ flat__get_reader_state (GskTableFile             *file,
                         guint8                  **state_data_out,
                         GError                  **error)
 {
+  FlatFileReader *freader = (FlatFileReader *) reader;
   /* state is:
        1 byte state -- 0=in progress;  1=eof
      if state==0:
@@ -819,7 +1001,21 @@ flat__get_reader_state (GskTableFile             *file,
       (*state_data_out)[0] = 1;
       return TRUE;
     }
-  ...
+  *state_len_out = 1 + 8 + 8 + 8 + 4;
+  data = *state_data_out = g_malloc (*state_len_out);
+  data[0] = 0;
+  for (f = 0; f < 3; f++)
+    {
+      guint64 tmp64 = FTELLO (freader->fps[f]);
+      guint64 tmp_le = GUINT64_TO_LE (tmp64);
+      memcpy (data + 1 + 8 * f, &tmp_le, 8);
+    }
+  {
+    guint32 tmp32 = freader->record_index;
+    guint32 tmp32_le = GUINT32_TO_LE (tmp32);
+    memcpy (data + 1 + 8*3, &tmp32_le, 4);
+  }
+  return TRUE;
 }
 
 static GskTableReader *
@@ -836,23 +1032,37 @@ flat__recreate_reader  (GskTableFile             *file,
     {
     case 0:             /* in progress */
       freader = reader_open_fps (file, dir, error);
+      if (freader == NULL)
+        return NULL;
 
       /* seek */
-      ...
+      for (f = 0; f < 3; f++)
+        {
+          guint64 tmp_le, tmp;
+          memcpy (&tmp_le, state_data + 1 + 8*f, 8);
+          tmp = GUINT64_FROM_LE (tmp_le);
+          if (FSEEKO (freader->fps[f], tmp, SEEK_SET) < 0)
+            {
+              g_set_error (error, GSK_G_ERROR_DOMAIN,
+                           GSK_ERROR_FILE_SEEK,
+                           "error seeking %s file: %s",
+                           file_extensions[f], g_strerror (errno));
+              for (tmp_f = 0; tmp_f < N_FILES; tmp_f++)
+                fclose (freader->fps[tmp_f]);
+              g_slice_free (FlatFileReader, freader);
+              return NULL;
+            }
+        }
 
-      uncompress_chunk (freader);
-      freader->record_index = ...;
-      init_base_reader_record (freader);
+      read_and_uncompress_chunk (freader);
 
       if (freader->base_reader.eof
        || freader->base_reader.error != NULL)
         {
           if (freader->base_reader.error)
-            {
-              ...
-            }
+            g_propagate_error (error, freader->base_reader.error);
           else
-            g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,
+            g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_PREMATURE_EOF,
                          "unexpected eof restoring file reader");
           for (f = 0; f < N_FILES; f++)
@@ -860,13 +1070,30 @@ flat__recreate_reader  (GskTableFile             *file,
           g_slice_free (FlatFileReader, freader);
           return NULL;
         }
+      {
+        guint32 tmp_le;
+        memcpy (&tmp_le, state_data + 1 + 3*8, 4);
+        freader->record_index = GUINT32_FROM_LE (tmp_le);
+        if (freader->record_index >= freader->cache_entry->n_records)
+          {
+            g_set_error (error, GSK_G_ERROR_DOMAIN,
+                         GSK_ERROR_PREMATURE_EOF,
+                         "record index out-of-bounds in state-data");
+            for (f = 0; f < N_FILES; f++)
+              fclose (freader->fps[f]);
+            g_slice_free (FlatFileReader, freader);
+            return NULL;
+          }
+      }
+      init_base_reader_record (freader);
+
       break;
     case 1:             /* eof */
       g_assert (state_len == 1);
       freader = reader_open_eof ();
       break;
     default:
-      g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,
+      g_set_error (error, GSK_G_ERROR_DOMAIN,
                    GSK_ERROR_PARSE,
                    "unknown state for reader");
       return NULL;
@@ -894,7 +1121,7 @@ flat__destroy_file     (GskTableFile             *file,
   else if (ffile->has_readers)
     {
       for (f = 0; f < N_FILES; f++)
-        mmap_reader_clear (builder->readers + f);
+        mmap_reader_clear (ffile->readers + f);
     }
   for (f = 0; f < N_FILES; f++)
     close (ffile->fds[f]);

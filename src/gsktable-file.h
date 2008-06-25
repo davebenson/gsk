@@ -6,6 +6,7 @@ typedef struct _GskTableFileFactory GskTableFileFactory;
 typedef struct _GskTableFile GskTableFile;
 typedef struct _GskTableFileHints GskTableFileHints;
 
+
 struct _GskTableFileHints
 {
   guint64 max_entries;
@@ -25,6 +26,7 @@ struct _GskTableFileHints
 struct _GskTableFile
 {
   GskTableFileFactory *factory;
+  guint64 id;
 };
 
 typedef struct _GskTableFileQuery GskTableFileQuery;

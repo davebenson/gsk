@@ -7,6 +7,8 @@
  */
 typedef struct _GskTableReader GskTableReader;
 
+#include "gskmempool.h"
+
 typedef struct
 {
   guint len;
@@ -50,6 +52,7 @@ typedef GskTableMergeResult (*GskTableMergeFuncNoLen) (const guint8 *key_data,
                                                        GByteArray   *pad,
                                                        gpointer      user_data);
 
+typedef struct _GskTableOptions GskTableOptions;
 struct _GskTableOptions
 {
   GskTableMergeFunc merge;
@@ -75,14 +78,16 @@ typedef enum
   GSK_TABLE_MAY_CREATE = (1<<1)
 } GskTableNewFlags;
 
+typedef struct _GskTable GskTable;
+
 GskTable *  gsk_table_new         (const char            *dir,
                                    const GskTableOptions *options,
                                    GskTableNewFlags       flags,
 	          	           GError               **error);
-GskTable *  gsk_table_new_generic (GskTableFuncs         *funcs,
-                                   gpointer               impl_data,
-                                   GDestroyNotify         impl_destroy,
-                                   const GskTableOptions *options);
+//GskTable *  gsk_table_new_generic (GskTableFuncs         *funcs,
+//                                   gpointer               impl_data,
+//                                   GDestroyNotify         impl_destroy,
+//                                   const GskTableOptions *options);
 void        gsk_table_add         (GskTable              *table,
                                    guint                  key_len,
 	          	           const guint8          *key_data,
