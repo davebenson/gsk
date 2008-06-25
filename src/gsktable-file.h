@@ -27,6 +27,15 @@ struct _GskTableFile
   GskTableFileFactory *factory;
 };
 
+typedef struct _GskTableFileQuery GskTableFileQuery;
+struct _GskTableFileQuery
+{
+  gint (*compare) (guint         test_key_len,
+                   const guint8 *test_key,
+                   gpointer      compare_data);
+  gpointer compare_data;
+};
+
 /* Copy "dir" as passed into create_file(), open_building_file(), etc.
    This isn't necessary b/c the "dir" is always a member of the
    GskTable, and therefore will always be destroyed AFTER the files. */
@@ -39,6 +48,13 @@ struct _GskTableFile
 # define GSK_TABLE_FILE_DIR_MAYBE_STRDUP(dir) dir
 # define GSK_TABLE_FILE_DIR_MAYBE_FREE(dir)   do {} while(0)
 #endif
+
+typedef enum
+{
+  GSK_TABLE_FEED_ENTRY_WANT_MORE,
+  GSK_TABLE_FEED_ENTRY_SUCCESS,
+  GSK_TABLE_FEED_ENTRY_ERROR
+} GskTableFeedEntryResult;
 
 struct _GskTableFileFactory
 {
@@ -60,7 +76,8 @@ struct _GskTableFileFactory
 			                 GError                  **error);
 
   /* methods for a file which is being built */
-  gboolean          (*feed_entry)      (GskTableFile             *file,
+  GskTableFeedEntryResult
+                    (*feed_entry)      (GskTableFile             *file,
                                          guint                     key_len,
                                          const guint8             *key_data,
                                          guint                     value_len,
@@ -69,9 +86,6 @@ struct _GskTableFileFactory
   gboolean          (*done_feeding)     (GskTableFile             *file,
                                          gboolean                 *ready_out,
 					 GError                  **error);
-  /* Is the file in a state where it can be checkpointed?
-     If you cannot get the build state, feed_entry() until you can. */
-  gboolean          (*can_get_build_state)(GskTableFile           *file);
   gboolean          (*get_build_state)  (GskTableFile             *file,
                                          guint                    *state_len_out,
                                          guint8                  **state_data_out,
@@ -81,7 +95,8 @@ struct _GskTableFileFactory
 					 GError                  **error);
   void              (*release_build_data)(GskTableFile            *file);
 
-  /* methods for a file which has been constructed */
+  /* methods for a file which has been constructed;
+     some file types can be queried before they are constructed */
   gboolean          (*query_file)       (GskTableFile             *file,
                                          GskTableFileQuery        *query_inout,
 					 GError                  **error);
@@ -100,6 +115,7 @@ struct _GskTableFileFactory
 
   /* destroying files and factories */
   gboolean          (*destroy_file)     (GskTableFile             *file,
+                                         const char               *dir,
                                          gboolean                  erase,
 					 GError                  **error);
   void              (*destroy_factory)  (GskTableFileFactory      *factory);
@@ -123,8 +139,8 @@ GskTableFileFactory *gsk_table_file_factory_new_btree (void);
   ((factory)->build_file ((factory), (ready_out), (error))
 #define gsk_table_file_factory_query_file(factory, query_inout, error) \
   ((factory)->query_file ((factory), (query_inout), (error))
-#define gsk_table_file_factory_destroy_file(factory, erase, error) \
-  ((factory)->destroy_file ((factory), (erase), (error))
+#define gsk_table_file_factory_destroy_file(factory, dir, erase, error) \
+  ((factory)->destroy_file ((factory), (dir), (erase), (error))
 #define gsk_table_file_factory_destroy(factory) \
   (factory)->destroy_factory (factory)
 

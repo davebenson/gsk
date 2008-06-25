@@ -46,9 +46,13 @@ struct _GskTableMmapWriter
   guint pos;                        /* offset within 'mmapped' */
 };
 
-void               gsk_table_mmap_writer_init  (GskTableMmapWriter *writer,
+gboolean           gsk_table_mmap_writer_init  (GskTableMmapWriter *writer,
                                                 int                 fd,
-                                                guint64             file_size);
+                                                GError            **error);
+gboolean           gsk_table_mmap_writer_init_at(GskTableMmapWriter *writer,
+                                                int                 fd,
+                                                guint64             offset,
+                                                GError            **error);
 G_INLINE_FUNC gboolean gsk_table_mmap_writer_write(GskTableMmapWriter *writer,
                                                    guint               len,
                                                    const guint8       *data,

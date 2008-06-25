@@ -79,6 +79,10 @@ GskTable *  gsk_table_new         (const char            *dir,
                                    const GskTableOptions *options,
                                    GskTableNewFlags       flags,
 	          	           GError               **error);
+GskTable *  gsk_table_new_generic (GskTableFuncs         *funcs,
+                                   gpointer               impl_data,
+                                   GDestroyNotify         impl_destroy,
+                                   const GskTableOptions *options);
 void        gsk_table_add         (GskTable              *table,
                                    guint                  key_len,
 	          	           const guint8          *key_data,
