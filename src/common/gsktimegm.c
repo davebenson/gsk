@@ -34,7 +34,8 @@ gsk_timegm(const struct tm *t)
   guint days_since_epoch, secs_since_midnight;
 
   /* we need to find the number of leap years between 1970
-     and this year, including ly_year itself */
+     and ly_year inclusive.  Therefore, the current year
+     is included only if the date falls after Feb 28. */
   guint ly_year = year - (before_leap ? 1 : 0);
 
   /* Number of leap years before the date in question, since epoch.
