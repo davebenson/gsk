@@ -28,6 +28,9 @@ G_INLINE_FUNC guint8 *gsk_table_buffer_append  (GskTableBuffer *buffer,
 
 G_INLINE_FUNC void    gsk_table_buffer_clear   (GskTableBuffer *buffer);
 
+G_INLINE_FUNC void    gsk_table_buffer_ensure_extra (GskTableBuffer *buffer,
+                                                     guint           extra_bytes);
+
 typedef enum
 {
   GSK_TABLE_MERGE_RETURN_A,

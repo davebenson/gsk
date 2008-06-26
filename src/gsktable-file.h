@@ -36,6 +36,9 @@ struct _GskTableFileQuery
                    const guint8 *test_key,
                    gpointer      compare_data);
   gpointer compare_data;
+
+  gboolean found;
+  GskTableBuffer value;
 };
 
 /* Copy "dir" as passed into create_file(), open_building_file(), etc.

@@ -1,3 +1,6 @@
+/* for pread() */
+#define _XOPEN_SOURCE 500
+
 #include <string.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -40,6 +43,7 @@ struct _FlatFactory
   guint n_recycled_builders;
   guint max_recycled_builders;
   FlatFileBuilder *recycled_builders;
+  guint max_cache_entries;
 };
 
 
@@ -83,6 +87,15 @@ struct _FlatFileBuilder
   FlatFileBuilder *next_recycled_builder;
 };
 
+typedef struct _CacheEntry CacheEntry;
+struct _CacheEntry
+{
+  CacheEntry *next;
+  guint n_records;
+  guint64 index;
+  CacheEntryRecord records[1];          /* must be last! */
+};
+
 struct _FlatFile
 {
   GskTableFile base_file;
@@ -92,9 +105,71 @@ struct _FlatFile
   gboolean has_readers;         /* builder and has_readers are exclusive: they
                                    cannot be set at the same time */
   MmapReader readers[N_FILES];
+
+  guint cache_entries_len;
+  CacheEntry **cache_entries;
+  guint cache_entries_count;
+  guint max_cache_entries;
 };
 
 
+static CacheEntryRecord *
+cache_entry_force (FlatFile  *ffile,
+                   guint64    index,
+                   IndexEntry *index_entry,
+                   guint8     *firstkey_data,
+                   GError    **error)
+{
+  guint bin;
+  if (ffile->cache_entries_len == 0)
+    {
+      ffile->cache_entries_len = g_spaced_primes_closest (ffile->max_cache_entries);
+      ffile->cache_entries = g_new0 (CacheEntry *, ffile->cache_entries_len);
+    }
+  bin = (guint) index % ffile->cache_entries_len;
+  for (entry = ffile->cache_entries[bin]; entry != NULL; entry = entry->next)
+    if (entry->index == index)
+      return entry;
+
+  /* possibly evict old cache entry */
+  if (ffile->cache_entries_count == ffile->max_cache_entries)
+    {
+      CacheEntry *evicted = ffile->least_recently_used;
+      guint bin = (guint) evicted->id % ffile->cache_entries_len;
+      GSK_LIST_REMOVE_LAST (GET_LRU_LIST (ffile));
+
+      /* remove from hash-table */
+      ...
+
+      ffile->cache_entries_count--;
+      g_free (evicted);
+    }
+
+  /* create new entry */
+  compressed_data = g_malloc (index_entry->compressed_data_len);
+  if (!do_pread (ffile, FILE_DATA,
+                 index_entry->compressed_data_offset,
+                 index_entry->compressed_data_len,
+                 compressed_data, &error))
+    {
+      g_free (compressed_data);
+      return NULL;
+    }
+
+  /* deserialize the cache entry */
+  entry = cache_entry_deserialize (index_entry.firstkey_len, firstkey_data,
+                                   index_entry->compressed_data_len,
+                                   compressed_data,
+                                   &freader->base_reader.error);
+  entry->next = ffile->cache_entries[bin];
+  ffile->cache_entries[bin] = entry;
+  ffile->cache_entries_count++;
+  g_free (compressed_data);
+
+  GSK_LIST_PREPEND (GET_LRU_LIST (ffile), entry);
+
+  return entry;
+}
 
 /* --- mmap reading implementation --- */
 static gboolean
@@ -133,6 +208,39 @@ mmap_reader_init (MmapReader     *reader,
       gsk_table_buffer_init (&reader->tmp_buf);
     }
   return TRUE;
+}
+
+static gboolean
+mmap_reader_pread (MmapReader     *reader,
+                   guint64         offset,
+                   guint           length,
+                   guint8         *data_out,
+                   GError        **error)
+{
+  g_assert (offset + length <= reader->file_size);
+  if (reader->mmapped)
+    {
+      memcpy (data_out, reader->mmapped + (gsize)offset, length);
+      return TRUE;
+    }
+  else
+    {
+      gssize rv = pread (reader->fd, data_out, length, offset);
+      if (rv < 0)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_PREAD,
+                       "error calling pread(): %s",
+                       g_strerror (errno));
+          return FALSE;
+        }
+      else if (rv < (gssize) length)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PREMATURE_EOF,
+                       "premature end-of-file calling pread()");
+          return FALSE;
+        }
+      return TRUE;
+    }
 }
 
 static void
@@ -274,7 +382,54 @@ mmap_writer_pread (MmapWriter   *writer,
                    guint8       *data_out,
                    GError      **error)
 {
-  ...
+  g_assert (offset + length <= writer->mmap_offset + writer->cur_offset);
+  if (offset + length <= writer->mmap_offset)
+    {
+      /* pure pread() */
+      gssize rv = pread (writer->fd, data_out, length, offset);
+      if (rv < 0)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_PREAD,
+                       "error calling pread(): %s",
+                       g_strerror (errno));
+          return FALSE;
+        }
+      else if (rv < (gssize) length)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PREMATURE_EOF,
+                       "premature end-of-file calling pread()");
+          return FALSE;
+        }
+      return TRUE;
+    }
+  else if (offset < writer->mmap_offset)
+    {
+      /* pread() + memcpy() */
+      guint pread_len = writer->mmap_offset - offset;
+      gssize rv = pread (writer->fd, data_out, pread_len, offset);
+      if (rv < 0)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_PREAD,
+                       "error calling pread(): %s",
+                       g_strerror (errno));
+          return FALSE;
+        }
+      else if (rv < (gssize) length)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PREMATURE_EOF,
+                       "premature end-of-file calling pread()");
+          return FALSE;
+        }
+      memcpy (data_out + pread_len, writer->mmapped, length - pread_len);
+      return TRUE;
+    }
+  else
+    {
+      /* pure memcpy() */
+      guint buf_offset = offset - writer->mmap_offset;
+      memcpy (data_out, writer->mmapped + buf_offset, length);
+      return TRUE;
+    }
 }
 
 static void
@@ -497,6 +652,10 @@ flat__create_file      (GskTableFileFactory      *factory,
 
   rv->builder = flat_file_builder_new (ffactory);
   rv->has_readers = FALSE;
+  rv->cache_entries_len = 0;
+  rv->cache_entries = NULL;
+  rv->cache_entries_count = 0;
+  rv->max_cache_entries = ffactory->max_cache_entries;
   return &rv->base_file;
 }
 
@@ -545,6 +704,11 @@ flat__open_building_file(GskTableFileFactory     *factory,
   }
   rv->has_readers = FALSE;
 
+  rv->cache_entries_len = 0;
+  rv->cache_entries = NULL;
+  rv->cache_entries_count = 0;
+  rv->max_cache_entries = ffactory->max_cache_entries;
+
   return &rv->base_file;
 }
 
@@ -580,6 +744,11 @@ flat__open_file        (GskTableFileFactory      *factory,
     }
   rv->has_readers = TRUE;
 
+  rv->cache_entries_len = 0;
+  rv->cache_entries = NULL;
+  rv->cache_entries_count = 0;
+  rv->max_cache_entries = ffactory->max_cache_entries;
+
   return &rv->base_file;
 }
 
@@ -589,19 +758,48 @@ do_compress (FlatFileBuilder *builder,
              const guint8    *data)
 {
   /* ensure there is enough data at the end of 'compressed' */
-  ...
+  gsk_table_buffer_ensure_extra (&builder->compressed, len / 2);
 
   /* initialize input and output buffers */
-  ...
+  builder->compressor.next_in = (Bytef *) data;
+  builder->compressor.avail_in = len;
+  builder->compressor.next_out = builder->compressed.data
+                               + builder->compressed.len;
+  builder->compressor.avail_out = builder->compressed.alloced
+                                - builder->compressed.len;
 
   /* deflate until all input consumed */
-  ...
+  while (builder->compressor.avail_in > 0)
+    {
+      int zrv = deflate (&builder->compressor, 0);
+      g_assert (zrv == Z_OK);
+      builder->compressed.len = (guint8 *) builder->compressor.next_out
+                              - (guint8 *) builder->compressed.data;
+
+      if (builder->compressor.avail_out == 0
+       && builder->compressor.avail_in > 0)
+        gsk_table_buffer_ensure_extra (&builder->compressed,
+                                       builder->compressor.avail_in / 2 + 16);
+    }
 }
 
 static void
 do_compress_flush (FlatFileBuilder *builder)
 {
-  ...
+  /* 6 bytes is sufficient according to the zlib header file docs;
+     add 10 for good measure. */
+  gsk_table_buffer_ensure_extra (&builder->compressed, 6 + 10);
+  builder->compressor.next_in = NULL;
+  builder->compressor.avail_in = 0;
+  builder->compressor.next_out = builder->compressed.data
+                               + builder->compressed.len;
+  builder->compressor.avail_out = builder->compressed.alloced
+                                - builder->compressed.len;
+  if (deflate (&builder->compressor, Z_SYNC_FLUSH) != Z_OK)
+    g_assert_not_reached ();
+  g_assert (builder->compressor.avail_out > 0);
+  builder->compressed.len = builder->compressor.next_out
+                          - builder->compressed.data;
 }
 
 static guint
@@ -861,7 +1059,7 @@ do_pread (FlatFile *ffile,
           WhichFile f,
           guint64   offset,
           guint     length,
-          const guint8 *ptr_out,
+          guint8    *ptr_out,
           GError   **error)
 {
   if (ffile->builder)
@@ -885,7 +1083,7 @@ flat__query_file       (GskTableFile             *file,
   FlatFile *ffile = (FlatFile *) file;
   guint64 n_index_records, first, n;
   if (ffile->builder != NULL)
-    n_index_records = mmap_writer_offset (ffile->builder->writers[FILE_INDEX])
+    n_index_records = mmap_writer_offset (&ffile->builder->writers[FILE_INDEX])
                     / SIZEOF_INDEX_ENTRY;
   else if (ffile->has_readers)
     n_index_records = ffile->readers[FILE_INDEX].file_size
@@ -905,22 +1103,32 @@ flat__query_file       (GskTableFile             *file,
     }
   first = 0;
   n = n_index_records;
+  GskTableBuffer firstkey;
+  gsk_table_buffer_init (&firstkey);
   while (n > 1)
     {
+      guint8 index_entry_data[SIZEOF_INDEX_ENTRY];
       guint64 mid = first + n / 2;
+      IndexEntry index_entry;
+      gint compare_rv;
 
       /* read index entry */
-      if (!do_pread (ffile, FILE_INDEX, mid * SIZEOF_INDEX_ENTRY, SIZEOF_INDEX_ENTRY, &index_entry_data, error))
+      if (!do_pread (ffile, FILE_INDEX, mid * SIZEOF_INDEX_ENTRY, SIZEOF_INDEX_ENTRY, index_entry_data, error))
         return FALSE;
       index_entry_deserialize (index_entry_data, &index_entry);
 
       /* read key */
+      gsk_table_buffer_set_len (&firstkey, index_entry.firstkeys_len);
       if (!do_pread (ffile, FILE_FIRSTKEYS, index_entry.firstkeys_offset, index_entry.firstkeys_len,
-                     &firstkeys_data, error))
-        return FALSE;
+                     firstkey.data, error))
+        {
+          gsk_table_buffer_clear (&firstkey);
+          return FALSE;
+        }
 
       /* invoke comparator */
-      compare_rv = query_inout->compare (index_entry.firstkeys_len, firstkeys_data,
+      compare_rv = query_inout->compare (index_entry.firstkeys_len,
+                                         firstkey.data,
                                          query_inout->compare_data);
 
       if (compare_rv < 0)
@@ -935,13 +1143,19 @@ flat__query_file       (GskTableFile             *file,
       else
         {
           CacheEntryRecord *record;
-          cache_entry = cache_entry_force (ffile, mid, error);
+          cache_entry = cache_entry_force (ffile, mid,
+                                           &index_entry, firstkey.data,
+                                           error);
           if (cache_entry == NULL)
-            return FALSE;
+            {
+              gsk_table_buffer_clear (&firstkey);
+              return FALSE;
+            }
           record = cache_entry->records + 0;
           memcpy (gsk_table_buffer_set_len (&query_inout->value, record->value_len),
                   record->value_data, record->value_len);
           query_inout->found = TRUE;
+          gsk_table_buffer_clear (&firstkey);
           return TRUE;
         }
     }
@@ -949,7 +1163,10 @@ flat__query_file       (GskTableFile             *file,
   /* uncompress block, cache */
   cache_entry = cache_entry_force (ffile, first, error);
   if (cache_entry == NULL)
-    return FALSE;
+    {
+      gsk_table_buffer_clear (&firstkey);
+      return FALSE;
+    }
 
   /* bsearch the uncompressed block */
   {
