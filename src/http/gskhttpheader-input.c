@@ -1361,7 +1361,6 @@ content_type_parse_token(const char **start_out,
                          const char    **pstr)
 {
   const char *str = *pstr;
-  const char *start;
   GSK_SKIP_WHITESPACE (str);
   *start_out = str;
   while (*str != 0
@@ -1377,7 +1376,6 @@ gboolean gsk_http_content_type_parse (const char *content_type_header,
                                       GskHttpContentTypeInfo *out,
                                       GError                **error)
 {
-  GSList *addl_list;
   const char *value = content_type_header;
   /* TYPE / SUBTYPE [;charset="charset][...] */
   GSK_SKIP_WHITESPACE (value);
@@ -1471,7 +1469,6 @@ gboolean gsk_http_content_type_parse (const char *content_type_header,
       else
 	{
 	  const char *end = strchr (value, ';');
-	  char *tmp;
 	  if (end == NULL)
 	    end = strchr (value, 0);
           GSK_SKIP_WHITESPACE (value);
@@ -1658,7 +1655,6 @@ gsk_http_authenticate_parse (const char *value)
     {
       const char *key_start = at;
       const char *key_end = key_start;
-      guint key_len;
       GSK_SKIP_CHAR_TYPE (key_end, IS_ATTR_NAME_CHAR);
       at = key_end;
       GSK_SKIP_WHITESPACE (at);
@@ -1767,7 +1763,6 @@ gsk_http_authorization_parse (const char *value)
     {
       const char *key_start = at;
       const char *key_end = key_start;
-      guint key_len;
       GSK_SKIP_CHAR_TYPE (key_end, IS_ATTR_NAME_CHAR);
       at = key_end;
       GSK_SKIP_WHITESPACE (at);
