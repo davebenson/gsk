@@ -19,9 +19,7 @@ typedef struct
   guint alloced;
 } GskTableBuffer;
 
-#define GSK_TABLE_BUFFER_INIT   { 0, NULL, 0 }
-G_INLINE_FUNC void    gsk_table_buffer_init    (GskTableBuffer *buffer);
-
+/* --- public table buffer api -- needed for defining merge functions --- */
 /* calls realloc so beginning of buffer is preserved */
 G_INLINE_FUNC guint8 *gsk_table_buffer_set_len (GskTableBuffer *buffer,
                                                 guint           len);
@@ -30,12 +28,6 @@ G_INLINE_FUNC guint8 *gsk_table_buffer_set_len (GskTableBuffer *buffer,
 G_INLINE_FUNC guint8 *gsk_table_buffer_append  (GskTableBuffer *buffer,
                                                 guint           len);
 
-G_INLINE_FUNC void    gsk_table_buffer_clear   (GskTableBuffer *buffer);
-
-G_INLINE_FUNC void gsk_table_buffer_ensure_min_size (GskTableBuffer *buffer,
-                                                     guint           min_size);
-G_INLINE_FUNC void    gsk_table_buffer_ensure_extra (GskTableBuffer *buffer,
-                                                     guint           extra_bytes);
 
 typedef enum
 {
@@ -64,14 +56,17 @@ typedef GskTableMergeResult (*GskTableMergeFuncNoLen) (const guint8 *key_data,
 typedef struct _GskTableOptions GskTableOptions;
 struct _GskTableOptions
 {
+  /* compare configuration */
+  GskTableCompareFunc compare;
+  GskTableCompareFuncNoLen compare_no_len;
+
+  /* merging configuration */
   GskTableMergeFunc merge;
+  GskTableMergeFuncNoLen merge_no_len;
+
+  /* user data */
   gpointer user_data;
   GDestroyNotify destroy_user_data;
-
-  /* You may supply the size range for optimizations.
-     you must the same parameters between invocations. */
-  guint min_key_size, max_key_size;
-  guint min_value_size, max_value_size;
 
   /* tunables */
   gsize max_in_memory_entries;
@@ -89,14 +84,11 @@ typedef enum
 
 typedef struct _GskTable GskTable;
 
+/* NOTE: options will be ignored if the table already exists. */
 GskTable *  gsk_table_new         (const char            *dir,
                                    const GskTableOptions *options,
                                    GskTableNewFlags       flags,
 	          	           GError               **error);
-//GskTable *  gsk_table_new_generic (GskTableFuncs         *funcs,
-//                                   gpointer               impl_data,
-//                                   GDestroyNotify         impl_destroy,
-//                                   const GskTableOptions *options);
 void        gsk_table_add         (GskTable              *table,
                                    guint                  key_len,
 	          	           const guint8          *key_data,
@@ -148,6 +140,26 @@ void     gsk_table_reader_destroy (GskTableReader *reader);
 
 
 
+
+
+/* --- protected parts of the table-buffer api --- */
+/* this stuff is used throughout the implementation:
+   we also cavalierly access 'len', 'data' and 'alloced'
+   and assume that they have the expected properties.
+   we do not modify 'data' or 'alloced' and we always
+   ensure that len < alloced. */
+
+#define GSK_TABLE_BUFFER_INIT   { 0, NULL, 0 }
+G_INLINE_FUNC void    gsk_table_buffer_init         (GskTableBuffer *buffer);
+
+G_INLINE_FUNC void    gsk_table_buffer_clear        (GskTableBuffer *buffer);
+
+G_INLINE_FUNC void    gsk_table_buffer_ensure_size  (GskTableBuffer *buffer,
+                                                     guint           min_size);
+G_INLINE_FUNC void    gsk_table_buffer_ensure_extra (GskTableBuffer *buffer,
+                                                     guint           addl_size);
+
+
 #if defined (G_CAN_INLINE) || defined (__GSK_DEFINE_INLINES__)
 G_INLINE_FUNC void    gsk_table_buffer_init    (GskTableBuffer *buffer)
 {
@@ -158,8 +170,8 @@ G_INLINE_FUNC void    gsk_table_buffer_init    (GskTableBuffer *buffer)
 
 /* calls realloc so beginning of buffer is preserved */
 G_INLINE_FUNC void
-gsk_table_buffer_ensure_min_size (GskTableBuffer *buffer,
-                                  guint           min_size)
+gsk_table_buffer_ensure_size (GskTableBuffer *buffer,
+                              guint           min_size)
 {
   if (G_UNLIKELY (buffer->alloced < min_size))
     {
@@ -175,7 +187,7 @@ G_INLINE_FUNC guint8 *
 gsk_table_buffer_set_len (GskTableBuffer *buffer,
                           guint           len)
 {
-  gsk_table_buffer_ensure_min_size (buffer, len);
+  gsk_table_buffer_ensure_size (buffer, len);
   buffer->len = len;
   return buffer->data;
 }
@@ -199,7 +211,7 @@ G_INLINE_FUNC void
 gsk_table_buffer_ensure_extra (GskTableBuffer *buffer,
                                guint           extra_bytes)
 {
-  gsk_table_buffer_ensure_min_size (buffer, buffer->len + extra_bytes);
+  gsk_table_buffer_ensure_size (buffer, buffer->len + extra_bytes);
 }
 #endif
 

@@ -104,16 +104,29 @@ struct _GskTable
 GskTable *
 gsk_table_new         (const char            *dir,
                        const GskTableOptions *options,
+                       GskTableNewFlags       new_flags,
                        GError               **error)
 {
   gboolean did_mkdir;
   GskTable *table;
   if (g_file_test (dir, G_FILE_TEST_IS_DIR))
     {
+      if ((new_flags & GSK_TABLE_MAY_EXIST) == 0)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_EXISTS,
+                       "table dir %s already exists", dir);
+          return NULL;
+        }
       did_mkdir = FALSE;
     }
   else
     {
+      if ((new_flags & GSK_TABLE_MAY_CREATE) == 0)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_EXISTS,
+                       "table dir %s already exists", dir);
+          return NULL;
+        }
       did_mkdir = TRUE;
       if (!gsk_mkdir_p (dir, 0755, error))
         return FALSE;
@@ -316,4 +329,3 @@ gsk_table_destroy     (GskTable              *table)
 {
   ...
 }
-
