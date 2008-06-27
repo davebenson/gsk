@@ -20,27 +20,10 @@ struct _TableUserData
   GDestroyNotify destroy;
 };
 
-struct _Prefix
-{
-  guint prefix_len;
-  guint8 *prefix;
-  guint64 index_byte_offset;
-  guint64 index_entry_count;
-  guint index_data_length;
-  /* size of each index entry is
-   *      heap_offset_size
-   *    + key_size_size
-   *    + value_size_size
-   *    + index_data_length
-   */
-};
-
 struct _MergeTask
 {
   gboolean is_started;
   FileInfo *inputs[2];
-
-  guint64 n_entries;    /* sum of inputs[i]->n_entries */
 
   union
   {
@@ -64,26 +47,10 @@ struct _MergeTask
 
 struct _FileInfo
 {
-  guint64 start_record, n_records;
-  guint64 file_id;
-
-  guint8 heap_offset_size;
-  guint8 key_size_size;         /* 0 for fixed-length keys */
-  guint8 value_size_size;       /* 0 for fixed-length values */
-
-  guint n_prefixes;
-  Prefix *prefixes;
-  guint8 *index_file;
-  gint index_fd;
-  guint8 *heap_file;
-  gint heap_fd;
-
-  /* point to the jobs ahead and behind;
-     merges[0] will be NULL if this is the first 
-     file, or if merges[1]->started.
-     merges[1] will be NULL if this is the last
-     file, or if merges[0]->started. */
-  MergeTask *merge_tasks[2];
+  GskTableFile *file;
+  guint ref_count;
+  MergeTask *prev_task;         /* possible merge task with prior file */
+  MergeTask *next_task;         /* possible merge task with next file */
 };
 
 struct _TreeNode

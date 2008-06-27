@@ -1,3 +1,6 @@
+#ifndef __GSK_TABLE_H_
+#define __GSK_TABLE_H_
+
 /* GskTable.
  *
  * A efficient on-disk table, meaning a mapping from an
@@ -16,6 +19,7 @@ typedef struct
   guint alloced;
 } GskTableBuffer;
 
+#define GSK_TABLE_BUFFER_INIT   { 0, NULL, 0 }
 G_INLINE_FUNC void    gsk_table_buffer_init    (GskTableBuffer *buffer);
 
 /* calls realloc so beginning of buffer is preserved */
@@ -28,6 +32,8 @@ G_INLINE_FUNC guint8 *gsk_table_buffer_append  (GskTableBuffer *buffer,
 
 G_INLINE_FUNC void    gsk_table_buffer_clear   (GskTableBuffer *buffer);
 
+G_INLINE_FUNC void gsk_table_buffer_ensure_min_size (GskTableBuffer *buffer,
+                                                     guint           min_size);
 G_INLINE_FUNC void    gsk_table_buffer_ensure_extra (GskTableBuffer *buffer,
                                                      guint           extra_bytes);
 
@@ -114,7 +120,7 @@ struct _GskTableReader
   guint value_len;
   const guint8 *value_data;
 
-  gboolean (*advance) (GskTableReader *reader);
+  void     (*advance) (GskTableReader *reader);
   void     (*destroy) (GskTableReader *reader);
 };
 typedef enum
@@ -137,5 +143,64 @@ GskTableReader *gsk_table_make_reader_with_bounds (GskTable *table,
                                      GSK_TABLE_BOUND_NONE, 0, NULL, \
                                      error)
 
-gboolean gsk_table_reader_advance (GskTableReader *reader);
+void     gsk_table_reader_advance (GskTableReader *reader);
 void     gsk_table_reader_destroy (GskTableReader *reader);
+
+
+
+#if defined (G_CAN_INLINE) || defined (__GSK_DEFINE_INLINES__)
+G_INLINE_FUNC void    gsk_table_buffer_init    (GskTableBuffer *buffer)
+{
+  buffer->len = 0;
+  buffer->data = NULL;
+  buffer->alloced = 0;
+}
+
+/* calls realloc so beginning of buffer is preserved */
+G_INLINE_FUNC void
+gsk_table_buffer_ensure_min_size (GskTableBuffer *buffer,
+                                  guint           min_size)
+{
+  if (G_UNLIKELY (buffer->alloced < min_size))
+    {
+      guint new_size = buffer->alloced ? buffer->alloced * 2 : 32;
+      while (new_size < min_size)
+        new_size += new_size;
+      buffer->data = g_realloc (buffer->data, new_size);
+      buffer->alloced = new_size;
+    }
+}
+
+G_INLINE_FUNC guint8 *
+gsk_table_buffer_set_len (GskTableBuffer *buffer,
+                          guint           len)
+{
+  gsk_table_buffer_ensure_min_size (buffer, len);
+  buffer->len = len;
+  return buffer->data;
+}
+
+/* returns pointer to new area in buffer */
+G_INLINE_FUNC guint8 *
+gsk_table_buffer_append  (GskTableBuffer *buffer,
+                          guint           len)
+{
+  guint old_len = buffer->len;
+  return gsk_table_buffer_set_len (buffer, old_len + len) + old_len;
+}
+
+G_INLINE_FUNC void
+gsk_table_buffer_clear   (GskTableBuffer *buffer)
+{
+  g_free (buffer->data);
+}
+
+G_INLINE_FUNC void
+gsk_table_buffer_ensure_extra (GskTableBuffer *buffer,
+                               guint           extra_bytes)
+{
+  gsk_table_buffer_ensure_min_size (buffer, buffer->len + extra_bytes);
+}
+#endif
+
+#endif

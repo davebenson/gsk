@@ -123,7 +123,7 @@ test_store_SOURCES = test-store.c testobject.c
 test_streamfd_guess_flags_SOURCES = test-streamfd-guess-flags.c
 test_url_SOURCES = test-url.c
 test_utils_SOURCES = test-utils.c
-test_zlib_stream_SOURCES = test-utils.c
+test_zlib_stream_SOURCES = test-zlib-stream.c
 test_stdio_rotation_SOURCES = test-stdio-rotation.c
 time_0_SOURCES = time-0.c
 

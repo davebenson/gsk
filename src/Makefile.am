@@ -86,6 +86,7 @@ gskfork.c \
 gskghelpers.c \
 gskhook.c \
 gskinit.c \
+gskinlines.c \
 gskio.c \
 gskipv4.c \
 gsklog.c \
@@ -120,6 +121,7 @@ gskstreamlistener.c \
 gskstreamlistenersocket.c \
 gskstreamtransferrequest.c \
 gskstreamwatchdog.c \
+gsktable-flat.c \
 gskthreadpool.c \
 gsktree.c \
 gsktypes.c \
@@ -154,3 +156,7 @@ gskerror.inc: $(srcdir)/gskerror.h
 # HACK
 missing-refs:
 	$(MAKE) all 2>&1 | grep 'undefined reference' | sed -e 's/.*`//;' -e "s/'.*//" | sort -u
+
+noinst_PROGRAMS = test-gsktable
+test_gsktable_SOURCES = test-gsktable.c
+test_gsktable_LDADD = libgsk-1.0.la

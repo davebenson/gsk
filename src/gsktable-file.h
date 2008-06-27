@@ -27,6 +27,7 @@ struct _GskTableFile
 {
   GskTableFileFactory *factory;
   guint64 id;
+  guint64 n_records;
 };
 
 typedef struct _GskTableFileQuery GskTableFileQuery;
@@ -40,6 +41,10 @@ struct _GskTableFileQuery
   gboolean found;
   GskTableBuffer value;
 };
+
+#define GSK_TABLE_FILE_QUERY_INIT  { NULL, NULL, FALSE, GSK_TABLE_BUFFER_INIT }
+
+G_INLINE_FUNC void    gsk_table_file_query_clear (GskTableFileQuery *query);
 
 /* Copy "dir" as passed into create_file(), open_building_file(), etc.
    This isn't necessary b/c the "dir" is always a member of the
@@ -106,6 +111,7 @@ struct _GskTableFileFactory
                                          GskTableFileQuery        *query_inout,
 					 GError                  **error);
   GskTableReader   *(*create_reader)    (GskTableFile             *file,
+                                         const char               *dir,
                                          GError                  **error);
   /* you must always be able to get reader state */
   gboolean          (*get_reader_state) (GskTableFile             *file,
@@ -114,6 +120,7 @@ struct _GskTableFileFactory
                                          guint8                  **state_data_out,
                                          GError                  **error);
   GskTableReader   *(*recreate_reader)  (GskTableFile             *file,
+                                         const char               *dir,
                                          guint                     state_len,
                                          const guint8             *state_data,
                                          GError                  **error);
@@ -136,16 +143,28 @@ GskTableFileFactory *gsk_table_file_factory_new_btree (void);
   ((factory)->create_file ((factory), (dir), (id), (hints), (error)))
 #define gsk_table_file_factory_open_file(factory, dir, id, error) \
   ((factory)->open_file ((factory), (dir), (id), (error)))
-#define gsk_table_file_factory_feed_entry(factory, key_len, key_data, value_len, value_data, error) \
-  ((factory)->feed_entry ((factory), key_len, key_data, value_len, value_data, error))
-#define gsk_table_file_factory_done_feeding(factory, ready_out, error) \
-  ((factory)->done_feeding ((factory), (ready_out), (error))
-#define gsk_table_file_factory_build_file(factory, ready_out, error) \
-  ((factory)->build_file ((factory), (ready_out), (error))
-#define gsk_table_file_factory_query_file(factory, query_inout, error) \
-  ((factory)->query_file ((factory), (query_inout), (error))
-#define gsk_table_file_factory_destroy_file(factory, dir, erase, error) \
-  ((factory)->destroy_file ((factory), (dir), (erase), (error))
+#define gsk_table_file_factory_open_building_file(factory, dir, id, state_len, state_data, error) \
+  ((factory)->open_building_file ((factory), (dir), (id), (state_len), (state_data), (error)))
+#define gsk_table_file_feed_entry(file, key_len, key_data, value_len, value_data, error) \
+  ((file)->factory->feed_entry ((file), key_len, key_data, value_len, value_data, error))
+#define gsk_table_file_get_build_state(file, state_len_out, state_data_out, error) \
+  ((file)->factory->get_build_state ((file), (state_len_out), (state_data_out), (error)))
+#define gsk_table_file_done_feeding(file, ready_out, error) \
+  ((file)->factory->done_feeding ((file), (ready_out), (error)))
+#define gsk_table_file_build_file(file, ready_out, error) \
+  ((file)->factory->build_file ((file), (ready_out), (error)))
+#define gsk_table_file_query(file, query_inout, error) \
+  ((file)->factory->query_file ((file), (query_inout), (error)))
+#define gsk_table_file_destroy(file, dir, erase, error) \
+  ((file)->factory->destroy_file ((file), (dir), (erase), (error)))
 #define gsk_table_file_factory_destroy(factory) \
   (factory)->destroy_factory (factory)
+
+#if defined (G_CAN_INLINE) || defined (__GSK_DEFINE_INLINES__)
+G_INLINE_FUNC void    gsk_table_file_query_clear (GskTableFileQuery *query)
+{
+  gsk_table_buffer_clear (&query->value);
+}
+#endif
+
 
