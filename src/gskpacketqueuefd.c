@@ -7,6 +7,7 @@
 #include "gskpacketqueuefd.h"
 #include "gskmacros.h"
 #include "gskutils.h"
+#include "gskghelpers.h"
 #include "gsktypes.h"
 #include "gskfork.h"
 #include "gskerrno.h"
