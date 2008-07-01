@@ -73,13 +73,14 @@ struct _GskTable
 
   /* journalling */
   int journal_fd;
-  char *journal_new_fname;
-  char *journal_old_fname;
+  char *journal_cur_fname;
+  char *journal_tmp_fname;              /* actual file to write to */
   guint8 *journal_mmap;
 
   /* files */
   guint n_files;
   FileInfo **files;
+  guint files_alloced;          /* applies to 'files' and 'old_files' */
 
   /* old files */
   guint n_old_files;
@@ -100,6 +101,157 @@ struct _GskTable
   guint tmp_merge_value_alloced;
 };
 
+/* --- journal management --- */
+static gboolean read_journal (GskTable  *table,
+                              GError   **error);
+
+struct _SerializedFileInfo
+{
+  guint64 first_entry, n_entries, file_id;
+  gboolean is_building;
+  guint build_state_len;
+  guint8* build_state;
+};
+
+struct _SerializedMergeJob
+{
+  ...
+};
+
+static gboolean
+read_journal (GskTable  *table,
+              GError   **error)
+{
+  int fd = open (table->journal_new_fname, O_RDWR);
+  struct stat stat_buf;
+  guint i;
+  guint magic, n_files, n_merge_jobs;
+  guint32 tmp32_le;
+  guint64 tmp64_le;
+  if (fd < 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_OPEN,
+                   "error opening journal file %s: %s",
+                   table->journal_new_fname,
+                   g_strerror (errno));
+      return FALSE;
+    }
+  if (fstat (fd, &stat_buf) < 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_STAT,
+                   "error statting journal file %s: %s",
+                   table->journal_new_fname,
+                   g_strerror (errno));
+      close (fd);
+      return FALSE;
+    }
+  mmapped_journal = mmap (NULL, stat_buf.st_size, PROT_READ|PROT_WRITE,
+                          MAP_SHARED, fd, 0);
+  if (mmapped_journal == MAP_FAILED || mmapped_journal == NULL)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_MMAP,
+                   "error mmapping journal file %s: %s",
+                   table->journal_new_fname,
+                   g_strerror (errno));
+      close (fd);
+      return FALSE;
+    }
+
+  /* parse the journal */
+  at = mmapped_journal;
+
+  tmp32_le = * (guint32 *) at;
+  magic = GUINT32_FROM_LE (tmp32_le);
+  if (magic != JOURNAL_FILE_MAGIC)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                   "invalid magic on journal file (0x%08x, not 0x%08x)",
+                   magic, JOURNAL_FILE_MAGIC);
+      goto error_mmap_cleanup;
+    }
+  at += 4;
+
+  tmp32_le = * (guint32 *) at;
+  n_files = GUINT32_FROM_LE (tmp32_le);
+  at += 4;
+
+  tmp32_le = * (guint32 *) at;
+  n_merge_jobs = GUINT32_FROM_LE (tmp32_le);
+  at += 4;
+
+  tmp32_le = * (guint32 *) at;
+  at += 4;
+  if (tmp32_le != 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                   "reserved word in journal nonzero");
+      goto error_mmap_cleanup;
+    }
+
+  serialized_file_info = g_new (SerializedFileInfo, n_files);
+  serialized_merge_jobs = g_new (SerializedMergeJob, n_merge_jobs);
+
+  /* parse files */
+  for (i = 0; i < n_files; i++)
+    {
+      guint64 n_entries, file_id;
+      SerializedFileInfo *fi = serialized_file_info + i;
+
+      memcpy (&tmp64_le, at, 8);
+      fi->file_id = GUINT64_FROM_LE (tmp64_le);
+      at += 8;
+
+      memcpy (&tmp64_le, at, 8);
+      fi->first_input_entry = GUINT64_FROM_LE (tmp64_le);
+      at += 8;
+
+      memcpy (&tmp64_le, at, 8);
+      fi->n_input_entries = GUINT64_FROM_LE (tmp64_le);
+      at += 8;
+
+      memcpy (&tmp64_le, at, 8);
+      fi->n_entries = GUINT64_FROM_LE (tmp64_le);
+      at += 8;
+
+      switch (*at)
+        {
+        case 0:
+          /* file is done building-- no further state */
+          at++;
+          fi->is_building = FALSE;
+          break;
+        case 1:
+          at++;
+          fi->is_building = TRUE;
+          memcpy (&tmp32_le, at, 4);
+          fi->build_state_len = GUINT32_FROM_LE (tmp32_le);
+          at += 4;
+          file->build_state = at;
+          at += fi->build_state_len;
+          break;
+        default:
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                       "invalid byte reading FileInfo");
+          goto error_mmap_cleanup;
+        }
+    }
+
+  /* parse merge jobs */
+  ...
+
+  /* do consistency checks */
+  ...
+
+  /* there should be no holes */
+  ...
+}
+
+static gboolean
+reset_journal (GskTable   *table,
+               GError    **error)
+{
+  ...
+}
 
 GskTable *
 gsk_table_new         (const char            *dir,

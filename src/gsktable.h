@@ -32,11 +32,8 @@ G_INLINE_FUNC guint8 *gsk_table_buffer_append  (GskTableBuffer *buffer,
 typedef enum
 {
   GSK_TABLE_MERGE_RETURN_A,
-  GSK_TABLE_MERGE_RETURN_A_DONE,
   GSK_TABLE_MERGE_RETURN_B,
-  GSK_TABLE_MERGE_RETURN_B_DONE,
   GSK_TABLE_MERGE_SUCCESS,
-  GSK_TABLE_MERGE_SUCCESS_DONE,
   GSK_TABLE_MERGE_DROP,
 } GskTableMergeResult;
 typedef GskTableMergeResult (*GskTableMergeFunc) (guint         key_len,
@@ -50,7 +47,33 @@ typedef GskTableMergeResult (*GskTableMergeFunc) (guint         key_len,
 typedef GskTableMergeResult (*GskTableMergeFuncNoLen) (const guint8 *key_data,
                                                        const guint8 *a_data,
                                                        const guint8 *b_data,
-                                                       GByteArray   *pad,
+                                                       GskTableBuffer *output,
+                                                       gpointer      user_data);
+
+/* used for merges that go back to the beginning of the indexer */
+typedef enum
+{
+  GSK_TABLE_SIMPLIFY_IDENTITY,
+  GSK_TABLE_SIMPLIFY_SUCCESS,
+  GSK_TABLE_SIMPLIFY_DELETE
+} GskTableSimplifyResult;
+typedef GskTableSimplifyResult (*GskTableSimplifyFunc)(guint         key_len,
+                                                       const guint8 *key_data,
+                                                       guint         value_len,
+                                                       const guint8 *value_data,
+                                                       GskTableBuffer*val_out,
+                                                       gpointer      user_data);
+typedef GskTableSimplifyResult (*GskTableSimplifyFuncNoLen)
+                                                      (const guint8 *key_data,
+                                                       const guint8 *value_data,
+                                                       GskTableBuffer*val_out,
+                                                       gpointer      user_data);
+
+/* only used for querying */
+typedef gboolean          (*GskTableValueIsStableFunc)(guint         key_len,
+                                                       const guint8 *key_data,
+                                                       guint         value_len,
+                                                       const guint8 *value_data,
                                                        gpointer      user_data);
 
 typedef struct _GskTableOptions GskTableOptions;
@@ -84,7 +107,7 @@ typedef enum
 
 typedef struct _GskTable GskTable;
 
-/* NOTE: options will be ignored if the table already exists. */
+/* NOTE: hinting options will be ignored if the table already exists. */
 GskTable *  gsk_table_new         (const char            *dir,
                                    const GskTableOptions *options,
                                    GskTableNewFlags       flags,
