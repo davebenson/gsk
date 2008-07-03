@@ -1,16 +1,11 @@
 #include "gsktable.h"
 
-/* Overall structure.
- *
- * This database maps a key to a value,
- * with merging semantics provided
- * by a user-configurable function-pointer if
- * the key already exists.
- *
- * Support for deletion is provided by a "FinalMerge" function
- * which can delete entries which match some criteria.
- */
+typedef struct _TableUserData TableUserData;
+typedef struct _MergeTask MergeTask;
+typedef struct _FileInfo FileInfo;
+typedef struct _TreeNode TreeNode;
 
+#define ID_FMT  "%" G_GUINT64_FORMAT
 
 struct _TableUserData
 {
@@ -31,16 +26,19 @@ struct _MergeTask
       /* ratio of inputs[0]->n_data / inputs[1]->n_data * (2^16) */
       /* we want the smallest ratio possible;
          the "min_merge_ratio" specifies the limit 
-         for merge-job creation. */
+         for merge-task creation. */
       guint32 input_size_ratio_b16;
 
-      /* tree of unstarted merge jobs, sorted by input_size_ratio_b16
+      /* tree of unstarted merge tasks, sorted by input_size_ratio_b16
          then n_entries */
       MergeTask *left, *right, *parent;
       gboolean is_red;
     } unstarted;
     struct {
       GskTableFile *output;
+      struct {
+        GskTableReader *reader;
+      } inputs[2];
     } started;
   } info;
 };
@@ -49,8 +47,10 @@ struct _FileInfo
 {
   GskTableFile *file;
   guint ref_count;
+  guint64 first_input_entry, n_input_entries;
   MergeTask *prev_task;         /* possible merge task with prior file */
   MergeTask *next_task;         /* possible merge task with next file */
+  FileInfo *prev_file, *next_file;
 };
 
 struct _TreeNode
@@ -79,8 +79,7 @@ struct _GskTable
 
   /* files */
   guint n_files;
-  FileInfo **files;
-  guint files_alloced;          /* applies to 'files' and 'old_files' */
+  FileInfo *first_file, *last_file;
 
   /* old files */
   guint n_old_files;
@@ -92,6 +91,9 @@ struct _GskTable
   /* heap of merge tasks (sorted by n_entries ascending) */
   MergeTask *started_merges[MAX_RUNNING_MERGES];
 
+  /* tree of in-memory entries */
+  TreeNode *in_memory_tree;
+
   /* fixed length keys and values can be optimized by not storing the length. */
   gssize key_fixed_length;               /* or -1 */
   gssize value_fixed_length;             /* or -1 */
@@ -101,22 +103,116 @@ struct _GskTable
   guint tmp_merge_value_alloced;
 };
 
+#define UNSTARTED_MERGE_TASK_IS_RED(task)         (task)->info.unstarted.is_red
+#define UNSTARTED_MERGE_TASK_SET_IS_RED(task,v)   (task)->info.unstarted.is_red = v
+#define COMPARE_UNSTARTED_MERGE_TASKS(a,b, rv) \
+  if (a->info.unstarted.input_size_ratio_b16 < b->info.unstarted.input_size_ratio_b16) \
+    rv = -1; \
+  else if (a->info.unstarted.input_size_ratio_b16 > b->info.unstarted.input_size_ratio_b16) \
+    rv = 1; \
+  else \
+    rv = (a<b) ? -1 : (a>b) ? 1 : 0;
+#define GET_UNSTARTED_MERGE_TASK_TREE(table) \
+  (table)->unstarted_merges, MergeTask *, \
+  UNSTARTED_MERGE_TASK_IS_RED, \
+  UNSTARTED_MERGE_TASK_SET_IS_RED, \
+  info.unstarted.parent, \
+  info.unstarted.left, \
+  info.unstarted.right, \
+  COMPARE_UNSTARTED_MERGE_TASKS
+
+/* --- file-info ref-counting --- */
+static inline FileInfo *
+file_info_ref (FileInfo *fi)
+{
+  g_assert (fi->ref_count > 0);
+  ++(fi->ref_count);
+  return fi;
+}
+static inline FileInfo *
+file_info_unref (FileInfo *fi, const char *dir, gboolean erase)
+{
+  g_assert (fi->ref_count > 0);
+  if (--(fi->ref_count) == 0)
+    {
+      GError *error = NULL;
+      if (!gsk_table_file_destroy (fi->file, dir, erase, &error))
+        {
+          g_warning ("gsk_table_file_destroy "ID_FMT" (erase=%u) failed: %s",
+                     fi->file->id, erase, error->message);
+          g_error_free (error);
+        }
+      g_slice_free (FileInfo, fi);
+    }
+  return fi;
+}
+
 /* --- journal management --- */
-static gboolean read_journal (GskTable  *table,
-                              GError   **error);
+static gboolean read_journal  (GskTable    *table,
+                               GError     **error);
+static gboolean reset_journal (GskTable    *table,
+                               GError     **error);
 
-struct _SerializedFileInfo
+static int compare_file_id_to_pfileinfo (gconstpointer p_file_id,
+                                         gconstpointer p_file_info)
 {
-  guint64 first_entry, n_entries, file_id;
-  gboolean is_building;
-  guint build_state_len;
-  guint8* build_state;
-};
+  guint64 a = * (guint64 *) p_file_id;
+  FileInfo *file_info = * (FileInfo **) p_file_info;
+  if (a < file_info->id)
+    return -1;
+  else if (a > file_info->id)
+    return 1;
+  else
+    return 0;
+}
 
-struct _SerializedMergeJob
+static inline void
+kill_unstarted_merge_task (GskTable *table,
+                           MergeTask *to_kill)
 {
-  ...
-};
+  g_assert (to_kill->files[0]->next_task == to_kill);
+  g_assert (to_kill->files[1]->prev_task == to_kill);
+  GSK_RBTREE_REMOVE (GET_UNSTARTED_MERGE_TASK_TREE (table), to_kill);
+  to_kill->files[0]->next_task = NULL;
+  to_kill->files[1]->prev_task = NULL;
+  g_slice_free (MergeTask, to_kill);
+}
+
+static void
+create_unstarted_merge_task (GskTable *table,
+                             FileInfo *prev,
+                             FileInfo *next)
+{
+  MergeTask *task = g_slice_new (MergeTask);
+  MergeTask *unused;
+  guint32 ratio_b16;
+  g_assert (prev->prev_task == NULL || !prev->prev_task->is_started);
+  g_assert (prev->next_task == NULL);
+  g_assert (next->prev_task == NULL);
+  g_assert (next->next_task == NULL || !next->next_task->is_started);
+  task->is_started = FALSE;
+  task->inputs[0] = prev;
+  task->inputs[1] = next;
+  if (prev->file->n_entries == 0 && next->file->n_entries == 0)
+    ratio_b16 = 1<<16;
+  else if (next->file->n_entries == 0)
+    ratio_b16 = 0xffffffff;
+  else
+    {
+      gdouble ratio_d_b16 = (double) prev->file->n_entries / next->file->n_entries
+                          * (double) (1<<16);
+      if (ratio_d_b16 >= 0xffffffff)
+        ratio_b16 = 0xffffffff;
+      else
+        ratio_b16 = (guint) ratio_d_b16;
+    }
+
+  prev->next_task = next->prev_task = task;
+  task->info.unstarted.input_size_ratio_b16 = ratio_b16;
+  GSK_RBTREE_INSERT (GET_UNSTARTED_MERGE_TASK_TREE (table),
+                     task, unused);
+  g_assert (unused == NULL);
+}
 
 static gboolean
 read_journal (GskTable  *table,
@@ -125,7 +221,7 @@ read_journal (GskTable  *table,
   int fd = open (table->journal_new_fname, O_RDWR);
   struct stat stat_buf;
   guint i;
-  guint magic, n_files, n_merge_jobs;
+  guint magic, n_files, n_merge_tasks;
   guint32 tmp32_le;
   guint64 tmp64_le;
   if (fd < 0)
@@ -145,7 +241,8 @@ read_journal (GskTable  *table,
       close (fd);
       return FALSE;
     }
-  mmapped_journal = mmap (NULL, stat_buf.st_size, PROT_READ|PROT_WRITE,
+  journal_size = stat_buf.st_size;
+  mmapped_journal = mmap (NULL, journal_size, PROT_READ|PROT_WRITE,
                           MAP_SHARED, fd, 0);
   if (mmapped_journal == MAP_FAILED || mmapped_journal == NULL)
     {
@@ -167,7 +264,7 @@ read_journal (GskTable  *table,
       g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
                    "invalid magic on journal file (0x%08x, not 0x%08x)",
                    magic, JOURNAL_FILE_MAGIC);
-      goto error_mmap_cleanup;
+      goto error_cleanup;
     }
   at += 4;
 
@@ -176,7 +273,7 @@ read_journal (GskTable  *table,
   at += 4;
 
   tmp32_le = * (guint32 *) at;
-  n_merge_jobs = GUINT32_FROM_LE (tmp32_le);
+  n_merge_tasks = GUINT32_FROM_LE (tmp32_le);
   at += 4;
 
   tmp32_le = * (guint32 *) at;
@@ -185,74 +282,315 @@ read_journal (GskTable  *table,
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
                    "reserved word in journal nonzero");
-      goto error_mmap_cleanup;
+      goto error_cleanup;
     }
 
-  serialized_file_info = g_new (SerializedFileInfo, n_files);
-  serialized_merge_jobs = g_new (SerializedMergeJob, n_merge_jobs);
+  tmp64_le = * (guint64 *) at;
+  at += 8;
+  n_input_entries = GUINT64_FROM_LE (tmp64_le);
+
+  file_infos = g_new0 (FileInfo *, n_files);
 
   /* parse files */
   for (i = 0; i < n_files; i++)
     {
       guint64 n_entries, file_id;
-      SerializedFileInfo *fi = serialized_file_info + i;
+      guint64 file_id, first_input_entry, n_input_entries, n_entries;
+      FileInfo *file_info;
 
       memcpy (&tmp64_le, at, 8);
-      fi->file_id = GUINT64_FROM_LE (tmp64_le);
+      file_id = GUINT64_FROM_LE (tmp64_le);
       at += 8;
 
       memcpy (&tmp64_le, at, 8);
-      fi->first_input_entry = GUINT64_FROM_LE (tmp64_le);
+      first_input_entry = GUINT64_FROM_LE (tmp64_le);
       at += 8;
 
       memcpy (&tmp64_le, at, 8);
-      fi->n_input_entries = GUINT64_FROM_LE (tmp64_le);
+      n_input_entries = GUINT64_FROM_LE (tmp64_le);
       at += 8;
 
       memcpy (&tmp64_le, at, 8);
-      fi->n_entries = GUINT64_FROM_LE (tmp64_le);
+      n_entries = GUINT64_FROM_LE (tmp64_le);
       at += 8;
 
-      switch (*at)
+      file_info = g_slice_new0 (FileInfo);
+      file_info->first_input_entry = first_input_entry;
+      file_info->n_input_entries = n_input_entries;
+
+      file_info->file
+        = gsk_table_file_factory_open_file (file_factory, table->dir,
+                                            file_id, error);
+      if (file == NULL)
+        goto error_cleanup;
+      file_info->file->n_records = n_entries;
+      g_assert (file_info->file);
+      file_info->ref_count = 1;
+      file_infos[i] = file_info;
+
+      if (i > 0)
         {
-        case 0:
-          /* file is done building-- no further state */
-          at++;
-          fi->is_building = FALSE;
-          break;
-        case 1:
-          at++;
-          fi->is_building = TRUE;
-          memcpy (&tmp32_le, at, 4);
-          fi->build_state_len = GUINT32_FROM_LE (tmp32_le);
-          at += 4;
-          file->build_state = at;
-          at += fi->build_state_len;
-          break;
-        default:
-          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
-                       "invalid byte reading FileInfo");
-          goto error_mmap_cleanup;
+          FileInfo *prev = file_infos[i-1];
+          guint64 prev_end = prev->first_input_entry + prev->n_input_entries;
+          if (prev_end != file_info->first_input_entry)
+            {
+              g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                           "inconsistency: files "ID_FMT" and "ID_FMT" are not continguous (prev_end=%"G_GUINT64_FORMAT"; cur_start=%"G_GUINT64_FORMAT")",
+                           prev->id, file_info->id, prev_end, file_info->first_input_entry);
+              goto error_cleanup;
+            }
+          file_info->prev_file = prev;
+          prev->next_file = file_info;
         }
+      else
+        file_info->prev_file = NULL;
+    }
+  if (n_files > 0)
+    file_infos[n_files-1]->next_file = NULL;
+
+  /* parse merge tasks */
+  file_index = 0;
+  for (i = 0; i < n_merge_tasks; i++)
+    {
+      /* format:
+           - for each input:
+             - uint64 for the file-id
+             - reader state
+           - output file-id
+           - output file build state
+       */
+      struct {
+        guint64 file_id;
+        guint reader_state_len;
+        const guint8 *reader_state;
+      } inputs[2];
+      guint64 output_file_id;
+      guint build_state_len;
+      const guint8 *build_state;
+      MergeTask *merge_task;
+      
+
+      for (j = 0; j < 2; j++)
+        {
+          memcpy (&tmp64_le, at, 8);
+          at += 8;
+          inputs[j].file_id = GUINT64_FROM_LE (tmp64_le);
+
+          memcpy (&tmp32_le, at, 8);
+          at += 4;
+          inputs[j].reader_state_len = GUINT32_FROM_LE (tmp32_le);
+
+          inputs[j].reader_state = at;
+          at += inputs[j].reader_state_len;
+        }
+
+      memcpy (&tmp64_le, at, 8);
+      at += 8;
+      output_file_id = GUINT64_FROM_LE (tmp64_le);
+
+      memcpy (&tmp32_le, at, 8);
+      at += 4;
+      build_state_len = GUINT32_FROM_LE (tmp32_le);
+
+      build_state = at;
+      at += build_state_len;
+
+      /* link merge data into file infos */
+      while (file_index + 1 < n_files
+          && file_infos[file_index]->file->id != inputs[0].file_id)
+        file_index++;
+      if (file_index + 1 == n_files)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                       "merge task's input[0] refers to input file "ID_FMT" which was not found, in the non-tail portion of the files list",
+                       inputs[0].file_id);
+          goto error_cleanup;
+        }
+      inputs[0].file = file_infos[file_index];
+      inputs[1].file = file_infos[file_index+1];
+      g_assert (inputs[0].file->id == inputs[0].file_id);
+      if (inputs[1].file->id != inputs[1].file_id)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                       "second input to merge task nonconsecutive");
+          goto error_cleanup;
+        }
+      g_assert (inputs[0].file->next_task == NULL);
+      g_assert (inputs[1].file->prev_task == NULL);
+
+      merge_task = g_slice_new (MergeTask);
+      merge_task->is_started = TRUE;
+      merge_task->inputs[0] = inputs[0].file;
+      merge_task->inputs[1] = inputs[1].file;
+
+      for (j = 0; j < 2; j++)
+        {
+          /* restore reader */
+          GskTableReader *reader;
+          reader = gsk_table_file_recreate_reader (inputs[j].file,
+                                                   dir,
+                                                   inputs[j].reader_state_len,
+                                                   inputs[j].reader_state,
+                                                   error);
+          if (reader == NULL)
+            {
+              if (j == 1)
+                gsk_table_reader_destroy (merge_task->info.started.inputs[0].reader);
+              g_slice_free (MergeTask, merge_task);
+              goto error_cleanup;
+            }
+          merge_task->info.started.inputs[j].reader = reader;
+        }
+
+      merge_task->info.started.output
+        = gsk_table_file_factory_open_building_file (file_factory,
+                                                     dir, output_file_id,
+                                                     build_state_len,
+                                                     build_state, error);
+      if (merge_task->info.started.output == NULL)
+        {
+          gsk_error_add_prefix (error,
+                                "instantiating merge-task between files "ID_FMT" and "ID_FMT,
+                                inputs[0].id,
+                                inputs[1].id);
+          gsk_table_reader_destroy (merge_task->info.started.inputs[0].reader);
+          gsk_table_reader_destroy (merge_task->info.started.inputs[1].reader);
+          g_slice_free (MergeTask, merge_task);
+          goto error_cleanup;
+        }
+      inputs[0].file->next_task = merge_task;
+      inputs[1].file->prev_task = merge_task;
+
+      /* neither of these inputs can be involved in another merge-task,
+         so advance the pointer to prevent reuse. */
+      file_index++;
     }
 
-  /* parse merge jobs */
-  ...
+  /* --- do consistency checks --- */
 
-  /* do consistency checks */
-  ...
+  /* TODO: other checks not already done during parsing??? */
 
-  /* there should be no holes */
-  ...
+  /* --- process existing journal entries --- */
+
+  /* setup various bits of the table;
+     after doing this, do not goto error_cleanup,
+     since it will free some of this data */
+  table->journal_mmap = mmapped_journal;
+  table->journal_size = journal_size;
+  table->n_files = n_files;
+  if (n_files > 0)
+    {
+      table->first_file = file_infos[0];
+      table->last_file = file_infos[n_files-1];
+    }
+  else
+    {
+      /* since the GskTable object is zeroed, the list is already empty */
+    }
+  table->n_old_files = n_files;
+  table->old_files = file_infos;
+  for (i = 0; i < n_files; i++)
+    table->old_files[i] = file_info_ref (file_infos[i]);
+
+  /* create unstarted merge tasks */
+  for (i = 0; i < n_files - 1; i++)
+    if (file_infos[i].next_task == NULL)
+      {
+        g_assert (file_infos[i+1]->prev_task == NULL);
+        create_unstarted_merge_task (table, file_infos[i], file_infos[i+1]);
+      }
+
+  /* disable journalling and replay the journal */
+  old_journal_mode = table->journal_mode;
+  table->journal_mode = GSK_TABLE_JOURNAL_NONE;
+  for (;;)
+    {
+      guint align_offset = ((gsize)at) & 3;
+      guint32 len;
+      if (align_offset)
+        at += 4 - align_offset;
+      tmp32_le = ((guint32 *) at)[0];
+      key_len = GUINT32_FROM_LE (tmp32_le);
+      if (key_len == 0)
+        break;
+      key_len--;            /* journal key lengths are offset by 1 */
+      tmp32_le = ((guint32 *) at)[1];
+      value_len = GUINT32_FROM_LE (tmp32_le);
+      at += 8;
+      if (!gsk_table_add (table, key_len, at, value_len, at + key_len, error))
+        {
+          gsk_error_add_prefix (error, "error replaying journal");
+          table->journal_mode = old_journal_mode;
+          /* do not use error_cleanup, let gsk_table_destroy() do the work */
+          return FALSE;
+        }
+      at += key_len + value_len;
+    }
+  table->journal_mode = old_journal_mode;
+
+  return TRUE;
+
+error_cleanup:
+  if (file_infos)
+    {
+      for (i = 0; i < n_files && file_infos[i] != NULL; i++)
+        file_info_unref (file_infos[i], table->dir, FALSE);
+      g_free (file_infos);
+    }
+  munmap (mmapped_journal, journal_size);
+  return FALSE;
 }
 
 static gboolean
 reset_journal (GskTable   *table,
                GError    **error)
 {
+  guint i;
+  FileInfo *fi;
+
+  g_assert (table->in_memory_tree == NULL);
+
+  /* write temporary new journal which
+     is the state dumped out,
+     and no journalled adds. */
   ...
+
+  /* move the journal into place */
+  ...
+
+  /* blow away old files */
+  for (i = 0; i < table->n_old_files; i++)
+    file_info_unref (table->old_files[i], table->dir, TRUE);
+  g_free (old_files);
+
+  /* preserve old files */
+  table->old_files = g_new (FileInfo *, table->n_files);
+  i = 0;
+  table->n_old_files = table->n_files;
+  for (fi = table->first_file; fi; fi = fi->next_file)
+    table->old_files[i++] = file_info_ref (fi);
 }
 
+/** 
+ * gsk_table_new:
+ * @dir: the directory where the table will store its data.
+ * @options: configuration and optimization hints.
+ * @new_flags: whether to create or open an existing table.
+ * @error: place to put the error if something goes wrong.
+ *
+ * Create a new GskTable object.
+ * Only one table may use a directory at a time.
+ *
+ * @options gives both compare, merge and delete
+ * semantics, and hints on the sizes of the data.
+ *
+ * @new_flags determines whether we are allowed
+ * to create a new table or open an existing table.
+ * If @new_flags is 0, we will permit either,
+ * equivalent to GSK_TABLE_MAY_CREATE|GSK_TABLE_MAY_EXIST.
+ *
+ * returns: the newly created table object, or NULL on error.
+ */
 GskTable *
 gsk_table_new         (const char            *dir,
                        const GskTableOptions *options,
@@ -321,6 +659,90 @@ gsk_table_new         (const char            *dir,
   return table;
 }
 
+
+/* --- starting a merge-task */
+static gboolean
+start_merge_task (GskTable   *table,
+                  MergeTask  *merge_task,
+                  GError    **error)
+{
+  FileInfo *prev = merge_task->inputs[0];
+  FileInfo *next = merge_task->inputs[1];
+  g_assert (!merge_task->is_started);
+  g_assert (prev->prev_task == NULL || !prev->prev_task->is_started);
+  g_assert (prev->next_task == NULL);
+  g_assert (next->prev_task == NULL);
+  g_assert (next->next_task == NULL || !next->next_task->is_started);
+  if (prev->prev_task)
+    {
+      MergeTask *to_kill = prev->prev_task;
+      g_assert (!to_kill->is_started);
+      g_assert (to_kill->files[1] == prev);
+      kill_unstarted_merge_task (table, to_kill);
+    }
+  if (next->next_task)
+    {
+      MergeTask *to_kill = next->next_task;
+      g_assert (!to_kill->is_started);
+      g_assert (to_kill->files[0] == next);
+      kill_unstarted_merge_task (table, to_kill);
+    }
+
+  GSK_RBTREE_REMOVE (GET_UNSTARTED_MERGE_TASK_TREE (table), merge_task);
+
+  merge_task->is_started = TRUE;
+  merge_task->info.started.output = output;
+  merge_task->info.started.inputs[0].reader = readers[0];
+  merge_task->info.started.inputs[1].reader = readers[1];
+
+  /* insert into run-list */
+  MergeTask **p_next = &table->run_list;
+  for (;;)
+    {
+      MergeTask *next = *p_next;
+      guint64 next_n_input_entries;
+      if (next == NULL)
+        break;
+      next_n_input_entries = next->inputs[0]->file->n_entries
+                           + next->inputs[1]->file->n_entries;
+      if (next_n_input_entries > n_input_entries)
+        break;
+
+      p_next = &next->info.started.next_run;
+    }
+  merge_task->info.started.next_run = *p_next;
+  *p_next = merge_task;
+  table->n_running_tasks++;
+}
+
+static gboolean
+maybe_start_tasks (GskTable *table)
+{
+  while (table->n_running_tasks < table->max_running_tasks
+      && table->unstarted_merges != NULL)
+    {
+      MergeTask *bottom_heaviest = GSK_RBTREE_FIRST (GET_UNSTARTED_MERGE_TASK_TREE (table));
+      if (bottom_heaviest > MAX_MERGE_RATIO)
+        break;
+      if (!start_merge_task (table, bottom_heaviest, error))
+        return FALSE;
+    }
+  return TRUE;
+}
+
+#define IMPLEMENT_RUN_MERGE_TASK(COMPARE_CODE, MERGE_CODE)
+
+static gboolean
+run_merge_task__nolen__merge (GskTable   *table,
+                              GError    **error)
+{
+  MergeTask *merge_task = table->run_list;
+  g_assert (merge_task != NULL);
+
+  if (table->compare
+  ...
+}
+
 /**
  * gsk_table_add:
  * @table: the table to add data to.
@@ -328,16 +750,18 @@ gsk_table_new         (const char            *dir,
  * @key_data:
  * @value_len:
  * @value_data:
+ * @error: place to put the error if something goes wrong.
  *
  * 
  */
 
-void
+gboolean
 gsk_table_add         (GskTable              *table,
                        guint                  key_len,
                        const guint8          *key_data,
                        guint                  value_len,
-                       const guint8          *value_data);
+                       const guint8          *value_data,
+                       GError               **error)
 {
   TreeNode *found;
   gboolean must_write_journal = table->journal_fd >= 0;
@@ -391,16 +815,10 @@ gsk_table_add         (GskTable              *table,
       TreeNode *new = table->in_memory_nodes + table->n_memory_added;
 
       /* write key and value into the new node */
-      resize_buffer (key_len,
-                     &new->key_len,
-                     &new->key_data,
-                     &new->key_alloced);
-      resize_buffer (value_len,
-                     &new->value_len,
-                     &new->value_data,
-                     &new->value_alloced);
-      memcpy (new->key_data, key_data, key_len);
-      memcpy (new->value_data, value_data, value_len);
+      memcpy (gsk_table_buffer_set_len (&new->key, key_len),
+              key_data, key_len);
+      memcpy (gsk_table_buffer_set_len (&new->value, value_len),
+              value_data, value_len);
 
       /* TODO: this repeats the work of the lookup.
          maybe we need a GSK_RBTREE_INSERT_NO_REPLACE()
@@ -416,42 +834,34 @@ gsk_table_add         (GskTable              *table,
    || table->in_memory_bytes >= table->max_in_memory_bytes)
     {
       /* flush the tree */
-      guint new_file_index = flush_tree (table);
+      FileInfo *new_file = flush_tree (table);
 
       /* create MergeTasks */
-      guint mt;
-      for (mt = 0; mt < 2; mt++)
-        {
-          MergeTask *m;
-          if (mt == 0 && new_file_index == 0)
-            continue;
-          if (mt == 1 && new_file_index == table->n_files - 1)
-            continue;
-          m = allocate_or_recycle_merge_task (table);
-          g_assert (!m->started);
-          m->is_started = FALSE;
-          m->inputs[0] = table->files[new_file_index - mt];
-          m->inputs[1] = table->files[new_file_index - mt + 1];
-          m->n_entries = m->inputs[0]->n_entries + m->inputs[1]->n_entries;
-          m->info.unstarted.input_size_ratio_b16 = ...;
-          GSK_RBTREE_INSERT (GET_UNSTARTED_MERGE_TASK_TREE (table),
-                             m, unused);
-          g_assert (unused == NULL);
-          ...
-        }
+      if (new_file->prev_file != NULL)
+        create_unstarted_merge_task (table, new_file->prev_file, new_file);
 
       /* maybe flush journal */
       if (table->journalling
        && (++(table->journal_index) == table->journal_period))
         {
           /* write new journal */
-          ...
-
-          /* move it into place */
-          ...
+          if (!reset_journal (table, error))
+            {
+              gsk_error_add_prefix (error, "error flushing journal");
+              return FALSE;
+            }
 
           must_write_journal = FALSE;
         }
+
+      if (!maybe_start_tasks (table, error))
+        return FALSE;
+    }
+
+  if (table->run_list != NULL)
+    {
+      if (!run_merge_task (table, error))
+        return FALSE;
     }
 
   if (must_write_journal)
@@ -464,8 +874,10 @@ gboolean
 gsk_table_query       (GskTable              *table,
                        guint                  key_len,
                        const guint8          *key_data,
+                       gboolean              *found_value_out,
                        guint                 *value_len_out,
-                       guint8               **value_data_out)
+                       guint8               **value_data_out,
+                       GError               **error)
 {
   ...
 }
@@ -479,5 +891,20 @@ gsk_table_peek_dir    (GskTable              *table)
 void
 gsk_table_destroy     (GskTable              *table)
 {
+  guint i;
+  FileInfo *fi, *next=NULL;
+  for (fi = table->first_file; fi != NULL; fi = next)
+    {
+      next = fi->next_file;
+      file_info_unref (fi, table->dir, TRUE);           /* may free fi */
+    }
+  for (i = 0; i < table->n_old_files; i++)
+    file_info_unref (table->old_files[i], table->dir, FALSE);
+  g_free (table->files);
+  g_free (table->old_files);
+  g_free (table->journal_cur_fname);
+  g_free (table->journal_tmp_fname);
+  munmap (table->journal_mmap, table->journal_size);
   ...
+  g_slice_free (GskTable, table);
 }

@@ -27,6 +27,10 @@ struct _GskTableFile
 {
   GskTableFileFactory *factory;
   guint64 id;
+
+  /* NOTE: n_records must be set by create_file() and open_building_file()
+     implementations, but must be set by caller for open_file().
+     (ugly, but it's internal api) */
   guint64 n_records;
 };
 

@@ -29,6 +29,14 @@ G_INLINE_FUNC guint8 *gsk_table_buffer_append  (GskTableBuffer *buffer,
                                                 guint           len);
 
 
+typedef  int (*GskTableCompareFunc)      (guint         a_key_len,
+                                          const guint8 *a_key_data,
+                                          guint         b_key_len,
+                                          guint8       *b_key_data,
+                                          gpointer      user_data);
+typedef  int (*GskTableCompareFuncNoLen) (const guint8 *a_key_data,
+                                          guint8       *b_key_data,
+                                          gpointer      user_data);
 typedef enum
 {
   GSK_TABLE_MERGE_RETURN_A,
