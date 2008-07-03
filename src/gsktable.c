@@ -61,13 +61,54 @@ struct _TreeNode
   guint is_red : 1;
 };
 
+/* always runs the table->run_list task */
+typedef gboolean (*RunTaskFunc) (GskTable   *table,
+                                 guint       iterations,
+                                 GError    **error);
+typedef struct _RunTaskFuncs RunTaskFuncs;
+struct _RunTaskFuncs
+{
+  RunTaskFunc simplify_flush;
+  RunTaskFunc simplify_noflush;
+  RunTaskFunc nosimplify_flush;
+  RunTaskFunc nosimplify_noflush;
+};
+
+/* optimized variants of RunTaskFuncs:
+      len_memcmp_nomerge
+      len_memcmp_merge
+      nolen_memcmp_merge
+      len_memcmp_merge
+      len_nomerge
+      nolen_nomerge
+      nolen_merge
+      len_merge      */
+static RunTaskFuncs *table_options_get_run_funcs (GskTableOptions *options,
+                                                  GError         **error);
+
 struct _GskTable
 {
   char *dir;
   int lock_fd;
 
   /* merge functions */
-  GskTableMergeFunc merge;
+  union
+  {
+    GskTableCompareFunc with_len;
+    GskTableCompareFuncNoLen no_len;
+  } compare;
+  union
+  {
+    GskTableMergeFunc with_len;
+    GskTableMergeFuncNoLen no_len;
+  } merge;
+  union
+  {
+    GskTableSimplifyFunc with_len;
+    GskTableSimplifyFuncNoLen no_len;
+  } simplify;
+  RunTaskFuncs *run_funcs;
+
   gpointer user_data;
   TableUserData *table_user_data; /* for ref-counting */
 
@@ -599,6 +640,12 @@ gsk_table_new         (const char            *dir,
 {
   gboolean did_mkdir;
   GskTable *table;
+  RunTaskFuncs *run_funcs;
+
+  run_funcs = table_options_get_run_funcs (options, error);
+  if (run_funcs == NULL)
+    return NULL;
+
   if (g_file_test (dir, G_FILE_TEST_IS_DIR))
     {
       if ((new_flags & GSK_TABLE_MAY_EXIST) == 0)
@@ -629,6 +676,7 @@ gsk_table_new         (const char            *dir,
   table = g_new0 (GskTable, 1);
   table->dir = g_strdup (dir);
   table->lock_fd = lock_fd;
+  table->run_funcs = run_funcs;
 
   if (did_mkdir)
     {
@@ -733,14 +781,24 @@ maybe_start_tasks (GskTable *table)
 #define IMPLEMENT_RUN_MERGE_TASK(COMPARE_CODE, MERGE_CODE)
 
 static gboolean
-run_merge_task__nolen__merge (GskTable   *table,
-                              GError    **error)
+run_merge_task (GskTable   *table,
+                guint       count,
+                gboolean    flush,
+                GError    **error)
 {
   MergeTask *merge_task = table->run_list;
+  RunTaskFuncs *run_funcs = table->run_funcs;
+  RunTaskFunc func;
+  gboolean use_simplify;
   g_assert (merge_task != NULL);
 
-  if (table->compare
-  ...
+  use_simplify = merge_task->inputs[0]->first_input_entry == 0
+              && table->simplify.no_len != NULL;
+  func = use_simplify ? (flush ? run_funcs->simplify_flush
+                               : run_funcs->simplify_noflush)
+                      : (flush ? run_funcs->nosimplify_flush
+                               : run_funcs->nosimplify_noflush);
+  return (*func) (table, count, error);
 }
 
 /**
@@ -860,7 +918,7 @@ gsk_table_add         (GskTable              *table,
 
   if (table->run_list != NULL)
     {
-      if (!run_merge_task (table, error))
+      if (!run_merge_task (table, 32, FALSE, error))
         return FALSE;
     }
 
@@ -908,3 +966,96 @@ gsk_table_destroy     (GskTable              *table)
   ...
   g_slice_free (GskTable, table);
 }
+
+#define INCL_FLAG_DO_SIMPLIFY    1
+#define INCL_FLAG_DO_FLUSH       2
+#define INCL_FLAG_HAS_LEN        4
+#define INCL_FLAG_MEMCMP         8
+#define INCL_FLAG_HAS_MERGE      16
+
+#define INCL_FLAG 0
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 1
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 2
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 3
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 4
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 5
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 6
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 7
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 8
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 9
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 10
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 11
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 12
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 13
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 14
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 15
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 16
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 17
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 18
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 19
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 20
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 21
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 22
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 23
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 24
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 25
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 26
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 27
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 28
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 29
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 30
+#include "gsktable-implement-run-merge-task.inc"
+#define INCL_FLAG 31
+#include "gsktable-implement-run-merge-task.inc"
+
+static gboolean
+run_task__len_memcmp_nomerge_simplify_flush (GskTable *table,
+                                             guint     count,
+
+
+
+  RunTaskFunc simplify_flush;
+  RunTaskFunc simplify_noflush;
+  RunTaskFunc nosimplify_flush;
+  RunTaskFunc nosimplify_noflush;
+};
+
+/* optimized variants of RunTaskFuncs:
+      len_memcmp_nomerge
+      len_memcmp_merge
+      nolen_memcmp_merge
+      len_memcmp_merge
+      len_nomerge
+      nolen_nomerge
+      nolen_merge
+      len_merge      */
