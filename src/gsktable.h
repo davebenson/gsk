@@ -95,6 +95,13 @@ struct _GskTableOptions
   GskTableMergeFunc merge;
   GskTableMergeFuncNoLen merge_no_len;
 
+  /* final merging */
+  GskTableSimplifyFunc simplify;
+  GskTableSimplifyFunc simplify_no_len;
+
+  /* query stability */
+  GskTableValueIsStableFunc is_stable;
+
   /* user data */
   gpointer user_data;
   GDestroyNotify destroy_user_data;
