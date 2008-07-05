@@ -117,6 +117,8 @@ struct _GskTable
   char *journal_cur_fname;
   char *journal_tmp_fname;              /* actual file to write to */
   guint8 *journal_mmap;
+  guint journal_len;                    /* current offset in journal */
+  guint journal_size;                   /* size of journal data */
 
   /* files */
   guint n_files;
@@ -130,7 +132,8 @@ struct _GskTable
   MergeTask *unstarted_merges;
 
   /* heap of merge tasks (sorted by n_entries ascending) */
-  MergeTask *started_merges[MAX_RUNNING_MERGES];
+  MergeTask *run_list;
+  guint n_running_tasks;
 
   /* tree of in-memory entries */
   TreeNode *in_memory_tree;
@@ -568,6 +571,7 @@ read_journal (GskTable  *table,
       at += key_len + value_len;
     }
   table->journal_mode = old_journal_mode;
+  table->journal_len = at - journal_mmap;
 
   return TRUE;
 
@@ -588,16 +592,157 @@ reset_journal (GskTable   *table,
 {
   guint i;
   FileInfo *fi;
+  int journal_fd;
 
   g_assert (table->in_memory_tree == NULL);
 
   /* write temporary new journal which
      is the state dumped out,
      and no journalled adds. */
-  ...
+  {
+    journal_fd = open (table->journal_tmp_fname, O_CREAT|O_RDWR|O_TRUNC, 0644);
+    if (journal_fd < 0)
+      {
+        g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_OPEN,
+                     "error creating new journal file %s: %s",
+                     table->journal_tmp_fname, g_strerror (errno));
+        return FALSE;
+      }
+    if (ftruncate (journal_fd, table->journal_size) < 0)
+      {
+        g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_TRUNCATE,
+                     "error sizing journal file: %s",
+                     g_strerror (errno));
+        goto failed_writing_journal;
+      }
+    journal_mmap = mmap (NULL, table->journal_size, PROT_READ|PROT_WRITE,
+                         MAP_SHARED, journal_fd, 0);
+    if (journal_mmap == NULL || journal_mmap == MAP_FAILED)
+      {
+        g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_TRUNCATE,
+                     "mmap failed on tmp journal: %s",
+                     g_strerror (errno));
+        close (journal_fd);
+        unlink (table->journal_tmp_fname);
+        return FALSE;
+      }
+  }
+
+  {
+    guint32 header[6];
+    guint32 tmp;
+    header[0] = GUINT32_TO_LE (JOURNAL_FILE_MAGIC);
+    header[1] = GUINT32_TO_LE (table->n_files);
+    header[2] = GUINT32_TO_LE (table->n_running_tasks);
+    header[3] = 0;              /* reserved */
+    tmp = table->n_input_entries;
+    header[4] = GUINT32_TO_LE (tmp);
+    tmp = table->n_input_entries>>32;
+    header[5] = GUINT32_TO_LE (tmp);
+    memcpy (journal_mmap, header, 24);
+  }
+  at = 24;
+  for (fi = table->first_file; fi; fi = fi->next_file)
+    {
+      guint64 file_header[4];
+      file_header[0] = GUINT64_TO_LE (fi->file->id);
+      file_header[1] = GUINT64_TO_LE (fi->first_input_entry);
+      file_header[2] = GUINT64_TO_LE (fi->n_input_entries);
+      file_header[3] = GUINT64_TO_LE (fi->file->n_records);
+      if (at + sizeof (file_header) > table->journal_size)
+        {
+          if (!resize_journal (journal_fd,
+                               &journal_mmap, &table->journal_size,
+                               at + sizeof (file_header),
+                               error))
+            return FALSE;
+        }
+      memcpy (journal_mmap + at, file_header, sizeof (file_header));
+      at += sizeof (file_header);
+    }
+  n_merge_tasks_written = 0;
+  for (fi = table->first_file; fi; fi = fi->next_file)
+    if (fi->next_task != NULL && fi->next_task->is_started)
+      {
+        MergeTask *task = fi->next_task;
+        guint reader_state_lens[2];
+        guint8 *reader_states[2];
+        guint build_state_len;
+        guint8 *build_state;
+        for (input = 0; input < 2; input++)
+          {
+            if (!gsk_table_file_get_reader_state (task->inputs[input].file->file,
+                                                  task->info.started.inputs[input].reader,
+                                                  &reader_state_lens[input],
+                                                  &reader_states[input],
+                                                  error))
+              {
+                gsk_error_add_prefix ("reset_journal: input %u", input);
+                goto failed_writing_journal;
+              }
+          }
+        if (!gsk_table_file_get_build_state (task->info.started.output,
+                                             &build_state_len,
+                                             &build_state,
+                                             error))
+          {
+            gsk_error_add_prefix ("reset_journal: build state");
+            goto failed_writing_journal;
+          }
+
+        total_len = (8 + 4 + reader_state_lens[0])
+                  + (8 + 4 + reader_state_lens[1])
+                  + (8 + 4 + build_state_len);
+        if (at + total_len > table->journal_size)
+          {
+            if (!resize_journal (journal_fd,
+                                 &journal_mmap, &table->journal_size,
+                                 at + total_len,
+                                 error))
+              return FALSE;
+          }
+        for (input = 0; input < 2; input++)
+          {
+            guint64 id = task->inputs[input].file->id;
+            guint32 len = reader_state_lens[input];
+            guint64 id_le = GUINT64_TO_LE (id);
+            guint32 len_le = GUINT32_TO_LE (len);
+            memcpy (journal_mmap + at, &id_le, 8);
+            at += 8;
+            memcpy (journal_mmap + at, &len_le, 4);
+            at += 4;
+            memcpy (journal_mmap + at, reader_states[input], len);
+            at += len;
+            g_free (reader_states[input]);
+          }
+        {
+          guint64 id = task->info.started.output->id;
+          guint32 len = build_state_len;
+          guint64 id_le = GUINT64_TO_LE (id);
+          guint32 len_le = GUINT32_TO_LE (len);
+          memcpy (journal_mmap + at, &id_le, 8);
+          at += 8;
+          memcpy (journal_mmap + at, &len_le, 4);
+          at += 4;
+          memcpy (journal_mmap + at, build_state, len);
+          at += len;
+          g_free (build_state);
+        }
+
+        n_merge_tasks_written++;
+      }
+  g_assert (n_merge_tasks_written == table->n_running_tasks);
 
   /* move the journal into place */
-  ...
+  if (rename (table->journal_tmp_fname, table->journal_cur_fname) < 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_RENAME,
+                   "error moving journal into place: %s",
+                   g_strerror (errno));
+      goto failed_writing_journal;
+    }
+
+  table->journal_len = at;
 
   /* blow away old files */
   for (i = 0; i < table->n_old_files; i++)
@@ -610,6 +755,13 @@ reset_journal (GskTable   *table,
   table->n_old_files = table->n_files;
   for (fi = table->first_file; fi; fi = fi->next_file)
     table->old_files[i++] = file_info_ref (fi);
+
+  return TRUE;
+
+failed_writing_journal:
+  close (journal_fd);
+  unlink (table->journal_tmp_fname);
+  return FALSE;
 }
 
 /** 
@@ -924,8 +1076,33 @@ gsk_table_add         (GskTable              *table,
 
   if (must_write_journal)
     {
-      ...
+      guint new_journal_len = 4 + key_len + 4 + value_len + table->journal_len;
+      if (new_journal_len % 4 != 0)
+        new_journal_len += (4 - new_journal_len % 4);
+      if (new_journal_len + 4 > table->journal_size)
+        {
+          if (!resize_journal (&table->journal_fd,
+                               &table->journal_mmap,
+                               &table->journal_size,
+                               new_journal_len + 4,
+                               error))
+            {
+              gsk_error_add_prefix (error, "expanding journal");
+              return FALSE;
+            }
+        }
+      memset (table->journal_mmap + new_journal_len, 0, 4);
+      memcpy (table->journal_mmap + 8 + table->journal_len,
+              key_data, key_len);
+      memcpy (table->journal_mmap + 8 + table->journal_len + key_len,
+              value_data, value_len);
+      ((guint32*)(table->journal_mmap + table->journal_len))[1]
+         = GUINT32_TO_LE (value_len);
+      GSK_MEMORY_BARRIER ();
+      ((guint32*)(table->journal_mmap + table->journal_len))[0]
+         = GUINT32_TO_LE (key_len + 1);
     }
+  return TRUE;
 }
 
 gboolean
