@@ -10,7 +10,7 @@
 #  ifdef GSK_MEMORY_BARRIER
 #   undef GSK_MEMORY_BARRIER
 #  endif
-#  define GSK_MEMORY_BARRIER  __sync_synchronize()
+#  define GSK_MEMORY_BARRIER()  __sync_synchronize()
 # endif
 #endif
 
