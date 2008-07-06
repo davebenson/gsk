@@ -7,6 +7,10 @@
  * uninterpreted piece of binary-data to a value.
  * When multiple values are added with the same
  * key, they are merged, using user-definable semantics.
+ *
+ * application notes:
+ * - you may store data in the directory, but it the filename
+ *   must begin with a capital letter.
  */
 typedef struct _GskTableReader GskTableReader;
 

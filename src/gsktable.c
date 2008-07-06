@@ -837,6 +837,9 @@ gsk_table_new         (const char            *dir,
     }
   else
     {
+      GDir *dirline;
+      GHashTable *known_ids;
+      GPtrArray *to_delete;
       /* load existing table */
       if (!read_journal (table, error))
         {
@@ -853,7 +856,61 @@ gsk_table_new         (const char            *dir,
         }
 
       /* move aside unused files */
-      ...
+      dirlist = g_dir_open (dir, 0, error);
+      if (dirlist == NULL)
+        {
+          g_warning ("g_dir_open failed on existing db dir?: %s", path);
+          /* TODO: cleanup (or maybe just return table anyway?) */
+          g_free (table);
+          return NULL;
+        }
+      known_ids = g_hash_table_new (uint64_hash, uint64_equal);
+      for (fi = table->first_file; fi; fi = fi->next_file)
+        {
+          g_hash_table_insert (known_ids, &fi->file->id, fi->file);
+          if (fi->next_task->is_started)
+            {
+              GskTableFile *output = fi->next_task->info.started.output;
+              g_hash_table_insert (known_ids, &output->id, output);
+            }
+        }
+      to_delete = g_ptr_array_new ();
+      while ((name=g_dir_read_name (dirlist)) != NULL)
+        {
+          guint64 id;
+          if (name[0] == '.'
+           && ((strcmp (name, ".") == 0 || strcmp (name, "..") == 0)))
+            continue;           /* ignore . and .. */
+
+          if ('A' <= name[0] && name[0] <= 'Z')
+            continue;           /* ignore user files */
+
+          if (strcmp (name, table->journal_tmp_fname) == 0
+           || strcmp (name, table->journal_cur_fname) == 0)
+            continue;           /* ignore journal files */
+
+          /* find file-id and extension, since it's possible we want to
+             delete this file. */
+          for (at = name; '0' <= *at <= '9' && 'a' <= *at <= 'f'; at++)
+            ;
+          if (at == name || *at != '.')
+            {
+              g_warning ("unrecognized file '%s' in dir.. skipping", name);
+              continue;
+            }
+          id = g_ascii_strtoull (at, NULL, 16);
+          /* TODO: verify we know the extension? */
+          if (g_hash_table_lookup (known_ids, &id) == NULL)
+            {
+              g_message ("unknown id for file %s: deleting it", name);
+              g_ptr_array_add (to_delete, g_strdup_printf ("%s/%s", dir, name));
+            }
+        }
+      g_hash_table_destroy (known_ids);
+      g_ptr_array_foreach (to_delete, (GFunc) unlink, NULL);    /* eep! */
+      g_ptr_array_foreach (to_delete, (GFunc) g_free, NULL);
+      g_ptr_array_free (to_delete, TRUE);
+      g_dir_close (dirlist);
     }
 
   return table;
@@ -930,9 +987,7 @@ maybe_start_tasks (GskTable *table)
   return TRUE;
 }
 
-#define IMPLEMENT_RUN_MERGE_TASK(COMPARE_CODE, MERGE_CODE)
-
-static gboolean
+static inline gboolean
 run_merge_task (GskTable   *table,
                 guint       count,
                 gboolean    flush,
@@ -962,9 +1017,13 @@ run_merge_task (GskTable   *table,
  * @value_data:
  * @error: place to put the error if something goes wrong.
  *
- * 
+ * Add a new key/value pair to a GskTable.
+ * If the key already exists, the semantics are dependent
+ * on the merge function; if no merge function is given,
+ * then both rows will exist in the table.
+ *
+ * returns: whether the addition was successful.
  */
-
 gboolean
 gsk_table_add         (GskTable              *table,
                        guint                  key_len,
