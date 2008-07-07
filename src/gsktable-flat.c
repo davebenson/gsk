@@ -127,7 +127,7 @@ struct _CacheEntryRecord
 };
 struct _CacheEntry
 {
-  guint n_records;
+  guint n_entries;
   guint64 index;
   CacheEntry *prev_lru, *next_lru;
   CacheEntry *bin_next;
@@ -363,7 +363,7 @@ cache_entry_deserialize (guint64       index,
   last_key = NULL;
   heap_at = (guint8 *) (rv->records + n_compressed_entries);
   
-  rv->n_records = n_compressed_entries;
+  rv->n_entries = n_compressed_entries;
   rv->index = index;
 
   for (i = 0; i < n_compressed_entries; i++)
@@ -948,7 +948,7 @@ flat__create_file      (GskTableFileFactory      *factory,
   guint f;
   rv->base_file.factory = factory;
   rv->base_file.id = id;
-  rv->base_file.n_records = 0;
+  rv->base_file.n_entries = 0;
 
   if (!open_3_files (rv, dir, id, OPEN_MODE_CREATE, error))
     {
@@ -1041,10 +1041,10 @@ flat__open_building_file(GskTableFileFactory     *factory,
           }
       }
     {
-      guint64 n_records_le, n_records;
-      memcpy (&n_records_le, state_data + 1 + 3*8, 8);
-      n_records = GUINT64_FROM_LE (n_records_le);
-      rv->base_file.n_records = n_records;
+      guint64 n_entries_le, n_entries;
+      memcpy (&n_entries_le, state_data + 1 + 3*8, 8);
+      n_entries = GUINT64_FROM_LE (n_entries_le);
+      rv->base_file.n_entries = n_entries;
     }
   }
   rv->has_readers = FALSE;
@@ -1077,8 +1077,8 @@ flat__open_file        (GskTableFileFactory      *factory,
 
   /* pread() to get the number of records */
   {
-    guint64 n_records_le;
-    int prv = pread (rv->fds[FILE_INDEX], &n_records_le, 8, 0);
+    guint64 n_entries_le;
+    int prv = pread (rv->fds[FILE_INDEX], &n_entries_le, 8, 0);
     if (prv < 0)
       {
         g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_PREAD,
@@ -1099,7 +1099,7 @@ flat__open_file        (GskTableFileFactory      *factory,
         g_slice_free (FlatFile, rv);
         return NULL;
       }
-    rv->base_file.n_records = GUINT64_FROM_LE (n_records_le);
+    rv->base_file.n_entries = GUINT64_FROM_LE (n_entries_le);
   }
 
   /* mmap small files for reading */
@@ -1268,7 +1268,7 @@ flat__feed_entry      (GskTableFile             *file,
 
   g_assert (builder != NULL);
 
-  file->n_records++;
+  file->n_entries++;
 
   if (builder->has_last_key)
     {
@@ -1364,13 +1364,13 @@ flat__done_feeding     (GskTableFile             *file,
 
   /* write the number of records to the front */
   {
-    guint64 n_records = file->n_records;
-    guint64 n_records_le = GUINT64_TO_LE (n_records);
-    int pwrite_rv = pwrite (ffile->fds[FILE_INDEX], &n_records_le, 8, 0);
+    guint64 n_entries = file->n_entries;
+    guint64 n_entries_le = GUINT64_TO_LE (n_entries);
+    int pwrite_rv = pwrite (ffile->fds[FILE_INDEX], &n_entries_le, 8, 0);
     if (pwrite_rv < 0)
       {
         g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_PWRITE,
-                     "pwrite failed writing n_records: %s",
+                     "pwrite failed writing n_entries: %s",
                      g_strerror (errno));
         return FALSE;
       }
@@ -1422,9 +1422,9 @@ flat__get_build_state  (GskTableFile             *file,
       memcpy (data + 8 * f + 1, &offset_le, 8);
     }
   {
-    guint64 n_records = file->n_records;
-    guint64 n_records_le = GUINT64_TO_LE (n_records);
-    memcpy (data + 1 + 3*8, &n_records_le, 8);
+    guint64 n_entries = file->n_entries;
+    guint64 n_entries_le = GUINT64_TO_LE (n_entries);
+    memcpy (data + 1 + 3*8, &n_entries_le, 8);
   }
   return TRUE;
 }
@@ -1588,7 +1588,7 @@ flat__query_file       (GskTableFile             *file,
   /* bsearch the uncompressed block */
   {
     guint first = 0;
-    guint n = cache_entry->n_records;
+    guint n = cache_entry->n_entries;
     while (n > 1)
       {
         guint mid = first + n / 2;
@@ -1612,7 +1612,7 @@ flat__query_file       (GskTableFile             *file,
             return TRUE;
           }
       }
-    if (n == 1 && first < cache_entry->n_records)
+    if (n == 1 && first < cache_entry->n_entries)
       {
         CacheEntryRecord *record = cache_entry->records + first;
         int compare_rv = query_inout->compare (record->key_len, record->key_data,
@@ -1701,7 +1701,7 @@ reader_advance (GskTableReader *reader)
   FlatFileReader *freader = (FlatFileReader *) reader;
   if (freader->base_reader.eof || freader->base_reader.error)
     return;
-  if (++freader->record_index == freader->cache_entry->n_records)
+  if (++freader->record_index == freader->cache_entry->n_entries)
     {
       g_free (freader->cache_entry);
       read_and_uncompress_chunk (freader);
@@ -1888,7 +1888,7 @@ flat__recreate_reader  (GskTableFile             *file,
         guint32 tmp_le;
         memcpy (&tmp_le, state_data + 1 + 3*8, 4);
         freader->record_index = GUINT32_FROM_LE (tmp_le);
-        if (freader->record_index >= freader->cache_entry->n_records)
+        if (freader->record_index >= freader->cache_entry->n_entries)
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_PREMATURE_EOF,

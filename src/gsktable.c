@@ -1,4 +1,18 @@
+#include <string.h>
+#include <errno.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <stdio.h>              /* for rename() */
+
+#include "gskrbtreemacros.h"
+#include "gskghelpers.h"
+#include "gskutils.h"
 #include "gsktable.h"
+#include "gsktable-file.h"
+#include "gskerror.h"
 
 typedef struct _TableUserData TableUserData;
 typedef struct _MergeTask MergeTask;
@@ -6,6 +20,8 @@ typedef struct _FileInfo FileInfo;
 typedef struct _TreeNode TreeNode;
 
 #define ID_FMT  "%" G_GUINT64_FORMAT
+
+#define JOURNAL_FILE_MAGIC              0x1143eeab
 
 struct _TableUserData
 {
@@ -83,15 +99,27 @@ struct _RunTaskFuncs
       nolen_nomerge
       nolen_merge
       len_merge      */
-static RunTaskFuncs *table_options_get_run_funcs (GskTableOptions *options,
-                                                  GError         **error);
+static RunTaskFuncs *
+              table_options_get_run_funcs    (const GskTableOptions *options,
+                                              gboolean        *has_len_out,
+                                              GError         **error);
+static GskTableFileFactory *
+              table_options_get_file_factory (const GskTableOptions *,
+                                              GError **error);
 
+typedef TreeNode *(*InMemoryTreeLookupFunc) (GskTable     *table,
+                                             guint         key_len,
+                                             const guint8 *key_data);
+typedef int       (*TreeNodeCompareFunc)    (GskTable     *table,
+                                             TreeNode     *a,
+                                             TreeNode     *b);
 struct _GskTable
 {
   char *dir;
   int lock_fd;
 
-  /* merge functions */
+  /* data handling functions */
+  gboolean has_len;
   union
   {
     GskTableCompareFunc with_len;
@@ -108,9 +136,13 @@ struct _GskTable
     GskTableSimplifyFuncNoLen no_len;
   } simplify;
   RunTaskFuncs *run_funcs;
+  InMemoryTreeLookupFunc in_memory_tree_lookup;
+  TreeNodeCompareFunc tree_node_compare;
 
   gpointer user_data;
   TableUserData *table_user_data; /* for ref-counting */
+
+  guint64 n_input_entries;
 
   /* journalling */
   int journal_fd;
@@ -119,6 +151,7 @@ struct _GskTable
   guint8 *journal_mmap;
   guint journal_len;                    /* current offset in journal */
   guint journal_size;                   /* size of journal data */
+  GskTableJournalMode journal_mode;
 
   /* files */
   guint n_files;
@@ -142,6 +175,14 @@ struct _GskTable
   gssize key_fixed_length;               /* or -1 */
   gssize value_fixed_length;             /* or -1 */
 
+  /* buffers */
+  GskTableBuffer result_buffers[2];
+  GskTableBuffer merge_buffer;
+  GskTableBuffer simplify_buffer;
+
+  /* file factory */
+  GskTableFileFactory *file_factory;
+
   /* used for merging the in-memory data */
   guint8 *tmp_merge_value_data;
   guint tmp_merge_value_alloced;
@@ -164,6 +205,32 @@ struct _GskTable
   info.unstarted.left, \
   info.unstarted.right, \
   COMPARE_UNSTARTED_MERGE_TASKS
+
+/* NOTE: 'table' must be a local-variable or a parameter for
+   these macros to work!!! blah. */
+#define TREE_NODE_IS_RED(node)         node->is_red
+#define TREE_NODE_SET_IS_RED(node,v)   node->is_red = v
+#define TREE_NODE_COMPARE(a,b,rv)      rv = table->tree_node_compare(table, a,b)
+#define GET_IN_MEMORY_TREE(table) \
+  (table)->in_memory_tree, TreeNode *, \
+  TREE_NODE_IS_RED, TREE_NODE_SET_IS_RED, \
+  parent, left, right, \
+  TREE_NODE_COMPARE
+  
+
+static inline void
+set_buffer (GskTableBuffer *buffer,
+            guint           len,
+            const guint8   *data)
+{
+  memcpy (gsk_table_buffer_set_len (buffer, len), data, len);
+}
+static inline void
+copy_buffer (GskTableBuffer *buffer,
+             const GskTableBuffer *src)
+{
+  set_buffer (buffer, src->len, src->data);
+}
 
 /* --- file-info ref-counting --- */
 static inline FileInfo *
@@ -202,9 +269,9 @@ static int compare_file_id_to_pfileinfo (gconstpointer p_file_id,
 {
   guint64 a = * (guint64 *) p_file_id;
   FileInfo *file_info = * (FileInfo **) p_file_info;
-  if (a < file_info->id)
+  if (a < file_info->file->id)
     return -1;
-  else if (a > file_info->id)
+  else if (a > file_info->file->id)
     return 1;
   else
     return 0;
@@ -214,11 +281,11 @@ static inline void
 kill_unstarted_merge_task (GskTable *table,
                            MergeTask *to_kill)
 {
-  g_assert (to_kill->files[0]->next_task == to_kill);
-  g_assert (to_kill->files[1]->prev_task == to_kill);
+  g_assert (to_kill->inputs[0]->next_task == to_kill);
+  g_assert (to_kill->inputs[1]->prev_task == to_kill);
   GSK_RBTREE_REMOVE (GET_UNSTARTED_MERGE_TASK_TREE (table), to_kill);
-  to_kill->files[0]->next_task = NULL;
-  to_kill->files[1]->prev_task = NULL;
+  to_kill->inputs[0]->next_task = NULL;
+  to_kill->inputs[1]->prev_task = NULL;
   g_slice_free (MergeTask, to_kill);
 }
 
@@ -262,17 +329,25 @@ static gboolean
 read_journal (GskTable  *table,
               GError   **error)
 {
-  int fd = open (table->journal_new_fname, O_RDWR);
+  int fd = open (table->journal_cur_fname, O_RDWR);
   struct stat stat_buf;
   guint i;
   guint magic, n_files, n_merge_tasks;
   guint32 tmp32_le;
   guint64 tmp64_le;
+  guint journal_size;
+  guint8 *mmapped_journal;
+  const guint8 *at;
+  guint64 n_input_entries;
+  FileInfo **file_infos;
+  GskTableFileFactory *file_factory = table->file_factory;
+  guint file_index;
+  GskTableJournalMode old_journal_mode;
   if (fd < 0)
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_OPEN,
                    "error opening journal file %s: %s",
-                   table->journal_new_fname,
+                   table->journal_cur_fname,
                    g_strerror (errno));
       return FALSE;
     }
@@ -280,7 +355,7 @@ read_journal (GskTable  *table,
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_STAT,
                    "error statting journal file %s: %s",
-                   table->journal_new_fname,
+                   table->journal_cur_fname,
                    g_strerror (errno));
       close (fd);
       return FALSE;
@@ -292,7 +367,7 @@ read_journal (GskTable  *table,
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_MMAP,
                    "error mmapping journal file %s: %s",
-                   table->journal_new_fname,
+                   table->journal_cur_fname,
                    g_strerror (errno));
       close (fd);
       return FALSE;
@@ -338,7 +413,6 @@ read_journal (GskTable  *table,
   /* parse files */
   for (i = 0; i < n_files; i++)
     {
-      guint64 n_entries, file_id;
       guint64 file_id, first_input_entry, n_input_entries, n_entries;
       FileInfo *file_info;
 
@@ -365,9 +439,9 @@ read_journal (GskTable  *table,
       file_info->file
         = gsk_table_file_factory_open_file (file_factory, table->dir,
                                             file_id, error);
-      if (file == NULL)
+      if (file_info->file == NULL)
         goto error_cleanup;
-      file_info->file->n_records = n_entries;
+      file_info->file->n_entries = n_entries;
       g_assert (file_info->file);
       file_info->ref_count = 1;
       file_infos[i] = file_info;
@@ -380,7 +454,7 @@ read_journal (GskTable  *table,
             {
               g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
                            "inconsistency: files "ID_FMT" and "ID_FMT" are not continguous (prev_end=%"G_GUINT64_FORMAT"; cur_start=%"G_GUINT64_FORMAT")",
-                           prev->id, file_info->id, prev_end, file_info->first_input_entry);
+                           prev->file->id, file_info->file->id, prev_end, file_info->first_input_entry);
               goto error_cleanup;
             }
           file_info->prev_file = prev;
@@ -407,12 +481,13 @@ read_journal (GskTable  *table,
         guint64 file_id;
         guint reader_state_len;
         const guint8 *reader_state;
+        FileInfo *file_info;
       } inputs[2];
       guint64 output_file_id;
       guint build_state_len;
       const guint8 *build_state;
       MergeTask *merge_task;
-      
+      guint j;
 
       for (j = 0; j < 2; j++)
         {
@@ -450,29 +525,29 @@ read_journal (GskTable  *table,
                        inputs[0].file_id);
           goto error_cleanup;
         }
-      inputs[0].file = file_infos[file_index];
-      inputs[1].file = file_infos[file_index+1];
-      g_assert (inputs[0].file->id == inputs[0].file_id);
-      if (inputs[1].file->id != inputs[1].file_id)
+      inputs[0].file_info = file_infos[file_index];
+      inputs[1].file_info = file_infos[file_index+1];
+      g_assert (inputs[0].file_info->file->id == inputs[0].file_id);
+      if (inputs[1].file_info->file->id != inputs[1].file_id)
         {
           g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
                        "second input to merge task nonconsecutive");
           goto error_cleanup;
         }
-      g_assert (inputs[0].file->next_task == NULL);
-      g_assert (inputs[1].file->prev_task == NULL);
+      g_assert (inputs[0].file_info->next_task == NULL);
+      g_assert (inputs[1].file_info->prev_task == NULL);
 
       merge_task = g_slice_new (MergeTask);
       merge_task->is_started = TRUE;
-      merge_task->inputs[0] = inputs[0].file;
-      merge_task->inputs[1] = inputs[1].file;
+      merge_task->inputs[0] = inputs[0].file_info;
+      merge_task->inputs[1] = inputs[1].file_info;
 
       for (j = 0; j < 2; j++)
         {
           /* restore reader */
           GskTableReader *reader;
-          reader = gsk_table_file_recreate_reader (inputs[j].file,
-                                                   dir,
+          reader = gsk_table_file_recreate_reader (inputs[j].file_info->file,
+                                                   table->dir,
                                                    inputs[j].reader_state_len,
                                                    inputs[j].reader_state,
                                                    error);
@@ -488,22 +563,22 @@ read_journal (GskTable  *table,
 
       merge_task->info.started.output
         = gsk_table_file_factory_open_building_file (file_factory,
-                                                     dir, output_file_id,
+                                                     table->dir, output_file_id,
                                                      build_state_len,
                                                      build_state, error);
       if (merge_task->info.started.output == NULL)
         {
-          gsk_error_add_prefix (error,
+          gsk_g_error_add_prefix (error,
                                 "instantiating merge-task between files "ID_FMT" and "ID_FMT,
-                                inputs[0].id,
-                                inputs[1].id);
+                                inputs[0].file_id,
+                                inputs[1].file_id);
           gsk_table_reader_destroy (merge_task->info.started.inputs[0].reader);
           gsk_table_reader_destroy (merge_task->info.started.inputs[1].reader);
           g_slice_free (MergeTask, merge_task);
           goto error_cleanup;
         }
-      inputs[0].file->next_task = merge_task;
-      inputs[1].file->prev_task = merge_task;
+      inputs[0].file_info->next_task = merge_task;
+      inputs[1].file_info->prev_task = merge_task;
 
       /* neither of these inputs can be involved in another merge-task,
          so advance the pointer to prevent reuse. */
@@ -538,7 +613,11 @@ read_journal (GskTable  *table,
 
   /* create unstarted merge tasks */
   for (i = 0; i < n_files - 1; i++)
-    if (file_infos[i].next_task == NULL)
+    if (file_infos[i]->next_task == NULL
+     && (file_infos[i]->prev_task == NULL
+         || !file_infos[i]->prev_task->is_started)
+     && (file_infos[i+1]->next_task == NULL
+         || !file_infos[i+1]->next_task->is_started))
       {
         g_assert (file_infos[i+1]->prev_task == NULL);
         create_unstarted_merge_task (table, file_infos[i], file_infos[i+1]);
@@ -550,7 +629,7 @@ read_journal (GskTable  *table,
   for (;;)
     {
       guint align_offset = ((gsize)at) & 3;
-      guint32 len;
+      guint32 key_len, value_len;
       if (align_offset)
         at += 4 - align_offset;
       tmp32_le = ((guint32 *) at)[0];
@@ -563,7 +642,7 @@ read_journal (GskTable  *table,
       at += 8;
       if (!gsk_table_add (table, key_len, at, value_len, at + key_len, error))
         {
-          gsk_error_add_prefix (error, "error replaying journal");
+          gsk_g_error_add_prefix (error, "error replaying journal");
           table->journal_mode = old_journal_mode;
           /* do not use error_cleanup, let gsk_table_destroy() do the work */
           return FALSE;
@@ -571,7 +650,8 @@ read_journal (GskTable  *table,
       at += key_len + value_len;
     }
   table->journal_mode = old_journal_mode;
-  table->journal_len = at - journal_mmap;
+  table->journal_len = at - mmapped_journal;
+  table->n_input_entries = n_input_entries;
 
   return TRUE;
 
@@ -587,12 +667,55 @@ error_cleanup:
 }
 
 static gboolean
+resize_journal (gint       journal_fd,
+                guint8   **journal_mmap_inout,
+                guint     *journal_size_inout,
+                guint      new_min_size,
+                GError   **error)
+{
+  guint new_size;
+  guint8 *tmp;
+  if (new_min_size <= *journal_size_inout)
+    return TRUE;
+  new_size = *journal_size_inout;
+  while (new_size < new_min_size)
+    new_size += new_size;
+
+  /* un-mmap file */
+  munmap (*journal_mmap_inout, *journal_size_inout);
+
+  /* resize */
+  if (ftruncate (journal_fd, new_size) < 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_TRUNCATE,
+                   "error resizing journal: %s",
+                   g_strerror (errno));
+      return FALSE;
+    }
+
+  /* mmap file */
+  tmp = mmap (NULL, new_size, PROT_READ|PROT_WRITE, MAP_SHARED, journal_fd, 0);
+  if (tmp == NULL || tmp == MAP_FAILED)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_MMAP,
+                   "error mmapping resized journal");
+      return FALSE;
+    }
+  *journal_size_inout = new_size;
+  *journal_mmap_inout = tmp;
+  return TRUE;
+}
+
+static gboolean
 reset_journal (GskTable   *table,
                GError    **error)
 {
   guint i;
   FileInfo *fi;
   int journal_fd;
+  guint8 *journal_mmap;
+  guint at;
+  guint n_merge_tasks_written;
 
   g_assert (table->in_memory_tree == NULL);
 
@@ -648,7 +771,7 @@ reset_journal (GskTable   *table,
       file_header[0] = GUINT64_TO_LE (fi->file->id);
       file_header[1] = GUINT64_TO_LE (fi->first_input_entry);
       file_header[2] = GUINT64_TO_LE (fi->n_input_entries);
-      file_header[3] = GUINT64_TO_LE (fi->file->n_records);
+      file_header[3] = GUINT64_TO_LE (fi->file->n_entries);
       if (at + sizeof (file_header) > table->journal_size)
         {
           if (!resize_journal (journal_fd,
@@ -669,15 +792,16 @@ reset_journal (GskTable   *table,
         guint8 *reader_states[2];
         guint build_state_len;
         guint8 *build_state;
+        guint input;
         for (input = 0; input < 2; input++)
           {
-            if (!gsk_table_file_get_reader_state (task->inputs[input].file->file,
+            if (!gsk_table_file_get_reader_state (task->inputs[input]->file,
                                                   task->info.started.inputs[input].reader,
                                                   &reader_state_lens[input],
                                                   &reader_states[input],
                                                   error))
               {
-                gsk_error_add_prefix ("reset_journal: input %u", input);
+                gsk_g_error_add_prefix (error, "reset_journal: input %u", input);
                 goto failed_writing_journal;
               }
           }
@@ -686,10 +810,11 @@ reset_journal (GskTable   *table,
                                              &build_state,
                                              error))
           {
-            gsk_error_add_prefix ("reset_journal: build state");
+            gsk_g_error_add_prefix (error, "reset_journal: build state");
             goto failed_writing_journal;
           }
 
+        guint total_len;
         total_len = (8 + 4 + reader_state_lens[0])
                   + (8 + 4 + reader_state_lens[1])
                   + (8 + 4 + build_state_len);
@@ -703,7 +828,7 @@ reset_journal (GskTable   *table,
           }
         for (input = 0; input < 2; input++)
           {
-            guint64 id = task->inputs[input].file->id;
+            guint64 id = task->inputs[input]->file->id;
             guint32 len = reader_state_lens[input];
             guint64 id_le = GUINT64_TO_LE (id);
             guint32 len_le = GUINT32_TO_LE (len);
@@ -747,7 +872,7 @@ reset_journal (GskTable   *table,
   /* blow away old files */
   for (i = 0; i < table->n_old_files; i++)
     file_info_unref (table->old_files[i], table->dir, TRUE);
-  g_free (old_files);
+  g_free (table->old_files);
 
   /* preserve old files */
   table->old_files = g_new (FileInfo *, table->n_files);
@@ -762,6 +887,107 @@ failed_writing_journal:
   close (journal_fd);
   unlink (table->journal_tmp_fname);
   return FALSE;
+}
+
+
+/* --- in-memory tree lookup (implementations) --- */
+static inline gint compare_memory (guint a_len, const guint8 *a_data,
+                                   guint b_len, const guint8 *b_data)
+{
+  int rv;
+  if (a_len < b_len)
+    {
+      rv = memcmp (a_data, b_data, a_len);
+      if (rv == 0)
+        rv = 1;
+    }
+  else if (a_len > b_len)
+    {
+      rv = memcmp (a_data, b_data, b_len);
+      if (rv == 0)
+        rv = -1;
+    }
+  else
+    rv = memcmp (a_data, b_data, a_len);
+  return rv;
+}
+
+static TreeNode *
+in_memory_tree_lookup_memcmp (GskTable     *table,
+                              guint         key_len,
+                              const guint8 *key_data)
+{
+  TreeNode *found = NULL;
+#define TMP_KEY_COMPARATOR(unused, at, rv) \
+  rv = compare_memory (key_len, key_data, at->key.len, at->key.data)
+  GSK_RBTREE_LOOKUP_COMPARATOR (GET_IN_MEMORY_TREE (table),
+                                unused, TMP_KEY_COMPARATOR, found);
+#undef TMP_KEY_COMPARATOR
+  return found;
+}
+static TreeNode *
+in_memory_tree_lookup_with_len (GskTable     *table,
+                                guint         key_len,
+                                const guint8 *key_data)
+{
+  TreeNode *found = NULL;
+#define TMP_KEY_COMPARATOR(unused, at, rv) \
+  rv = table->compare.with_len (key_len, key_data, \
+                                at->key.len, at->key.data, \
+                                table->user_data)
+  GSK_RBTREE_LOOKUP_COMPARATOR (GET_IN_MEMORY_TREE (table),
+                                unused, TMP_KEY_COMPARATOR, found);
+#undef TMP_KEY_COMPARATOR
+  return found;
+}
+
+static TreeNode *
+in_memory_tree_lookup_no_len (GskTable     *table,
+                              guint         key_len,
+                              const guint8 *key_data)
+{
+  TreeNode *found = NULL;
+#define TMP_KEY_COMPARATOR(unused, at, rv) \
+  rv = table->compare.no_len (key_data, at->key.data, table->user_data)
+  GSK_RBTREE_LOOKUP_COMPARATOR (GET_IN_MEMORY_TREE (table),
+                                unused, TMP_KEY_COMPARATOR, found);
+#undef TMP_KEY_COMPARATOR
+  return found;
+}
+
+static int tree_node_compare_memcmp (GskTable *table,
+                                     TreeNode *a,
+                                     TreeNode *b)
+{
+  return compare_memory (a->key.len, a->key.data, b->key.len, b->key.data);
+}
+static int tree_node_compare_with_len (GskTable *table,
+                                       TreeNode *a,
+                                       TreeNode *b)
+{
+  return table->compare.with_len (a->key.len, a->key.data,
+                                  b->key.len, b->key.data,
+                                  table->user_data);
+}
+static int tree_node_compare_no_len (GskTable *table,
+                                     TreeNode *a,
+                                     TreeNode *b)
+{
+  return table->compare.no_len (a->key.data, b->key.data, table->user_data);
+}
+
+static guint
+uint64_hash (gconstpointer a)
+{
+  guint64 ai = * (guint64 *) a;
+  guint ai_high = ai>>32;
+  guint ai_low = ai;
+  return ai_low * 33 + ai_high;
+}
+static gboolean
+uint64_equal (gconstpointer a, gconstpointer b)
+{
+  return (* (guint64 *) a) == (* (guint64 *) b);
 }
 
 /** 
@@ -793,9 +1019,15 @@ gsk_table_new         (const char            *dir,
   gboolean did_mkdir;
   GskTable *table;
   RunTaskFuncs *run_funcs;
+  gboolean has_len;
+  int lock_fd;
+  GskTableFileFactory *factory;
 
-  run_funcs = table_options_get_run_funcs (options, error);
+  run_funcs = table_options_get_run_funcs (options, &has_len, error);
   if (run_funcs == NULL)
+    return NULL;
+  factory = table_options_get_file_factory (options, error);
+  if (factory == NULL)
     return NULL;
 
   if (g_file_test (dir, G_FILE_TEST_IS_DIR))
@@ -829,17 +1061,36 @@ gsk_table_new         (const char            *dir,
   table->dir = g_strdup (dir);
   table->lock_fd = lock_fd;
   table->run_funcs = run_funcs;
+  table->has_len = has_len;
+  table->in_memory_tree_lookup
+    = table->compare.no_len == NULL ? in_memory_tree_lookup_memcmp
+             : has_len ? in_memory_tree_lookup_with_len
+             : in_memory_tree_lookup_no_len;
+  table->tree_node_compare
+    = table->compare.no_len == NULL ? tree_node_compare_memcmp
+             : has_len ? tree_node_compare_with_len
+             : tree_node_compare_no_len;
+  table->journal_mode = options->journal_mode;
 
   if (did_mkdir)
     {
-      /* prepare a new table:
-       * nothing to do, yet */
+      /* make an empty journal file */
+      if (!reset_journal (table, error))
+        {
+          gsk_table_destroy (table);
+          gsk_rm_rf (table->dir, NULL);
+          return NULL;
+        }
     }
   else
     {
-      GDir *dirline;
+      GDir *dirlist;
       GHashTable *known_ids;
       GPtrArray *to_delete;
+      FileInfo *fi;
+      const char *name;
+      const char *at;
+
       /* load existing table */
       if (!read_journal (table, error))
         {
@@ -859,7 +1110,7 @@ gsk_table_new         (const char            *dir,
       dirlist = g_dir_open (dir, 0, error);
       if (dirlist == NULL)
         {
-          g_warning ("g_dir_open failed on existing db dir?: %s", path);
+          g_warning ("g_dir_open failed on existing db dir?: %s", dir);
           /* TODO: cleanup (or maybe just return table anyway?) */
           g_free (table);
           return NULL;
@@ -891,7 +1142,7 @@ gsk_table_new         (const char            *dir,
 
           /* find file-id and extension, since it's possible we want to
              delete this file. */
-          for (at = name; '0' <= *at <= '9' && 'a' <= *at <= 'f'; at++)
+          for (at = name; g_ascii_isxdigit (*at); at++)
             ;
           if (at == name || *at != '.')
             {
@@ -934,14 +1185,14 @@ start_merge_task (GskTable   *table,
     {
       MergeTask *to_kill = prev->prev_task;
       g_assert (!to_kill->is_started);
-      g_assert (to_kill->files[1] == prev);
+      g_assert (to_kill->inputs[1] == prev);
       kill_unstarted_merge_task (table, to_kill);
     }
   if (next->next_task)
     {
       MergeTask *to_kill = next->next_task;
       g_assert (!to_kill->is_started);
-      g_assert (to_kill->files[0] == next);
+      g_assert (to_kill->inputs[0] == next);
       kill_unstarted_merge_task (table, to_kill);
     }
 
@@ -1039,11 +1290,8 @@ gsk_table_add         (GskTable              *table,
   g_assert (table->value_fixed_length < 0
          || table->value_fixed_length == value_len);
 
-#define TMP_KEY_COMPARATOR(unused, at, rv) \
-  rv = compare_memory (key_len, key_data, (at)->key_len, (at)->key_data)
-  GSK_RBTREE_LOOKUP_COMPARATOR (GET_IN_MEMORY_TREE (table),
-                                unused, TMP_KEY_COMPARATOR, found);
-#undef TMP_KEY_COMPARATOR
+  found = table->in_memory_tree_lookup (table, key_len, key_data);
+  table->n_input_entries++;
 
   if (found)
     {
@@ -1054,18 +1302,14 @@ gsk_table_add         (GskTable              *table,
                             &table->tmp_buffer, table->user_data))
         {
         case GSK_TABLE_MERGE_RETURN_A:
-        case GSK_TABLE_MERGE_RETURN_A_DONE:
           /* nothing to do */
           break;
         case GSK_TABLE_MERGE_RETURN_B:
-        case GSK_TABLE_MERGE_RETURN_B_DONE:
           table->in_memory_bytes -= found->value.len;
           table->in_memory_bytes += value_len;
-          gsk_table_buffer_set_len (&found->value, value_len);
-          memcpy (found->value.data, value_data, value_len);
+          set_buffer (&found->value, value_len, value_data);
           break;
         case GSK_TABLE_MERGE_SUCCESS:
-        case GSK_TABLE_MERGE_SUCCESS_DONE:
           {
             GskTableBuffer swap = table->tmp_buffer;
             table->in_memory_bytes -= found->value.len;
@@ -1084,10 +1328,8 @@ gsk_table_add         (GskTable              *table,
       TreeNode *new = table->in_memory_nodes + table->n_memory_added;
 
       /* write key and value into the new node */
-      memcpy (gsk_table_buffer_set_len (&new->key, key_len),
-              key_data, key_len);
-      memcpy (gsk_table_buffer_set_len (&new->value, value_len),
-              value_data, value_len);
+      set_buffer (&new->key, key_len, key_data);
+      set_buffer (&new->value, value_len, value_data);
 
       /* TODO: this repeats the work of the lookup.
          maybe we need a GSK_RBTREE_INSERT_NO_REPLACE()
@@ -1116,7 +1358,7 @@ gsk_table_add         (GskTable              *table,
           /* write new journal */
           if (!reset_journal (table, error))
             {
-              gsk_error_add_prefix (error, "error flushing journal");
+              gsk_g_error_add_prefix (error, "error flushing journal");
               return FALSE;
             }
 
@@ -1146,7 +1388,7 @@ gsk_table_add         (GskTable              *table,
                                new_journal_len + 4,
                                error))
             {
-              gsk_error_add_prefix (error, "expanding journal");
+              gsk_g_error_add_prefix (error, "expanding journal");
               return FALSE;
             }
         }
@@ -1175,17 +1417,19 @@ gsk_table_query       (GskTable              *table,
 {
   gboolean reverse = table->query_reverse_chronologically;
   gboolean has_result = FALSE;
-  GskTableBuffer result = GSK_TABLE_BUFFER_INIT;
+  GskTableBuffer *result_buffers = table->result_buffers;       /* [2] */
+  GskTableBuffer *result = result_buffers;
+  GskTableBuffer *other_result = result_buffers+1;
   GskTableFileQuery *query = table->file_query;
 
   /* first query rbtree (if in reverse-chronological mode (default)) */
   if (reverse)
     {
-      ...
-
-      if (has_result)
+      TreeNode *node = table->in_memory_tree_lookup (table, key_len, key_data);
+      if (node != NULL)
         {
-          ...
+          has_result = TRUE;
+          copy_buffer (&result, &node->value.len);
 
           /* are we done? */
           if (table->is_stable_func != NULL
@@ -1202,6 +1446,7 @@ gsk_table_query       (GskTable              *table,
        fi = reverse ? fi->prev_file : fi->next_file)
     {
       MergeTask *mt = reverse ? fi->prev_task : fi->next_task;
+      gboolean used_merge_output = FALSE;
       if (use_merge_tasks && mt != NULL && mt->is_started)
         {
           if (key before or equal to last writer sync point)
@@ -1209,67 +1454,161 @@ gsk_table_query       (GskTable              *table,
               if (!gsk_table_file_query (mt->info.started.output,
                                          query, error))
                 {
-                  gsk_error_add_prefix (error, "querying merge-task output");
+                  gsk_g_error_add_prefix (error, "querying merge-task output");
                   goto failed;
                 }
-
-              if (query->found)
-                {
-                  if (has_result)
-                    {
-                      /* merge values */
-                      ...
-                    }
-                  else if (merge == NULL)
-                    {
-                      *found_value_out = TRUE;
-                      gsk_table_buffer_set_len (&result, query->result.len);
-                      memcpy (result.data, query->result.data, result.len);
-                      goto done_querying_copy_result;
-                    }
-                  else
-                    {
-                      has_result = TRUE;
-                      memcpy (gsk_table_buffer_set_len (&result,
-                                                        query->result.len),
-                              query->result.data, query->result.len);
-                    }
-
-                  /* are we done? */
-                  if (table->is_stable_func != NULL
-                   && table->is_stable_func (key_len, key_data,
-                                             result.len, result.data,
-                                             table->user_data))
-                    goto done_querying_copy_result;
-                }
-
-             /* skip one extra file */
-             fi = reverse ? fi->prev_file : fi->next_file;
-             continue;
+              used_merge_output = TRUE;
+              goto handle_file_query_result;
             }
         }
 
       /* query file */
       if (!gsk_table_file_query (fi->file, query, error))
         {
-          gsk_error_add_prefix (error, "querying merge-task output");
+          gsk_g_error_add_prefix (error, "querying merge-task output");
           goto failed;
         }
 
+handle_file_query_result:
       if (query->found)
         {
-          /* merge if needed */
-          ...
+          if (has_result)
+            {
+              /* merge values */
+              GskTableMergeResult merge_result;
+              if (reverse)
+                merge_result
+                  = table->has_len ?
+                       table->merge.with_len (key_len, key_data,
+                                              query.result.len,
+                                              query.result.data,
+                                              result->len, result->data,
+                                              other_result,
+                                              user_data)
+                     : table->merge.no_len (key_data,
+                                            query.result.data,
+                                            result->data,
+                                            other_result,
+                                            user_data)
+              else
+                merge_result
+                  = table->has_len ?
+                       table->merge.with_len (key_len, key_data,
+                                              result->len, result->data,
+                                              query.result.len,
+                                              query.result.data,
+                                              other_result,
+                                              user_data)
+                     : table->merge.no_len (key_data,
+                                            result->data,
+                                            query.result.data,
+                                            other_result,
+                                            user_data)
+              switch (merge_result)
+                {
+                case GSK_TABLE_MERGE_RETURN_A:
+                  if (reverse)
+                    copy_buffer (result, &query.result);
+                  else
+                    ; /* do nothing: result is already correct */
+                  break;
+                case GSK_TABLE_MERGE_RETURN_B:
+                  if (!reverse)
+                    copy_buffer (result, &query.result);
+                  else
+                    ; /* do nothing: result is already correct */
+                  break;
+                case GSK_TABLE_MERGE_SUCCESS:
+                  {
+                    GskTableBuffer *tmp = result;
+                    result = other_result;
+                    other_result = tmp;
+                    break;
+                  }
+                case GSK_TABLE_MERGE_DROP:
+                  has_result = FALSE;
+                  break;
+                default:
+                  g_assert_not_reached ();
+                }
+            }
+          else if (merge == NULL)
+            {
+              *found_value_out = TRUE;
+              copy_buffer (&result, &query->result);
+              goto done_querying_copy_result;
+            }
+          else
+            {
+              has_result = TRUE;
+              copy_buffer (&result, &query->result);
+            }
 
           /* are we done? */
-          ...
+          if (table->is_stable_func != NULL
+           && table->is_stable_func (key_len, key_data,
+                                     result.len, result.data,
+                                     table->user_data))
+            goto done_querying_copy_result;
         }
+
+      /* skip one extra file */
+      if (used_merge_output)
+        fi = reverse ? fi->prev_file : fi->next_file;
     }
 
   /* last query rbtree (if in chronological mode) */
   if (!reverse)
     {
-      ...
+      TreeNode *node = table->in_memory_tree_lookup (table, key_len, key_data);
+      if (node != NULL)
+        {
+          if (has_result)
+            {
+              /* merge */
+              GskTableMergeResult merge_result;
+              merge_result
+                = table->has_len
+                     ? table->merge.with_len (key_len, key_data,
+                                              result->len, result->data,
+                                              node->value.len, node->value.data,
+                                              other_result,
+                                              user_data)
+                     : table->merge.no_len (key_data,
+                                            result->data,
+                                            node->value.data,
+                                            other_result,
+                                            user_data);
+              switch (merge_result)
+                {
+                case GSK_TABLE_MERGE_RETURN_A:
+                  break;
+                case GSK_TABLE_MERGE_RETURN_B:
+                  copy_buffer (&result, &node->value);
+                  break;
+                case GSK_TABLE_MERGE_SUCCESS:
+                  {
+                    GskTableBuffer *tmp = result;
+                    result = other_result;
+                    other_result = tmp;
+                    break;
+                  }
+                case GSK_TABLE_MERGE_DROP:
+                  has_result = FALSE;
+                  break;
+                default:
+                  g_assert_not_reached ();
+                }
+            }
+          else
+            {
+              has_result = TRUE;
+              copy_buffer (&result, &node->value);
+            }
+
+          /* note: no need to check stability,
+             since there's nothing more to do anyways. */
+        }
     }
 
 done_querying_copy_result:
@@ -1313,7 +1652,10 @@ gsk_table_destroy     (GskTable              *table)
   g_free (table->journal_cur_fname);
   g_free (table->journal_tmp_fname);
   munmap (table->journal_mmap, table->journal_size);
-  ...
+  gsk_table_buffer_clear (&table->result_buffers[0]);
+  gsk_table_buffer_clear (&table->result_buffers[1]);
+  gsk_table_buffer_clear (&table->merge_buffer);
+  gsk_table_buffer_clear (&table->simplify_buffer);
   g_slice_free (GskTable, table);
 }
 

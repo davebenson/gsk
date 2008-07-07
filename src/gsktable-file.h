@@ -28,10 +28,10 @@ struct _GskTableFile
   GskTableFileFactory *factory;
   guint64 id;
 
-  /* NOTE: n_records must be set by create_file() and open_building_file()
+  /* NOTE: n_entries must be set by create_file() and open_building_file()
      implementations, but must be set by caller for open_file().
      (ugly, but it's internal api) */
-  guint64 n_records;
+  guint64 n_entries;
 };
 
 typedef struct _GskTableFileQuery GskTableFileQuery;
@@ -159,6 +159,12 @@ GskTableFileFactory *gsk_table_file_factory_new_btree (void);
   ((file)->factory->build_file ((file), (ready_out), (error)))
 #define gsk_table_file_query(file, query_inout, error) \
   ((file)->factory->query_file ((file), (query_inout), (error)))
+#define gsk_table_file_create_reader(file, dir, error) \
+  ((file)->factory->create_reader ((file), (dir), (error)))
+#define gsk_table_file_get_reader_state(file, reader, state_len_out, state_out, error) \
+  ((file)->factory->get_reader_state ((file), (reader), (state_len_out), (state_out), (error)))
+#define gsk_table_file_recreate_reader(file, dir, state_len, state_data, error) \
+  ((file)->factory->recreate_reader ((file), (dir), (state_len), (state_data), (error)))
 #define gsk_table_file_destroy(file, dir, erase, error) \
   ((file)->factory->destroy_file ((file), (dir), (erase), (error)))
 #define gsk_table_file_factory_destroy(factory) \

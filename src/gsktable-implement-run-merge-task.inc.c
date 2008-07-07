@@ -164,23 +164,10 @@ restart_testing_eof:
     {
       int compare_rv;
 #if USE_MEMCMP
-      if (readers[0]->key_len < readers[1]->key_len[1])
-        {
-	  compare_rv = memcmp (readers[0]->key_data, readers[1]->key_data,
-	                       readers[0]->key_len);
-          if (compare_rv == 0)
-	    compare_rv = 1;
-        }
-      else if (readers[0]->key_len > readers[1]->key_len[1])
-        {
-	  compare_rv = memcmp (readers[0]->key_data, readers[1]->key_data,
-	                       readers[1]->key_len);
-          if (compare_rv == 0)
-	    compare_rv = -1;
-        }
-      else
-	compare_rv = memcmp (readers[0]->key_data, readers[1]->key_data,
-			     readers[0]->key_len);
+      compare_rv = compare_memory (readers[0]->key_len,
+                                   readers[0]->key_data,
+                                   readers[1]->key_len,
+                                   readers[1]->key_data);
 #else
       compare_rv = compare (MAYBE_LEN (reader[0]->key_len)
                             reader[0]->key_data,

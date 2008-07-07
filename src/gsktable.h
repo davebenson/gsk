@@ -88,6 +88,13 @@ typedef gboolean          (*GskTableValueIsStableFunc)(guint         key_len,
                                                        const guint8 *value_data,
                                                        gpointer      user_data);
 
+typedef enum
+{
+  GSK_TABLE_JOURNAL_NONE,
+  GSK_TABLE_JOURNAL_OCCASIONALLY,
+  GSK_TABLE_JOURNAL_DEFAULT
+} GskTableJournalMode;
+
 typedef struct _GskTableOptions GskTableOptions;
 struct _GskTableOptions
 {
@@ -110,6 +117,9 @@ struct _GskTableOptions
   gpointer user_data;
   GDestroyNotify destroy_user_data;
 
+  /* journalling mode */
+  GskTableJournalMode journal_mode;
+
   /* tunables */
   gsize max_in_memory_entries;
   gsize max_in_memory_bytes;
@@ -131,11 +141,12 @@ GskTable *  gsk_table_new         (const char            *dir,
                                    const GskTableOptions *options,
                                    GskTableNewFlags       flags,
 	          	           GError               **error);
-void        gsk_table_add         (GskTable              *table,
+gboolean    gsk_table_add         (GskTable              *table,
                                    guint                  key_len,
 	          	           const guint8          *key_data,
                                    guint                  value_len,
-	          	           const guint8          *value_data);
+	          	           const guint8          *value_data,
+                                   GError               **error);
 gboolean    gsk_table_query       (GskTable              *table,
                                    guint                  key_len,
 			           const guint8          *key_data,
