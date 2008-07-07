@@ -1173,7 +1173,121 @@ gsk_table_query       (GskTable              *table,
                        guint8               **value_data_out,
                        GError               **error)
 {
-  ...
+  gboolean reverse = table->query_reverse_chronologically;
+  gboolean has_result = FALSE;
+  GskTableBuffer result = GSK_TABLE_BUFFER_INIT;
+  GskTableFileQuery *query = table->file_query;
+
+  /* first query rbtree (if in reverse-chronological mode (default)) */
+  if (reverse)
+    {
+      ...
+
+      if (has_result)
+        {
+          ...
+
+          /* are we done? */
+          if (table->is_stable_func != NULL
+           && table->is_stable_func (key_len, key_data,
+                                     result.len, result.data,
+                                     table->user_data))
+            goto done_querying_copy_result;
+        }
+    }
+
+  /* walk through files, using merge-jobs as appropriate */
+  for (fi = reverse ? table->last_file : table->first_file;
+       fi != NULL;
+       fi = reverse ? fi->prev_file : fi->next_file)
+    {
+      MergeTask *mt = reverse ? fi->prev_task : fi->next_task;
+      if (use_merge_tasks && mt != NULL && mt->is_started)
+        {
+          if (key before or equal to last writer sync point)
+            {
+              if (!gsk_table_file_query (mt->info.started.output,
+                                         query, error))
+                {
+                  gsk_error_add_prefix (error, "querying merge-task output");
+                  goto failed;
+                }
+
+              if (query->found)
+                {
+                  if (has_result)
+                    {
+                      /* merge values */
+                      ...
+                    }
+                  else if (merge == NULL)
+                    {
+                      *found_value_out = TRUE;
+                      gsk_table_buffer_set_len (&result, query->result.len);
+                      memcpy (result.data, query->result.data, result.len);
+                      goto done_querying_copy_result;
+                    }
+                  else
+                    {
+                      has_result = TRUE;
+                      memcpy (gsk_table_buffer_set_len (&result,
+                                                        query->result.len),
+                              query->result.data, query->result.len);
+                    }
+
+                  /* are we done? */
+                  if (table->is_stable_func != NULL
+                   && table->is_stable_func (key_len, key_data,
+                                             result.len, result.data,
+                                             table->user_data))
+                    goto done_querying_copy_result;
+                }
+
+             /* skip one extra file */
+             fi = reverse ? fi->prev_file : fi->next_file;
+             continue;
+            }
+        }
+
+      /* query file */
+      if (!gsk_table_file_query (fi->file, query, error))
+        {
+          gsk_error_add_prefix (error, "querying merge-task output");
+          goto failed;
+        }
+
+      if (query->found)
+        {
+          /* merge if needed */
+          ...
+
+          /* are we done? */
+          ...
+        }
+    }
+
+  /* last query rbtree (if in chronological mode) */
+  if (!reverse)
+    {
+      ...
+    }
+
+done_querying_copy_result:
+  *found_value_out = has_result;
+  if (has_result)
+    {
+      *value_len_out = result.len;
+      *value_data_out = g_memdup (result.data, result.len);
+    }
+  /* fall through */
+
+done_querying:
+  gsk_table_buffer_clear (&result);
+  return TRUE;
+
+failed:
+  gsk_table_buffer_clear (&result);
+  return FALSE;
 }
 
 const char *
