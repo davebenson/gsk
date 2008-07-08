@@ -1,3 +1,11 @@
+/* XXX: strace indicates that we are using O_LARGEFILE? */
+/* XXX: need to handle files that have to spend a while finishing
+   up after the last entry is added. */
+/* POSSIBLE TODO: support key_fixed_length, value_fixed_length */
+/* POSSIBLE TODO: support disabling prefix compression */
+/* POSSIBLE TODO: support altering compression level */
+/* POSSIBLE TODO: support LZO compression */
+
 #include <string.h>
 #include <errno.h>
 #include <sys/mman.h>
@@ -628,10 +636,12 @@ read_journal (GskTable  *table,
   table->n_old_files = n_files;
   table->old_files = file_infos;
   for (i = 0; i < n_files; i++)
-    table->old_files[i] = file_info_ref (file_infos[i]);
+    {
+      table->old_files[i] = file_info_ref (file_infos[i]);
+    }
 
   /* create unstarted merge tasks */
-  for (i = 0; i < n_files - 1; i++)
+  for (i = 0; i + 1 < n_files; i++)
     if (file_infos[i]->next_task == NULL
      && TASK_IS_UNSTARTED (file_infos[i]->prev_task)
      && TASK_IS_UNSTARTED (file_infos[i+1]->next_task))
@@ -1138,6 +1148,9 @@ gsk_table_new         (const char            *dir,
   table->tree_node_pool = g_new0 (TreeNode, table->max_in_memory_entries);
   table->journal_cur_fname = g_strdup_printf ("%s/journal", dir);
   table->journal_tmp_fname = g_strdup_printf ("%s/journal.tmp", dir);
+  table->key_fixed_length = -1;
+  table->value_fixed_length = -1;
+  table->file_factory = factory;
 
   table->has_len = has_len;
   if (has_len)
@@ -1223,8 +1236,8 @@ gsk_table_new         (const char            *dir,
           if ('A' <= name[0] && name[0] <= 'Z')
             continue;           /* ignore user files */
 
-          if (strcmp (name, table->journal_tmp_fname) == 0
-           || strcmp (name, table->journal_cur_fname) == 0)
+          if (strcmp (name, "journal") == 0
+           || strcmp (name, "journal.tmp") == 0)
             continue;           /* ignore journal files */
 
           /* find file-id and extension, since it's possible we want to

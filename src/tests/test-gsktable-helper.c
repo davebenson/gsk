@@ -7,6 +7,7 @@
 static const char *dir = NULL;
 static const char *io_mode = "default";
 static const char *op_mode = "replace";
+static const char *input = NULL;
 static gboolean create = FALSE;
 static gboolean existing = FALSE;
 static gboolean no_close = FALSE;
@@ -15,6 +16,8 @@ static GOptionEntry op_entries[] =
 {
   { "dir", 'd', 0, G_OPTION_ARG_FILENAME, &dir,
     "directory to work in", "DIR" },
+  { "input", 'i', 0, G_OPTION_ARG_FILENAME, &input,
+    "input filename (instead of stdin)", "FILE" },
   { "io-mode", 'I', 0, G_OPTION_ARG_STRING, &io_mode,
     "type of i/o to use", "MODE" },
   { "op-mode", 'O', 0, G_OPTION_ARG_STRING, &op_mode,
@@ -69,6 +72,9 @@ parse_hex (const char *line,
           if (n + 1 == n_data)
             {
               data[n].data = gsk_unescape_memory_hex (line, -1, &tmp_size, error);
+              if (data[n].data == NULL)
+                return FALSE;
+              data[n].len = tmp_size;
               line = strchr (line, 0);
             }
           else
@@ -77,6 +83,9 @@ parse_hex (const char *line,
               while (*end && !g_ascii_isspace (*end))
                 end++;
               data[n].data = gsk_unescape_memory_hex (line, end - line, &tmp_size, error);
+              if (data[n].data == NULL)
+                return FALSE;
+              data[n].len = tmp_size;
               line = end;
             }
           if (data[n].data == NULL)
@@ -102,6 +111,7 @@ int main(int argc, char **argv)
   GskTableNewFlags new_flags = GSK_TABLE_MAY_EXIST|GSK_TABLE_MAY_CREATE;
   GError *error = NULL;
   GskTable *table = NULL;
+  FILE *input_fp;
 
   context = g_option_context_new ("test-gsktable-prog");
   g_option_context_add_main_entries (context, op_entries, NULL);
@@ -131,11 +141,20 @@ int main(int argc, char **argv)
   if (table == NULL)
     g_error ("gsk_table_new() failed: %s", error->message);
 
+  if (input == NULL || strcmp (input, "-") == 0)
+    input_fp = stdin;
+  else
+    {
+      input_fp = fopen (input, "rb");
+      if (input_fp == NULL)
+        g_error ("error opening %s for reading", input);
+    }
+
   if (strcmp (io_mode, "cmd_prefixed_hex") == 0)
     {
       guint lineno = 1;
       char *line;
-      while ((line=gsk_stdio_readline (stdin)) != NULL)
+      while ((line=gsk_stdio_readline (input_fp)) != NULL)
         {
           Data data[2];
           switch (line[0])

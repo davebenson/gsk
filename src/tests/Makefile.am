@@ -66,6 +66,7 @@ diagnostic_programs = \
 	get-network-interfaces \
 	get-process-info \
 	dns-stress-test \
+	mk-inputs--gsk-table-test \
 	name-resolver \
 	name-resolver-filter \
 	url-download \
@@ -128,6 +129,7 @@ test_zlib_stream_SOURCES = test-zlib-stream.c
 test_stdio_rotation_SOURCES = test-stdio-rotation.c
 test_gsktable_helper_SOURCES = test-gsktable-helper.c
 time_0_SOURCES = time-0.c
+mk_inputs__gsk_table_test_SOURCES = mk-inputs--gsk-table-test.c
 
 # HACK: print list of undefined functions, useful when writing tons of new code
 missing-refs:
