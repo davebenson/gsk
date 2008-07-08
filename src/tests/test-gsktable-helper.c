@@ -3,6 +3,7 @@
 #include "../gskstdio.h"
 #include "../gskutils.h"
 #include "../gskerror.h"
+#include "../gskinit.h"
 
 static const char *dir = NULL;
 static const char *io_mode = "default";
@@ -112,6 +113,8 @@ int main(int argc, char **argv)
   GError *error = NULL;
   GskTable *table = NULL;
   FILE *input_fp;
+
+  gsk_init_without_threads (&argc,&argv);
 
   context = g_option_context_new ("test-gsktable-prog");
   g_option_context_add_main_entries (context, op_entries, NULL);

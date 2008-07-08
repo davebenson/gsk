@@ -1284,8 +1284,8 @@ start_merge_task (GskTable   *table,
   guint64 n_input_entries = prev->file->n_entries + next->file->n_entries;
   g_assert (!merge_task->is_started);
   g_assert (prev->prev_task == NULL || !prev->prev_task->is_started);
-  g_assert (prev->next_task == NULL);
-  g_assert (next->prev_task == NULL);
+  g_assert (prev->next_task == merge_task);
+  g_assert (next->prev_task == merge_task);
   g_assert (next->next_task == NULL || !next->next_task->is_started);
   if (prev->prev_task)
     {
@@ -1564,18 +1564,11 @@ gsk_table_add         (GskTable              *table,
    || table->in_memory_bytes >= table->max_in_memory_bytes)
     {
       /* flush the tree */
-      FileInfo *new_file;
       if (!flush_tree (table, error))
         {
           gsk_g_error_add_prefix (error, "flushing tree");
           return FALSE;
         }
-
-      /* create MergeTasks */
-      new_file = table->last_file;
-      if (new_file->prev_file != NULL
-          && TASK_IS_UNSTARTED (new_file->prev_file->prev_task))
-        create_unstarted_merge_task (table, new_file->prev_file, new_file);
 
       /* maybe flush journal */
       if (table->journal_mode != GSK_TABLE_JOURNAL_NONE
