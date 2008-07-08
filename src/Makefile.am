@@ -154,6 +154,8 @@ BUILT_SOURCES = gskmemorybarrier.h gsktable-implementations-generated.c
 gsktable-implementations-generated.c: $(srcdir)/gen-gsk-table-includes.pl
 	perl $(srcdir)/gen-gsk-table-includes.pl > gsktable-implementations-generated.c
 
+EXTRA_DIST = gen-gsk-table-includes.pl
+
 gskerror.inc: $(srcdir)/gskerror.h
 	glib-mkenums  --vprod '{@VALUENAME@, "@VALUENAME@", "@valuenick@"},' $(srcdir)/gskerror.h > gskerror.inc
 
