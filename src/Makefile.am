@@ -122,6 +122,7 @@ gskstreamlistenersocket.c \
 gskstreamtransferrequest.c \
 gskstreamwatchdog.c \
 gsktable-flat.c \
+gsktable.c \
 gskthreadpool.c \
 gsktree.c \
 gsktypes.c \
@@ -148,7 +149,10 @@ hash/libgsk-hash.la \
 control/libgsk-control.la \
 store/libgsk-store.la
 
-BUILT_SOURCES = gskmemorybarrier.h
+BUILT_SOURCES = gskmemorybarrier.h gsktable-implementations-generated.c
+
+gsktable-implementations-generated.c: $(srcdir)/gen-gsk-table-includes.pl
+	perl $(srcdir)/gen-gsk-table-includes.pl > gsktable-implementations-generated.c
 
 gskerror.inc: $(srcdir)/gskerror.h
 	glib-mkenums  --vprod '{@VALUENAME@, "@VALUENAME@", "@valuenick@"},' $(srcdir)/gskerror.h > gskerror.inc

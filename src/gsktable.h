@@ -36,10 +36,10 @@ G_INLINE_FUNC guint8 *gsk_table_buffer_append  (GskTableBuffer *buffer,
 typedef  int (*GskTableCompareFunc)      (guint         a_key_len,
                                           const guint8 *a_key_data,
                                           guint         b_key_len,
-                                          guint8       *b_key_data,
+                                          const guint8 *b_key_data,
                                           gpointer      user_data);
 typedef  int (*GskTableCompareFuncNoLen) (const guint8 *a_key_data,
-                                          guint8       *b_key_data,
+                                          const guint8 *b_key_data,
                                           gpointer      user_data);
 typedef enum
 {
@@ -108,7 +108,7 @@ struct _GskTableOptions
 
   /* final merging */
   GskTableSimplifyFunc simplify;
-  GskTableSimplifyFunc simplify_no_len;
+  GskTableSimplifyFuncNoLen simplify_no_len;
 
   /* query stability */
   GskTableValueIsStableFunc is_stable;
@@ -150,8 +150,10 @@ gboolean    gsk_table_add         (GskTable              *table,
 gboolean    gsk_table_query       (GskTable              *table,
                                    guint                  key_len,
 			           const guint8          *key_data,
+                                   gboolean              *found_value_out,
 			           guint                 *value_len_out,
-			           guint8               **value_data_out);
+			           guint8               **value_data_out,
+                                   GError               **error);
 const char *gsk_table_peek_dir    (GskTable              *table);
 void        gsk_table_destroy     (GskTable              *table);
 
@@ -188,8 +190,8 @@ GskTableReader *gsk_table_make_reader_with_bounds (GskTable *table,
                                      GSK_TABLE_BOUND_NONE, 0, NULL, \
                                      error)
 
-void     gsk_table_reader_advance (GskTableReader *reader);
-void     gsk_table_reader_destroy (GskTableReader *reader);
+G_INLINE_FUNC void     gsk_table_reader_advance (GskTableReader *reader);
+G_INLINE_FUNC void     gsk_table_reader_destroy (GskTableReader *reader);
 
 
 
@@ -265,6 +267,16 @@ gsk_table_buffer_ensure_extra (GskTableBuffer *buffer,
                                guint           extra_bytes)
 {
   gsk_table_buffer_ensure_size (buffer, buffer->len + extra_bytes);
+}
+G_INLINE_FUNC void
+gsk_table_reader_advance (GskTableReader *reader)
+{
+  reader->advance (reader);
+}
+G_INLINE_FUNC void
+gsk_table_reader_destroy (GskTableReader *reader)
+{
+  reader->destroy (reader);
 }
 #endif
 
