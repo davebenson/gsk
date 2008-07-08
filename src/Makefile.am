@@ -122,6 +122,7 @@ gskstreamlistenersocket.c \
 gskstreamtransferrequest.c \
 gskstreamwatchdog.c \
 gsktable-flat.c \
+gsktable-options.c \
 gsktable.c \
 gskthreadpool.c \
 gsktree.c \

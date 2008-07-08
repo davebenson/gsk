@@ -1132,10 +1132,12 @@ gsk_table_new         (const char            *dir,
   table->journal_mode = options->journal_mode;
   table->max_running_tasks = 4;
   table->max_merge_ratio_b16 = 3<<16;
-  table->max_in_memory_bytes = 1024*1024;
-  table->max_in_memory_entries = 2048;
+  table->max_in_memory_bytes = options->max_in_memory_bytes;
+  table->max_in_memory_entries = options->max_in_memory_entries;
   table->journal_flush_period = 3;
   table->tree_node_pool = g_new0 (TreeNode, table->max_in_memory_entries);
+  table->journal_cur_fname = g_strdup_printf ("%s/journal", dir);
+  table->journal_tmp_fname = g_strdup_printf ("%s/journal.tmp", dir);
 
   table->has_len = has_len;
   if (has_len)
@@ -1155,6 +1157,11 @@ gsk_table_new         (const char            *dir,
   if (did_mkdir)
     {
       /* make an empty journal file */
+      guint journal_size = 1024;
+      guint min_journal_size = options->max_in_memory_bytes + 8 * options->max_in_memory_bytes;
+      while (journal_size < min_journal_size)
+        journal_size += journal_size;
+      table->journal_size = journal_size;
       if (!reset_journal (table, error))
         {
           gsk_table_destroy (table);

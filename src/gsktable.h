@@ -128,6 +128,8 @@ struct _GskTableOptions
 GskTableOptions     *gsk_table_options_new    (void);
 void                 gsk_table_options_destroy(GskTableOptions *options);
 
+void gsk_table_options_set_replacement_semantics (GskTableOptions *options);
+
 typedef enum
 {
   GSK_TABLE_MAY_EXIST = (1<<0),
