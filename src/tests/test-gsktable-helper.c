@@ -245,6 +245,7 @@ int main(int argc, char **argv)
             }
           g_free (line);
         }
+      lineno++;
     }
   else
     g_error ("unknown io_mode %s", io_mode);

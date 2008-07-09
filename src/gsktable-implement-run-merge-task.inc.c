@@ -104,6 +104,10 @@ MANGLE_FUNC_NAME(run_merge_task)  (GskTable      *table,
 #if HAS_MERGE
   GskTableBuffer *merge_buf = &table->merge_buffer;
 #endif
+
+#if DO_FLUSH
+  gboolean is_finished = FALSE;
+#endif
   GskTableFile *output = task->info.started.output;
 
   GskTableReader *readers[2] = { task->info.started.inputs[0].reader,
@@ -140,6 +144,7 @@ restart_testing_eof:
   else
     {
       int compare_rv;
+restart_with_both_readers:
 #if USE_MEMCMP
       compare_rv = compare_memory (readers[0]->key_len,
                                    readers[0]->key_data,
@@ -203,7 +208,7 @@ restart_testing_eof:
               task->info.started.has_last_queryable_key = TRUE;
 #if DO_FLUSH
               if (n_written >= iterations)
-                return TRUE;
+                is_finished = TRUE;
 #endif
               break;
             case GSK_TABLE_FEED_ENTRY_ERROR:
@@ -227,7 +232,10 @@ do_advance_a:
             }
           if (readers[0]->eof)
             goto restart_testing_eof;
-#if !DO_FLUSH
+#if DO_FLUSH
+          if (is_finished)
+            return TRUE;
+#else
           if (n_written > iterations)
             return TRUE;
 #endif
@@ -301,7 +309,7 @@ do_advance_a:
               task->info.started.has_last_queryable_key = TRUE;
 #if DO_FLUSH
               if (n_written > iterations)
-                return TRUE;
+                is_finished = TRUE;
 #endif
               break;
             case GSK_TABLE_FEED_ENTRY_ERROR:
@@ -332,6 +340,13 @@ do_advance_a_and_b:
             }
           if (readers[0]->eof || readers[1]->eof)
             goto restart_testing_eof;
+#if DO_FLUSH
+          if (is_finished)
+            return TRUE;
+#else
+          if (n_written > iterations)
+            return TRUE;
+#endif
 	}
 #endif
       else
@@ -380,7 +395,7 @@ do_advance_a_and_b:
               task->info.started.has_last_queryable_key = TRUE;
 #if DO_FLUSH
               if (n_written > iterations)
-                return TRUE;
+                is_finished = TRUE;
 #endif
               break;
             case GSK_TABLE_FEED_ENTRY_ERROR:
@@ -404,7 +419,15 @@ do_advance_b:
             }
           if (readers[1]->eof)
             goto restart_testing_eof;
+#if DO_FLUSH
+          if (is_finished)
+            return TRUE;
+#else
+          if (n_written > iterations)
+            return TRUE;
+#endif
 	}
+      goto restart_with_both_readers;
     }
   return TRUE;
 

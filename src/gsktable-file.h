@@ -37,6 +37,8 @@ struct _GskTableFile
 typedef struct _GskTableFileQuery GskTableFileQuery;
 struct _GskTableFileQuery
 {
+  /* returns the implicit key <=> test_key; the implicit key is setup by
+     the caller somewhere in compare_data */
   gint (*compare) (guint         test_key_len,
                    const guint8 *test_key,
                    gpointer      compare_data);

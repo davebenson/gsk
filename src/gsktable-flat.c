@@ -31,6 +31,9 @@
 /* debug compressed data contents */
 #define DEBUG_DUMP_COMPRESSED_DATA              0
 
+/* debug chunk sizes and offsets while reading */
+#define DEBUG_READ_CHUNK                        0
+
 /* debug serialization and deserialization of cache entries */
 #define DEBUG_ENTRY_SERIALIZATION               0
 
@@ -1652,11 +1655,13 @@ read_and_uncompress_chunk (FlatFileReader *freader)
     }
   index_entry_deserialize (index_data, &index_entry);
 
+#if DEBUG_READ_CHUNK
   g_message ("chunk offsets=%llu,%llu,%llu; ie.compressed_len=%u",
              freader->chunk_file_offsets[0],
              freader->chunk_file_offsets[1],
              freader->chunk_file_offsets[2],
              index_entry.compressed_data_len);
+#endif
 
   /* allocate buffers in one piece */
   firstkey = g_malloc (index_entry.firstkeys_len + index_entry.compressed_data_len);
