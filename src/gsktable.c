@@ -95,6 +95,8 @@ struct _TreeNode
 
 #define GET_FILE_INFO_LIST(table) \
   FileInfo *, (table)->first_file, (table)->last_file, prev_file, next_file
+#define GET_RUN_STACK(table) \
+  MergeTask *, table->run_list, info.started.next_run
 
 /* always runs the table->run_list task */
 typedef gboolean (*RunTaskFunc) (GskTable   *table,
@@ -296,6 +298,22 @@ file_info_unref (FileInfo *fi, const char *dir, gboolean erase)
   return fi;
 }
 
+/* --- data structure invariant checking --- */
+static gboolean
+are_files_contiguous (GskTable *table)
+{
+  guint64 last_end = 0;
+  FileInfo *fi;
+  for (fi = table->first_file; fi != NULL; fi = fi->next_file)
+    {
+      if (last_end != fi->first_input_entry)
+        return FALSE;
+      last_end += fi->n_input_entries;
+    }
+  return TRUE;
+}
+#define CHECK_FILES_CONTIGUOUS(table) g_assert (are_files_contiguous (table))
+
 /* --- journal management --- */
 static gboolean read_journal  (GskTable    *table,
                                GError     **error);
@@ -348,6 +366,92 @@ create_unstarted_merge_task (GskTable *table,
   GSK_RBTREE_INSERT (GET_UNSTARTED_MERGE_TASK_TREE (table),
                      task, unused);
   g_assert (unused == NULL);
+}
+
+static guint
+uint64_hash (gconstpointer a)
+{
+  guint64 ai = * (guint64 *) a;
+  guint ai_high = ai>>32;
+  guint ai_low = ai;
+  return ai_low * 33 + ai_high;
+}
+static gboolean
+uint64_equal (gconstpointer a, gconstpointer b)
+{
+  return (* (guint64 *) a) == (* (guint64 *) b);
+}
+
+static gboolean
+kill_unknown_files (GskTable *table,
+                    GError  **error)
+{
+  GDir *dirlist;
+  GHashTable *known_ids;
+  GPtrArray *to_delete;
+  FileInfo *fi;
+  const char *name;
+  const char *at;
+
+
+  /* move aside unused files */
+  dirlist = g_dir_open (table->dir, 0, error);
+  if (dirlist == NULL)
+    {
+      g_warning ("g_dir_open failed on existing db dir?: %s", table->dir);
+      /* TODO: cleanup (or maybe just return table anyway?) */
+      return FALSE;
+    }
+  known_ids = g_hash_table_new (uint64_hash, uint64_equal);
+  for (fi = table->first_file; fi; fi = fi->next_file)
+    {
+      g_message ("note complete file "ID_FMT"", fi->file->id);
+      g_hash_table_insert (known_ids, &fi->file->id, fi->file);
+      if (fi->next_task != NULL && fi->next_task->is_started)
+        {
+          GskTableFile *output = fi->next_task->info.started.output;
+          g_message ("note merge output file "ID_FMT"", output->id);
+          g_hash_table_insert (known_ids, &output->id, output);
+        }
+    }
+  to_delete = g_ptr_array_new ();
+  while ((name=g_dir_read_name (dirlist)) != NULL)
+    {
+      guint64 id;
+      if (name[0] == '.'
+       && ((strcmp (name, ".") == 0 || strcmp (name, "..") == 0)))
+        continue;           /* ignore . and .. */
+
+      if ('A' <= name[0] && name[0] <= 'Z')
+        continue;           /* ignore user files */
+
+      if (strcmp (name, "journal") == 0
+       || strcmp (name, "journal.tmp") == 0)
+        continue;           /* ignore journal files */
+
+      /* find file-id and extension, since it's possible we want to
+         delete this file. */
+      for (at = name; g_ascii_isxdigit (*at); at++)
+        ;
+      if (at == name || *at != '.')
+        {
+          g_warning ("unrecognized file '%s' in dir.. skipping", name);
+          continue;
+        }
+      id = g_ascii_strtoull (name, NULL, 16);
+      /* TODO: verify we know the extension? */
+      if (g_hash_table_lookup (known_ids, &id) == NULL)
+        {
+          g_message ("unknown id for file %s [id="ID_FMT"]: deleting it", name, id);
+          g_ptr_array_add (to_delete, g_strdup_printf ("%s/%s", table->dir, name));
+        }
+    }
+  g_hash_table_destroy (known_ids);
+  g_ptr_array_foreach (to_delete, (GFunc) unlink, NULL);    /* eep! */
+  g_ptr_array_foreach (to_delete, (GFunc) g_free, NULL);
+  g_ptr_array_free (to_delete, TRUE);
+  g_dir_close (dirlist);
+  return TRUE;
 }
 
 static gboolean
@@ -461,6 +565,7 @@ read_journal (GskTable  *table,
       file_info = g_slice_new0 (FileInfo);
       file_info->first_input_entry = first_input_entry;
       file_info->n_input_entries = n_input_entries;
+      file_info->ref_count = 1;
 
       file_info->file
         = gsk_table_file_factory_open_file (file_factory, table->dir,
@@ -469,7 +574,6 @@ read_journal (GskTable  *table,
         goto error_cleanup;
       file_info->file->n_entries = n_entries;
       g_assert (file_info->file);
-      file_info->ref_count = 1;
       file_infos[i] = file_info;
 
       if (i > 0)
@@ -610,13 +714,31 @@ read_journal (GskTable  *table,
       /* neither of these inputs can be involved in another merge-task,
          so advance the pointer to prevent reuse. */
       file_index++;
+
+      GSK_STACK_PUSH (GET_RUN_STACK (table), merge_task);
+      table->n_running_tasks++;
     }
+#define COMPARE_RUNNING_TASKS_BY_N_INPUTS(a,b, rv)              \
+    {                                                           \
+      guint64 total_a_inputs = a->inputs[0]->file->n_entries    \
+                             + a->inputs[1]->file->n_entries;   \
+      guint64 total_b_inputs = b->inputs[0]->file->n_entries    \
+                             + b->inputs[1]->file->n_entries;   \
+      if (total_a_inputs < total_b_inputs)                      \
+        rv = 1;                                                 \
+      else if (total_a_inputs > total_b_inputs)                 \
+        rv = -1;                                                \
+      else                                                      \
+        rv = 0;                                                 \
+    }
+  GSK_STACK_SORT (GET_RUN_STACK (table), COMPARE_RUNNING_TASKS_BY_N_INPUTS);
+#undef COMPARE_RUNNING_TASKS_BY_N_INPUTS
+  g_message ("read_journal: header length %u", (guint)(at-mmapped_journal));
 
   /* --- do consistency checks --- */
 
   /* TODO: other checks not already done during parsing??? */
 
-  /* --- process existing journal entries --- */
 
   /* setup various bits of the table;
      after doing this, do not goto error_cleanup,
@@ -650,6 +772,14 @@ read_journal (GskTable  *table,
         create_unstarted_merge_task (table, file_infos[i], file_infos[i+1]);
       }
 
+  /* delete old extraneous garbage */
+  if (!kill_unknown_files (table, error))
+    return FALSE;
+
+  table->n_input_entries = n_input_entries;
+  table->last_file_id = max_file_id;
+
+  /* --- process existing journal entries --- */
   /* disable journalling and replay the journal */
   old_journal_mode = table->journal_mode;
   table->journal_mode = GSK_TABLE_JOURNAL_NONE;
@@ -666,6 +796,9 @@ read_journal (GskTable  *table,
       key_len--;            /* journal key lengths are offset by 1 */
       tmp32_le = ((guint32 *) at)[1];
       value_len = GUINT32_FROM_LE (tmp32_le);
+      g_message ("replay journal: offset=%u, key,value_len=%u,%u",
+                 (guint)(at - table->journal_mmap),
+                 key_len, value_len);
       at += 8;
       if (!gsk_table_add (table, key_len, at, value_len, at + key_len, error))
         {
@@ -678,8 +811,6 @@ read_journal (GskTable  *table,
     }
   table->journal_mode = old_journal_mode;
   table->journal_len = at - mmapped_journal;
-  table->n_input_entries = n_input_entries;
-  table->last_file_id = max_file_id;
 
   return TRUE;
 
@@ -746,6 +877,11 @@ reset_journal (GskTable   *table,
   guint n_merge_tasks_written;
 
   g_assert (table->in_memory_tree == NULL);
+
+  if (table->journal_mmap)
+    munmap (table->journal_mmap, table->journal_size);
+  if (table->journal_fd >= 0)
+    close (table->journal_fd);
 
   /* write temporary new journal which
      is the state dumped out,
@@ -895,19 +1031,27 @@ reset_journal (GskTable   *table,
       goto failed_writing_journal;
     }
 
+  g_message ("reset-journal: header length %u", at);
+
+
   table->journal_len = at;
+  table->journal_mmap = journal_mmap;
+
+  /* preserve old files */
+  FileInfo **new_old_files;
+  new_old_files = g_new (FileInfo *, table->n_files);
+  i = 0;
+  for (fi = table->first_file; fi; fi = fi->next_file)
+    new_old_files[i++] = file_info_ref (fi);
+  g_assert (i == table->n_files);
 
   /* blow away old files */
   for (i = 0; i < table->n_old_files; i++)
     file_info_unref (table->old_files[i], table->dir, TRUE);
   g_free (table->old_files);
 
-  /* preserve old files */
-  table->old_files = g_new (FileInfo *, table->n_files);
-  i = 0;
   table->n_old_files = table->n_files;
-  for (fi = table->first_file; fi; fi = fi->next_file)
-    table->old_files[i++] = file_info_ref (fi);
+  table->old_files = new_old_files;
 
   return TRUE;
 
@@ -1040,20 +1184,6 @@ static int tree_node_compare_no_len_nomerge (GskTable *table,
 }
 
 
-static guint
-uint64_hash (gconstpointer a)
-{
-  guint64 ai = * (guint64 *) a;
-  guint ai_high = ai>>32;
-  guint ai_low = ai;
-  return ai_low * 33 + ai_high;
-}
-static gboolean
-uint64_equal (gconstpointer a, gconstpointer b)
-{
-  return (* (guint64 *) a) == (* (guint64 *) b);
-}
-
 /** 
  * gsk_table_new:
  * @dir: the directory where the table will store its data.
@@ -1151,6 +1281,7 @@ gsk_table_new         (const char            *dir,
   table->key_fixed_length = -1;
   table->value_fixed_length = -1;
   table->file_factory = factory;
+  // INIT? query_inout ???
 
   table->has_len = has_len;
   if (has_len)
@@ -1175,6 +1306,7 @@ gsk_table_new         (const char            *dir,
       while (journal_size < min_journal_size)
         journal_size += journal_size;
       table->journal_size = journal_size;
+      table->journal_fd = -1;
       if (!reset_journal (table, error))
         {
           gsk_table_destroy (table);
@@ -1184,13 +1316,6 @@ gsk_table_new         (const char            *dir,
     }
   else
     {
-      GDir *dirlist;
-      GHashTable *known_ids;
-      GPtrArray *to_delete;
-      FileInfo *fi;
-      const char *name;
-      const char *at;
-
       /* load existing table */
       if (!read_journal (table, error))
         {
@@ -1205,63 +1330,6 @@ gsk_table_new         (const char            *dir,
           g_free (table);
           return NULL;
         }
-
-      /* move aside unused files */
-      dirlist = g_dir_open (dir, 0, error);
-      if (dirlist == NULL)
-        {
-          g_warning ("g_dir_open failed on existing db dir?: %s", dir);
-          /* TODO: cleanup (or maybe just return table anyway?) */
-          g_free (table);
-          return NULL;
-        }
-      known_ids = g_hash_table_new (uint64_hash, uint64_equal);
-      for (fi = table->first_file; fi; fi = fi->next_file)
-        {
-          g_hash_table_insert (known_ids, &fi->file->id, fi->file);
-          if (fi->next_task->is_started)
-            {
-              GskTableFile *output = fi->next_task->info.started.output;
-              g_hash_table_insert (known_ids, &output->id, output);
-            }
-        }
-      to_delete = g_ptr_array_new ();
-      while ((name=g_dir_read_name (dirlist)) != NULL)
-        {
-          guint64 id;
-          if (name[0] == '.'
-           && ((strcmp (name, ".") == 0 || strcmp (name, "..") == 0)))
-            continue;           /* ignore . and .. */
-
-          if ('A' <= name[0] && name[0] <= 'Z')
-            continue;           /* ignore user files */
-
-          if (strcmp (name, "journal") == 0
-           || strcmp (name, "journal.tmp") == 0)
-            continue;           /* ignore journal files */
-
-          /* find file-id and extension, since it's possible we want to
-             delete this file. */
-          for (at = name; g_ascii_isxdigit (*at); at++)
-            ;
-          if (at == name || *at != '.')
-            {
-              g_warning ("unrecognized file '%s' in dir.. skipping", name);
-              continue;
-            }
-          id = g_ascii_strtoull (at, NULL, 16);
-          /* TODO: verify we know the extension? */
-          if (g_hash_table_lookup (known_ids, &id) == NULL)
-            {
-              g_message ("unknown id for file %s: deleting it", name);
-              g_ptr_array_add (to_delete, g_strdup_printf ("%s/%s", dir, name));
-            }
-        }
-      g_hash_table_destroy (known_ids);
-      g_ptr_array_foreach (to_delete, (GFunc) unlink, NULL);    /* eep! */
-      g_ptr_array_foreach (to_delete, (GFunc) g_free, NULL);
-      g_ptr_array_free (to_delete, TRUE);
-      g_dir_close (dirlist);
     }
 
   return table;
@@ -1461,6 +1529,7 @@ flush_tree (GskTable   *table,
   GSK_LIST_APPEND (GET_FILE_INFO_LIST (table), fi);
   if (fi->prev_file && TASK_IS_UNSTARTED (fi->prev_file->prev_task))
     create_unstarted_merge_task (table, fi->prev_file, fi);
+  CHECK_FILES_CONTIGUOUS (table);
 
   /* reset tree */
   table->in_memory_entry_count = 0;
@@ -1612,6 +1681,7 @@ gsk_table_add         (GskTable              *table,
               return FALSE;
             }
         }
+      g_message ("writing journal at %u: key/value_len=%u/%u", (guint) table->journal_len, key_len,value_len);
       memset (table->journal_mmap + new_journal_len, 0, 4);
       memcpy (table->journal_mmap + 8 + table->journal_len,
               key_data, key_len);
@@ -1622,6 +1692,7 @@ gsk_table_add         (GskTable              *table,
       GSK_MEMORY_BARRIER ();
       ((guint32*)(table->journal_mmap + table->journal_len))[0]
          = GUINT32_TO_LE (key_len + 1);
+      table->journal_len = new_journal_len;
     }
   return TRUE;
 }
@@ -1889,7 +1960,7 @@ gsk_table_destroy     (GskTable              *table)
   for (fi = table->first_file; fi != NULL; fi = next)
     {
       next = fi->next_file;
-      file_info_unref (fi, table->dir, TRUE);           /* may free fi */
+      file_info_unref (fi, table->dir, FALSE);           /* may free fi */
     }
   for (i = 0; i < table->n_old_files; i++)
     file_info_unref (table->old_files[i], table->dir, FALSE);
@@ -1903,6 +1974,8 @@ gsk_table_destroy     (GskTable              *table)
   gsk_table_buffer_clear (&table->simplify_buffer);
   g_slice_free (GskTable, table);
 }
+
+
 
 static gboolean
 merge_task_done (GskTable    *table,
@@ -1939,14 +2012,19 @@ merge_task_done (GskTable    *table,
   new_file->file = task->info.started.output;
 
   /* replace task->inputs[0,1] with the new file */
+  CHECK_FILES_CONTIGUOUS (table);
   GSK_LIST_INSERT_BEFORE (GET_FILE_INFO_LIST (table), task->inputs[0], new_file);
   GSK_LIST_REMOVE (GET_FILE_INFO_LIST (table), task->inputs[0]);
   GSK_LIST_REMOVE (GET_FILE_INFO_LIST (table), task->inputs[1]);
+  table->n_files -= 1;
+  CHECK_FILES_CONTIGUOUS (table);
 
   /* possibly create more unstarted merge-tasks */
-  if (TASK_IS_UNSTARTED (new_file->prev_file->prev_task))
+  if (new_file->prev_file != NULL
+   && TASK_IS_UNSTARTED (new_file->prev_file->prev_task))
     create_unstarted_merge_task (table, new_file->prev_file, new_file);
-  if (TASK_IS_UNSTARTED (new_file->next_file->next_task))
+  if (new_file->next_file != NULL
+   && TASK_IS_UNSTARTED (new_file->next_file->next_task))
     create_unstarted_merge_task (table, new_file, new_file->next_file);
 
   g_slice_free (MergeTask, task);

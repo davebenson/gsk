@@ -1,4 +1,5 @@
 /* for pread() */
+
 #define _XOPEN_SOURCE 500
 #define _GNU_SOURCE             /* for unlocked_stdio */
 #include "config.h"
@@ -924,12 +925,12 @@ open_3_files (FlatFile                 *file,
       if (file->fds[f] < 0)
         {
           guint tmp_f;
-          for (tmp_f = 0; tmp_f < f; tmp_f++)
-            close (file->fds[tmp_f]);
           g_set_error (error, GSK_G_ERROR_DOMAIN,
                        GSK_ERROR_FILE_CREATE,
                        "error %s %s: %s",
                        participle, fname_buf, g_strerror (errno));
+          for (tmp_f = 0; tmp_f < f; tmp_f++)
+            close (file->fds[tmp_f]);
           return FALSE;
         }
     }
@@ -1651,28 +1652,35 @@ read_and_uncompress_chunk (FlatFileReader *freader)
     }
   index_entry_deserialize (index_data, &index_entry);
 
+  g_message ("chunk offsets=%llu,%llu,%llu; ie.compressed_len=%u",
+             freader->chunk_file_offsets[0],
+             freader->chunk_file_offsets[1],
+             freader->chunk_file_offsets[2],
+             index_entry.compressed_data_len);
+
   /* allocate buffers in one piece */
   firstkey = g_malloc (index_entry.firstkeys_len + index_entry.compressed_data_len);
   guint8 *compressed_data;
   compressed_data = firstkey + index_entry.firstkeys_len;
 
   /* read firstkey */
-  if (FREAD (firstkey, index_entry.firstkeys_len, 1, freader->fps[FILE_FIRSTKEYS]) != 1)
+  if (index_entry.firstkeys_len != 0
+    && FREAD (firstkey, index_entry.firstkeys_len, 1, freader->fps[FILE_FIRSTKEYS]) != 1)
     {
       freader->base_reader.error = g_error_new (GSK_G_ERROR_DOMAIN,
                                     GSK_ERROR_PREMATURE_EOF,
-                                    "premature eof in firstkey file");
+                                    "premature eof in firstkey file [firstkey len=%u]", index_entry.firstkeys_len);
       g_free (firstkey);
       return;
     }
 
   /* read data */
-  compressed_data = g_malloc (index_entry.compressed_data_len);
-  if (FREAD (compressed_data, index_entry.compressed_data_len, 1, freader->fps[FILE_FIRSTKEYS]) != 1)
+  if (FREAD (compressed_data, index_entry.compressed_data_len, 1, freader->fps[FILE_DATA]) != 1)
     {
       freader->base_reader.error = g_error_new (GSK_G_ERROR_DOMAIN,
                                     GSK_ERROR_PREMATURE_EOF,
-                                    "premature eof in compressed-data file");
+                                    "premature eof in compressed-data file [compressed_data_len=%u]",
+                                    index_entry.compressed_data_len);
       g_free (firstkey);
       return;
     }
@@ -1704,6 +1712,7 @@ reader_advance (GskTableReader *reader)
   if (++freader->record_index == freader->cache_entry->n_entries)
     {
       g_free (freader->cache_entry);
+      freader->cache_entry = NULL;
       read_and_uncompress_chunk (freader);
       if (reader->eof || reader->error != NULL)
         return;
@@ -1719,7 +1728,8 @@ reader_destroy (GskTableReader *reader)
   if (freader->cache_entry)
     g_free (freader->cache_entry);
   for (f = 0; f < N_FILES; f++)
-    fclose (freader->fps[f]);
+    if (freader->fps[f] != NULL)
+      fclose (freader->fps[f]);
   g_slice_free (FlatFileReader, freader);
 }
 
@@ -1771,8 +1781,16 @@ flat__create_reader    (GskTableFile             *file,
                         GError                  **error)
 {
   FlatFileReader *freader = reader_open_fps (file, dir, error);
+  guint64 ief_header;
   if (freader == NULL)
     return NULL;
+
+  if (FREAD (&ief_header, 8, 1, freader->fps[FILE_INDEX]) != 1)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_FILE_READ,
+                   "premature eof reading index file header");
+      return NULL;
+    }
 
   read_and_uncompress_chunk (freader);
   if (!freader->base_reader.eof && freader->base_reader.error == NULL)
