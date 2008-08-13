@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include "../gsktable.h"
 #include "../gskstdio.h"
 #include "../gskutils.h"
@@ -7,11 +8,41 @@
 
 static const char *dir = NULL;
 static const char *io_mode = "default";
-static const char *op_mode = "replace";
+static const char *op_mode = "replacement";
 static const char *input = NULL;
 static gboolean create = FALSE;
 static gboolean existing = FALSE;
 static gboolean no_close = FALSE;
+
+static gboolean
+print_op_modes_handler (const gchar    *option_name,
+                        const gchar    *value,
+                        gpointer        data,
+                        GError        **error)
+{
+  g_printerr ("operation modes:\n");
+  g_printerr ("  replacement         Setting a key's value twice\n"
+              "                      overrides the old value.\n");
+  exit (1);
+}
+static gboolean
+print_io_modes_handler (const gchar    *option_name,
+                        const gchar    *value,
+                        gpointer        data,
+                        GError        **error)
+{
+  g_printerr ("i/o modes:\n");
+  g_printerr ("  cmd_prefixed_hex\n"
+              "     Each line of input contains a command and\n"
+              "     some keys and/or values.\n"
+              "     The commands are:\n"
+              "        Q [KEY]           Find the value for a key\n"
+              "        A [KEY] [VALUE]   Insert the value for a key\n"
+              "        !+ [KEY] [VALUE]  Assert db's entry for KEY is VALUE\n"
+              "        !- [KEY]          Assert that there is no value for KEY\n");
+  exit (1);
+}
+
 
 static GOptionEntry op_entries[] =
 {
@@ -29,6 +60,12 @@ static GOptionEntry op_entries[] =
     "open an existing table; abort if it does not exist", NULL },
   { "no-close", 0, 0, G_OPTION_ARG_NONE, &no_close,
     "do not cleanup when done", NULL },
+  { "help-op-modes", 0, G_OPTION_FLAG_NO_ARG,
+    G_OPTION_ARG_CALLBACK, print_op_modes_handler,
+    "print the operation modes and exit", NULL },
+  { "help-io-modes", 0, G_OPTION_FLAG_NO_ARG,
+    G_OPTION_ARG_CALLBACK, print_io_modes_handler,
+    "print the i/o modes and exit", NULL },
   { NULL, 0, 0, 0, NULL, NULL, NULL }
 };
 
