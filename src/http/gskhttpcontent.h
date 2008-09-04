@@ -89,6 +89,7 @@ gsk_http_content_handler_new_cgi (GskHttpContentCGIFunc func,
 void gsk_http_content_handler_ref  (GskHttpContentHandler *handler);
 void gsk_http_content_handler_unref(GskHttpContentHandler *handler);
 
+
 typedef enum
 {
   GSK_HTTP_CONTENT_PREPEND,
@@ -114,6 +115,7 @@ gboolean       gsk_http_content_get_mime_type(GskHttpContent *content,
                                               const char     *path,
 					      const char    **type_out,
 					      const char    **subtype_out);
+void       gsk_http_content_set_idle_timeout (GskHttpContent *content);
 
 typedef void (*GskHttpContentErrorHandler)(GskHttpContent          *content,
                                            GError                  *error,

@@ -246,6 +246,26 @@ handle_content_shutdown (GskStream *content_stream, gpointer data)
   return FALSE;
 }
 
+static gboolean
+handle_keepalive_idle_timeout (gpointer data)
+{
+  GskHttpServer *server = GSK_HTTP_SERVER (data);
+  server->keepalive_idle_timeout = NULL;
+  gsk_io_notify_shutdown (GSK_IO (server));
+  return FALSE;
+}
+
+static inline void
+add_keepalive_idle_timeout (GskHttpServer *server)
+{
+  g_assert (server->keepalive_idle_timeout == NULL);
+  g_assert (server->keepalive_idle_timeout_ms >= 0);
+  server->keepalive_idle_timeout
+    = gsk_main_loop_add_timer (gsk_main_loop_default (),
+                               handle_keepalive_idle_timeout, server, NULL,
+                               server->keepalive_idle_timeout_ms, -1);
+}
+
 static void
 gsk_http_server_prune_done_responses (GskHttpServer *server,
                                       gboolean       may_read_shutdown)
@@ -309,6 +329,14 @@ gsk_http_server_prune_done_responses (GskHttpServer *server,
       gsk_stream_trap_readable (at->content, handle_content_is_readable,
                                 handle_content_shutdown,
                                 g_object_ref (server), g_object_unref);
+    }
+
+  if (server->first_response == NULL
+   && server->keepalive_idle_timeout_ms >= 0
+   && server->keepalive_idle_timeout == NULL
+   && server->incoming.size == 0)
+    {
+      add_keepalive_idle_timeout (server);
     }
 
 }
@@ -595,6 +623,11 @@ gsk_http_server_raw_write     (GskStream     *stream,
   GskHttpServerResponse *at;
   char stack_buf[MAX_STACK_ALLOC];
 
+  if (length > 0 && server->keepalive_idle_timeout != NULL)
+    {
+      gsk_source_remove (server->keepalive_idle_timeout);
+      server->keepalive_idle_timeout = NULL;
+    }
 
   /* TODO: need a zero-copy strategy */
   gsk_buffer_append (&server->incoming, data, length);
@@ -672,6 +705,11 @@ gsk_http_server_finalize (GObject *object)
       server->first_response = response->next;
       gsk_http_server_response_destroy (response, TRUE);
     }
+  if (server->keepalive_idle_timeout != NULL)
+    {
+      gsk_source_remove (server->keepalive_idle_timeout);
+      server->keepalive_idle_timeout = NULL;
+    }
   gsk_buffer_destruct (&server->incoming);
   gsk_hook_destruct (&server->has_request_hook);
   parent_class->finalize (object);
@@ -684,6 +722,7 @@ gsk_http_server_init (GskHttpServer *http_server)
   GSK_HOOK_INIT (http_server, GskHttpServer, has_request_hook, 0, 
 		 set_poll_request, shutdown_request);
   GSK_HOOK_MARK_FLAG (&http_server->has_request_hook, IS_AVAILABLE);
+  http_server->keepalive_idle_timeout_ms = -1;
   gsk_io_mark_is_readable (http_server);
   gsk_io_mark_is_writable (http_server);
   gsk_io_set_idle_notify_write (http_server, TRUE);
@@ -1103,3 +1142,36 @@ gsk_http_server_respond     (GskHttpServer   *server,
 	}
     }
 }
+
+/* TODO: we should have an idle_time member
+   so that we can start the timer from
+   when the server went idle, as opposed to from
+   the current time. */
+void
+gsk_http_server_set_idle_timeout (GskHttpServer *server,
+                                  gint           millis)
+{
+  if (millis < 0)
+    {
+      if (server->keepalive_idle_timeout != NULL)
+        {
+          gsk_source_remove (server->keepalive_idle_timeout);
+          server->keepalive_idle_timeout = NULL;
+        }
+      server->keepalive_idle_timeout_ms = -1;
+    }
+  else
+    {
+      if (server->keepalive_idle_timeout != NULL)
+        {
+          gsk_source_adjust_timer (server->keepalive_idle_timeout,
+                                   millis, -1);
+        }
+      else if (server->first_response == NULL
+            && server->incoming.size == 0)
+        {
+          add_keepalive_idle_timeout (server);
+        }
+    }
+}
+

@@ -1,3 +1,7 @@
+gsk (1.0.61)
+  * gsk_http_server_set_idle_timeout(),
+    gsk_http_content_set_idle_timeout(): adjust the keepalive timeout
+
 gsk (1.0.60)
   * bug in gsk_log_rotate_stdio_logs():
     implement '%s' ourselves instead of using strftime.

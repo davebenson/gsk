@@ -134,6 +134,9 @@ struct _GskHttpContent
   GskPrefixTree *mime_prefix_to_typepair;     /* no suffix */
   char *mime_default_typepair;
 
+  /* misc configuration options */
+  int keepalive_idle_timeout_ms;              /* or -1 for no timeout */
+
   GskHttpContentErrorHandler error_handler;
   gpointer error_data;
   GDestroyNotify error_destroy;
@@ -230,6 +233,7 @@ GskHttpContent *gsk_http_content_new     (void)
   content->user_agent_to_path_vhost_table = NULL;
   content->path_vhost_table = path_vhost_table_new ();
   content->error_handler = default_error_handler;
+  content->keepalive_idle_timeout_ms = -1;
   return content;
 }
 
@@ -1310,6 +1314,8 @@ void
 gsk_http_content_manage_server (GskHttpContent *content,
                                 GskHttpServer  *server)
 {
+  if (content->keepalive_idle_timeout_ms >= 0)
+    gsk_http_server_set_idle_timeout (server, content->keepalive_idle_timeout_ms);
   gsk_http_server_trap (server, handle_new_request_available,
                         handle_request_pipe_shutdown,
                         content, NULL);

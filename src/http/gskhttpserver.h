@@ -5,6 +5,7 @@
 #include "gskhttprequest.h"
 #include "gskhttpresponse.h"
 #include "../gskstream.h"
+#include "../gskmainloop.h"
 
 G_BEGIN_DECLS
 
@@ -43,6 +44,8 @@ struct _GskHttpServer
   guint read_poll : 1;
   guint write_poll : 1;
   guint got_close : 1;
+  gint keepalive_idle_timeout_ms;       /* or -1 for no timeout */
+  GskSource *keepalive_idle_timeout;
 };
 
 /* --- prototypes --- */
@@ -62,6 +65,9 @@ void            gsk_http_server_respond     (GskHttpServer   *server,
 					     GskHttpRequest  *request,
 					     GskHttpResponse *response,
 					     GskStream       *content);
+void            gsk_http_server_set_idle_timeout
+                                            (GskHttpServer   *server,
+                                             gint             millis);
 
 
 
