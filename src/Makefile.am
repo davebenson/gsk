@@ -163,7 +163,3 @@ gskerror.inc: $(srcdir)/gskerror.h
 # HACK
 missing-refs:
 	$(MAKE) all 2>&1 | grep 'undefined reference' | sed -e 's/.*`//;' -e "s/'.*//" | sort -u
-
-noinst_PROGRAMS = test-gsktable
-test_gsktable_SOURCES = test-gsktable.c
-test_gsktable_LDADD = libgsk-1.0.la

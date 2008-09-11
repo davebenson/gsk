@@ -2,7 +2,7 @@
 /* We define three data structures:
  * 1.  a Stack.  a singly-ended, singly-linked list.
  * 2.  a Queue.  a doubly-ended, singly-linked list.
- * 3.  a List.  a doubly-ended, singly-linked list.
+ * 3.  a List.  a doubly-ended, doubly-linked list.
  *
  * Stack operations:
  *    PUSH(stack, node)                                        [O(1)]
@@ -30,6 +30,11 @@
  *    IS_EMPTY(list)                                           [O(1)]
  *    REVERSE(list)                                            [O(N)]
  *    SORT(list)                                               [O(NlogN)]
+ *
+ * note: the SORT operation is stable, i.e.  if two
+ * elements are equal according to the comparator,
+ * then their relative order in the list
+ * will be preserved.
  *
  * In the above, 'stack', 'queue', and 'list' are
  * a comma-separated list of arguments, actually.
