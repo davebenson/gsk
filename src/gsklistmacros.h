@@ -163,8 +163,8 @@
                 type _gsk_new_cur_list;                                 \
 		_gsk_stack[_gsk_i] = NULL;                              \
                                                                         \
-                _GSK_MERGE_NONEMPTY_LISTS (_gsk_cur_list,               \
-                                           _gsk_merge_list,             \
+                _GSK_MERGE_NONEMPTY_LISTS (_gsk_merge_list,             \
+                                           _gsk_cur_list,               \
                                            _gsk_new_cur_list,           \
                                            type, next, comparator);     \
                 _gsk_cur_list = _gsk_new_cur_list;			\
@@ -183,8 +183,8 @@
           else                                                          \
             {                                                           \
               type _gsk_new_top;                                        \
-              _GSK_MERGE_NONEMPTY_LISTS (top,                           \
-                                         _gsk_stack[_gsk_i],            \
+              _GSK_MERGE_NONEMPTY_LISTS (_gsk_stack[_gsk_i],            \
+                                         top,                           \
                                          _gsk_new_top,                  \
                                          type, next, comparator);       \
               top = _gsk_new_top;                                       \
@@ -348,8 +348,9 @@
   G_STMT_START{                                                         \
     type _gsk_out_at;                                                   \
     int _gsk_comparator_rv;                                             \
-    /* merge a and b into */                                            \
-    /* a.                               */                              \
+    /* merge 'a' and 'b' into 'out' -- in order to make the sort stable,*/  \
+    /* always put elements if 'a' first in the event of a tie (i.e. */  \
+    /* when comparator_rv==0)                                       */  \
     comparator (a, b, _gsk_comparator_rv);                              \
     if (_gsk_comparator_rv <= 0)                                        \
       {                                                                 \
@@ -371,19 +372,12 @@
             _gsk_out_at = a;			                        \
             a = a->next;		                                \
           }                                                             \
-        if (_gsk_comparator_rv >= 0)				        \
+        else                                                            \
           {							        \
             _gsk_out_at->next = b;		                        \
             _gsk_out_at = b;			                        \
             b = b->next;	                                        \
           }							        \
       }							                \
-    if (a || b)			                                        \
-      {							                \
-        _gsk_out_at->next = (a != NULL) ? a : b;                        \
-        _gsk_out_at = _gsk_out_at->next;			        \
-        while (_gsk_out_at->next)				        \
-          _gsk_out_at = _gsk_out_at->next;			        \
-      }							                \
-    _gsk_out_at->next = NULL;				                \
+    _gsk_out_at->next = (a != NULL) ? a : b;                            \
   }G_STMT_END

@@ -1,6 +1,7 @@
 #include "../gsklistmacros.h"
 #include <glib.h>
 #include <string.h>
+#include <stdlib.h>
 
 /* --- nodes --- */
 typedef struct _Node Node;
@@ -24,7 +25,7 @@ node_free (Node *node)
   g_free (node);
 }
 
-/* int-pair nodes */
+/* int-list nodes */
 typedef struct _IntNode IntNode;
 struct _IntNode
 {
@@ -46,6 +47,43 @@ int_node_free (IntNode *node)
   g_free (node);
 }
 
+
+/* compare only the high 16 bits -- used for testing stability */
+#define INT_NODE_COMPARE_HIGH16(a,b,rv) \
+  G_STMT_START{                                                 \
+    guint ai = a->i >> 16;                                      \
+    guint bi = b->i >> 16;                                      \
+    rv = ((ai < bi) ? -1 : (ai > bi) ? 1 : 0);                  \
+  }G_STMT_END
+
+
+
+/* used for simulating a stable sort in qsort()-- to match
+   with INT_NODE_COMPARE_HIGH16... */
+typedef struct _IntPair IntPair;
+struct _IntPair
+{
+  guint index;
+  guint value;
+};
+static int compare_int_pair_by_value_hi16_then_index(gconstpointer a,
+                                                     gconstpointer b)
+{
+  const IntPair *ipa = a;
+  const IntPair *ipb = b;
+  guint ai = ipa->value >> 16;
+  guint bi = ipb->value >> 16;
+  if (ai < bi)
+    return -1;
+  else if (ai > bi)
+    return 1;
+  else if (ipa->index < ipb->index)
+    return -1;
+  else if (ipa->index > ipb->index)
+    return 1;
+  else
+    return 0;
+}
 
 
 
@@ -140,6 +178,48 @@ int main()
       }
     g_assert (at == NULL);
 #undef GET_STACK
+    g_free (nodes);
+  }
+
+  /* Test sorting stability */
+  {
+    guint n_nodes = 10000;
+    IntNode **nodes = g_new (IntNode *, n_nodes);
+    IntNode *at;
+    IntPair *int_pairs = g_new (IntPair, n_nodes);
+    guint i;
+#define GET_STACK() IntNode*,nodes[0],next
+    for (i = 0; i < n_nodes; i++)
+      nodes[i] = int_node_alloc (((i / 16) << 16) | g_random_int_range (0,255));
+    for (i = 0; i < n_nodes; i++)
+      {
+        guint r1 = g_random_int_range (0, n_nodes);
+        guint r2 = g_random_int_range (0, n_nodes);
+        IntNode *tmp = nodes[r1];
+        nodes[r1] = nodes[r2];
+        nodes[r2] = tmp;
+      }
+    for (i = 0; i + 1 < n_nodes; i++)
+      nodes[i]->next = nodes[i+1];
+    nodes[i]->next = NULL;
+    for (i = 0; i < n_nodes; i++)
+      {
+        int_pairs[i].index = i;
+        int_pairs[i].value = nodes[i]->i;
+      }
+    GSK_STACK_SORT (GET_STACK (), INT_NODE_COMPARE_HIGH16);
+    qsort (int_pairs, n_nodes, sizeof (IntPair),
+           compare_int_pair_by_value_hi16_then_index);
+    at = nodes[0];
+    for (i = 0; i < n_nodes; i++)
+      {
+        g_assert (at->i == int_pairs[i].value);
+        at = at->next;
+      }
+    g_assert (at == NULL);
+#undef GET_STACK
+    g_free (nodes);
+    g_free (int_pairs);
   }
 
   return 0;
