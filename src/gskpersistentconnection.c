@@ -199,23 +199,15 @@ static gboolean
 handle_transport_read_shutdown (GskStream           *transport,
                                 GskPersistentConnection *connection)
 {
-  GError *error = NULL;
   g_return_val_if_fail (connection->transport == transport, FALSE);
-  if (connection->state == GSK_PERSISTENT_CONNECTION_CONNECTED
-   || connection->state == GSK_PERSISTENT_CONNECTION_CONNECTING)
-    {
-      if (gsk_io_has_write_hook (transport))
-        gsk_io_untrap_writable (transport);
-      connection->state = GSK_PERSISTENT_CONNECTION_WAITING;
-      g_signal_emit (connection, handle_disconnected_signal_id, 0);
-      setup_timeout (connection);
-    }
-
-  if (!gsk_io_write_shutdown (transport, &error))
-    {
-      g_warning ("error shutting down transport: %s", error->message);
-      g_error_free (error);
-    }
+  g_assert (connection->state == GSK_PERSISTENT_CONNECTION_CONNECTED
+        ||  connection->state == GSK_PERSISTENT_CONNECTION_CONNECTING);
+  if (gsk_io_has_write_hook (transport))
+    gsk_io_untrap_writable (transport);
+  shutdown_transport (connection);
+  connection->state = GSK_PERSISTENT_CONNECTION_WAITING;
+  g_signal_emit (connection, handle_disconnected_signal_id, 0);
+  setup_timeout (connection);
   return FALSE;
 }
 
@@ -244,23 +236,17 @@ static gboolean
 handle_transport_write_shutdown (GskStream           *transport,
                                  GskPersistentConnection *connection)
 {
-  GError *error = NULL;
   g_return_val_if_fail (connection->transport == transport, FALSE);
-  if (connection->state == GSK_PERSISTENT_CONNECTION_CONNECTED
-   || connection->state == GSK_PERSISTENT_CONNECTION_CONNECTING)
-    {
-      if (gsk_io_has_read_hook (transport))
-        gsk_io_untrap_readable (transport);
-      connection->state = GSK_PERSISTENT_CONNECTION_WAITING;
-      g_signal_emit (connection, handle_disconnected_signal_id, 0);
-      setup_timeout (connection);
-    }
+  g_assert (connection->state == GSK_PERSISTENT_CONNECTION_CONNECTED
+         || connection->state == GSK_PERSISTENT_CONNECTION_CONNECTING);
 
-  if (!gsk_io_read_shutdown (transport, &error))
-    {
-      g_warning ("error shutting down transport: %s", error->message);
-      g_error_free (error);
-    }
+  if (gsk_io_has_read_hook (transport))
+    gsk_io_untrap_readable (transport);
+  shutdown_transport (connection);
+  connection->state = GSK_PERSISTENT_CONNECTION_WAITING;
+  g_signal_emit (connection, handle_disconnected_signal_id, 0);
+  setup_timeout (connection);
+
   return FALSE;
 }
 
