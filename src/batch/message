@@ -46,8 +46,10 @@ union Message
   struct {
     uint64 est_n_records;	/* or 0 for unknown */
     uint64 est_n_bytes;		/* or 0 for unknown */
+    string filename;
     Metadata metadata;
-  } request_upload;
+    optional uint8[16] md5sum;
+  } begin_upload;
   struct {
     uint64 est_n_records;	/* or 0 for unknown */
     uint64 est_n_bytes;		/* or 0 for unknown */
