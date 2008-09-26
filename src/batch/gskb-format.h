@@ -21,6 +21,11 @@
         daveb@ffem.org <Dave Benson>
 */
 
+#ifndef __GSKB_FORMAT_H_
+#define __GSKB_FORMAT_H_
+
+#include <glib.h>
+#include "../gskmempool.h"
 
 /* description of data format */
 
@@ -43,6 +48,7 @@ typedef struct _GskbFormatExtensibleMember GskbFormatExtensibleMember;
 typedef struct _GskbFormatExtensible GskbFormatExtensible;
 typedef struct _GskbExtensibleUnknownValue GskbExtensibleUnknownValue;
 typedef struct _GskbExtensible GskbExtensible;
+typedef struct _GskbFormatCMember GskbFormatCMember;
 
 typedef enum
 {
@@ -54,7 +60,8 @@ typedef enum
   GSKB_FORMAT_TYPE_STRUCT,
   GSKB_FORMAT_TYPE_UNION,
   GSKB_FORMAT_TYPE_ENUM,
-  GSKB_FORMAT_TYPE_ALIAS
+  GSKB_FORMAT_TYPE_ALIAS,
+  GSKB_FORMAT_TYPE_EXTENSIBLE
 } GskbFormatType;
 
 typedef enum
@@ -85,6 +92,7 @@ struct _GskbFormatCMember
 struct _GskbFormatAny
 {
   GskbFormatType type;		/* must be first */
+  GskbFormatCType ctype;
   guint ref_count;
 
   char *name, *TypeName, *lc_name;
@@ -92,6 +100,11 @@ struct _GskbFormatAny
   /* how this maps to C structures */
   GskbFormatCType ctype;
   guint c_size_of, c_align_of;
+  guint8 always_by_pointer : 1;
+  guint8 requires_destruct : 1;
+
+  /* general info about this things packed values */
+  guint fixed_length;           /* or 0 */
 
   /* for ctype==COMPOSITE */
   guint n_members;
@@ -100,19 +113,19 @@ struct _GskbFormatAny
 
 typedef enum
 {
-  GSKB_FORMAT_INT_INT8,
-  GSKB_FORMAT_INT_INT16,
-  GSKB_FORMAT_INT_INT32,
-  GSKB_FORMAT_INT_INT64,
-  GSKB_FORMAT_INT_UINT8,
-  GSKB_FORMAT_INT_UINT16,
-  GSKB_FORMAT_INT_UINT32,
-  GSKB_FORMAT_INT_UINT64,
-  GSKB_FORMAT_INT_VARLEN_INT32,
-  GSKB_FORMAT_INT_VARLEN_INT64,
-  GSKB_FORMAT_INT_VARLEN_UINT32,
-  GSKB_FORMAT_INT_VARLEN_UINT64,
-  GSKB_FORMAT_INT_BIT
+  GSKB_FORMAT_INT_INT8,         /* signed byte                         */
+  GSKB_FORMAT_INT_INT16,        /* int16, encoded little-endian        */
+  GSKB_FORMAT_INT_INT32,        /* int32, encoded little-endian        */
+  GSKB_FORMAT_INT_INT64,        /* int32, encoded little-endian        */
+  GSKB_FORMAT_INT_UINT8,        /* unsigned byte                       */
+  GSKB_FORMAT_INT_UINT16,       /* uint16, encoded little-endian       */
+  GSKB_FORMAT_INT_UINT32,       /* uint32, encoded little-endian       */
+  GSKB_FORMAT_INT_UINT64,       /* uint32, encoded little-endian       */
+  GSKB_FORMAT_INT_INT,          /* var-len signed int, max 32 bits     */
+  GSKB_FORMAT_INT_UINT,         /* var-len unsigned int, max 32 bits   */
+  GSKB_FORMAT_INT_LONG,         /* var-len signed int, max 64 bits     */
+  GSKB_FORMAT_INT_ULONG,        /* var-len unsigned int, max 64 bits   */
+  GSKB_FORMAT_INT_BIT           /* byte that may only be set to 0 or 1 */
 } GskbFormatIntType;
 
 struct _GskbFormatInt
@@ -210,7 +223,7 @@ struct _GskbFormatExtensibleMember
 {
   guint code;
   char *name;
-  GskFormat *format;
+  GskbFormat *format;
 };
 
 struct _GskbFormatExtensible
@@ -251,21 +264,7 @@ union _GskbFormat
   GskbFormatAlias      v_alias;
   GskbFormatExtensible v_extensible;
 };
-GskbFormat *gskb_format_peek_int8 (void);
-GskbFormat *gskb_format_peek_int16 (void);
-GskbFormat *gskb_format_peek_int32 (void);
-GskbFormat *gskb_format_peek_int64 (void);
-GskbFormat *gskb_format_peek_uint8 (void);
-GskbFormat *gskb_format_peek_uint16 (void);
-GskbFormat *gskb_format_peek_uint32 (void);
-GskbFormat *gskb_format_peek_uint64 (void);
-GskbFormat *gskb_format_peek_varlen_int32 (void);
-GskbFormat *gskb_format_peek_varlen_int64 (void);
-GskbFormat *gskb_format_peek_varlen_uint32 (void);
-GskbFormat *gskb_format_peek_varlen_uint64 (void);
-GskbFormat *gskb_format_peek_float32 (void);
-GskbFormat *gskb_format_peek_float64 (void);
-GskbFormat *gskb_format_peek_string (void);
+
 GskbFormat *gskb_format_fixed_array_new (guint length,
                                          GskbFormat *element_format);
 GskbFormat *gskb_format_length_prefixed_array_new (GskbFormat *element_format);
@@ -304,22 +303,34 @@ gboolean    gskb_format_is_anonymous   (GskbFormat *format);
 GskbFormat *gskb_format_name_anonymous (GskbFormat *anon_format,
                                         const char *name);
 
-gboolean    gskb_format_unpack_value   (GskbFormat    *format,
-                                        const guint8  *data,
-                                        guint         *n_used_out,
-                                        gpointer       value,
-                                        GskbAllocator *allocator,
-                                        GError       **error);
-void        gskb_format_clear_value    (GskbFormat    *format,
-                                        gpointer       value,
-                                        GskbAllocator *allocator);
-
 typedef void (*GskbAppendFunc) (guint len,
                                 const guint8 *data,
                                 gpointer func_data);
 
-void        gskb_format_pack_object    (GskbFormat    *format,
+void        gskb_format_pack           (GskbFormat    *format,
                                         gconstpointer  value,
-                                        GskbAppendFunc func,
-                                        gpointer       func_data);
+                                        GskbAppendFunc append_func,
+                                        gpointer       append_func_data);
+guint       gskb_format_get_packed_size(GskbFormat    *format,
+                                        gconstpointer  value);
+guint       gskb_format_pack_slab      (GskbFormat    *format,
+                                        gconstpointer  value,
+                                        guint8        *slab);
 
+gboolean    gskb_format_unpack_value   (GskbFormat    *format,
+                                        const guint8  *data,
+                                        guint         *n_used_out,
+                                        gpointer       value,
+                                        GError       **error);
+void        gskb_format_clear_value    (GskbFormat    *format,
+                                        gpointer       value);
+gboolean    gskb_format_unpack_value_mempool
+                                       (GskbFormat    *format,
+                                        const guint8  *data,
+                                        guint         *n_used_out,
+                                        gpointer       value,
+                                        GskMemPool    *mem_pool,
+                                        GError       **error);
+
+
+#endif

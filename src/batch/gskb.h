@@ -21,5 +21,5 @@
         daveb@ffem.org <Dave Benson>
 */
 
-#include "gskbformat.h"
-#include "gskbnamespace.h"
+#include "gskb-format.h"
+#include "gskb-namespace.h"

@@ -8,6 +8,67 @@ typedef enum
   GSKB_CODEGEN_SECTION_FUNCTION_IMPLS
 } GskbCodegenSection;
 
+typedef enum
+{
+  /* if format->always_by_pointer,
+         void {lctype}_pack      (const {type}  *value,
+                                  GskbAppendFunc append,
+                                  gpointer       append_data);
+     else
+         void {lctype}_pack      ({type}         value,
+                                  GskbAppendFunc append,
+                                  gpointer       append_data); */
+  GSKB_CODEGEN_OUTPUT_PACK,
+
+
+  /* if format->always_by_pointer,
+         guint {lctype}_get_packed_size (const {type}  *value);
+     else
+         guint {lctype}_get_packed_size ({type}         value); */
+  GSKB_CODEGEN_OUTPUT_GET_PACKED_SIZE,
+
+  /* if format->always_by_pointer,
+         guint {lctype}_pack_slab (const {type}  *value,
+                                   guint8        *out);
+     else
+         guint {lctype}_pack_slab ({type}         value,
+                                   guint8        *out);  */
+  GSKB_CODEGEN_OUTPUT_PACK_SLAB,
+
+
+  /*     gboolean {lctype}_validate  (guint          len,
+                                      const guint8  *data,
+                                      guint         *n_used_out,
+                                      GError       **error);    */
+  GSKB_CODEGEN_OUTPUT_VALIDATE,
+
+  /*     guint {lctype}_unpack     (const guint8  *data,
+                                    {type}        *value_out);
+      will use glib's malloc as needed (for each string or array)
+   */
+  GSKB_CODEGEN_OUTPUT_UNPACK,
+
+  /*     guint {lctype}_unpack_mempool    (const guint8  *data,
+                                           {type}        *value_out,
+                                           GskMemPool    *mem_pool);
+   */
+  GSKB_CODEGEN_OUTPUT_UNPACK_MEMPOOL,
+
+  /* destruct an object.  this method will be define to nothing to
+     types that do not require destruction:
+         void {lctype}_destruct   ({type}         *value,
+                                   GskbUnpackFlags flags,
+                                   GskbAllocator  *allocator);   */
+  GSKB_CODEGEN_OUTPUT_DESTRUCT,
+
+  /* peek at a shared format instance of the format:
+   *   GskbFormat *{lctype}_peek_format (void);
+   */
+  GSKB_CODEGEN_OUTPUT_PEEK_FORMAT
+  
+} GskbCodegenOutputFunction;
+
+
 typedef struct _GskbCodegenConfig GskbCodegenConfig;
 struct _GskbCodegenConfig
 {
@@ -23,3 +84,10 @@ void gskb_codegen_config_set_all_static (GskbCodegenConfig *config,
 void gskb_codegen_config_free           (GskbCodegenConfig *config);
 
 
+
+/* internal */
+#include "../gskbuffer.h"
+void        gskb_format_codegen        (GskbFormat *format,
+                                        GskbCodegenSection section,
+                                        const GskbCodegenConfig *config,
+                                        GskBuffer *output);
