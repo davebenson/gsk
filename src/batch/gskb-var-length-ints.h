@@ -29,6 +29,9 @@ gboolean gskb_validate_int32_var_length (guint max_len,
                                          guint8 *data,
                                          gint32 *out,
                                          guint  *n_used_out);
+guint    gskb_get_packed_size_int32_var_length (gint32  in);
+guint    gskb_pack_int32_var_length     (gint32  in,
+                                         guint8 *out);
 gboolean gskb_parse_uint32_var_length   (guint8 *data,
                                          guint32 *out,
                                          guint  *n_used_out);
@@ -36,6 +39,9 @@ gboolean gskb_validate_uint32_var_length(guint max_len,
                                          guint8 *data,
                                          guint32 *out,
                                          guint  *n_used_out);
+guint    gskb_get_packed_size_uint32_var_length (guint32  in);
+guint    gskb_pack_uint32_var_length    (guint32  in,
+                                         guint8 *out);
 gboolean gskb_parse_int64_var_length    (guint8 *data,
                                          gint64 *out,
                                          guint  *n_used_out);
@@ -43,6 +49,9 @@ gboolean gskb_validate_int64_var_length (guint max_len,
                                          guint8 *data,
                                          gint64 *out,
                                          guint  *n_used_out);
+guint    gskb_get_packed_size_int64_var_length (gint64  in);
+guint    gskb_pack_int64_var_length     (gint64  in,
+                                         guint8 *out);
 gboolean gskb_parse_uint64_var_length   (guint8 *data,
                                          guint64 *out,
                                          guint  *n_used_out);
@@ -50,3 +59,6 @@ gboolean gskb_validate_uint64_var_length(guint max_len,
                                          guint8 *data,
                                          guint64 *out,
                                          guint  *n_used_out);
+guint    gskb_get_packed_size_uint64_var_length (guint64  in);
+guint    gskb_pack_uint64_var_length    (guint64  in,
+                                         guint8 *out);

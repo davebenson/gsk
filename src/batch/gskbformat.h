@@ -57,10 +57,45 @@ typedef enum
   GSKB_FORMAT_TYPE_ALIAS
 } GskbFormatType;
 
+typedef enum
+{
+  GSKB_FORMAT_CTYPE_INT8,
+  GSKB_FORMAT_CTYPE_INT16,
+  GSKB_FORMAT_CTYPE_INT32,
+  GSKB_FORMAT_CTYPE_INT64,
+  GSKB_FORMAT_CTYPE_UINT8,
+  GSKB_FORMAT_CTYPE_UINT16,
+  GSKB_FORMAT_CTYPE_UINT32,
+  GSKB_FORMAT_CTYPE_UINT64,
+  GSKB_FORMAT_CTYPE_FLOAT32,
+  GSKB_FORMAT_CTYPE_FLOAT64,
+  GSKB_FORMAT_CTYPE_STRING,
+  GSKB_FORMAT_CTYPE_COMPOSITE,
+  GSKB_FORMAT_CTYPE_UNION_DATA
+} GskbFormatCType;
+
+struct _GskbFormatCMember
+{
+  char *name;
+  GskbFormatCType ctype;
+  GskbFormat *member;           /* NULL for UNION_DATA */
+  guint c_offset_of;
+};
+
 struct _GskbFormatAny
 {
   GskbFormatType type;		/* must be first */
   guint ref_count;
+
+  char *name, *TypeName, *lc_name;
+
+  /* how this maps to C structures */
+  GskbFormatCType ctype;
+  guint c_size_of, c_align_of;
+
+  /* for ctype==COMPOSITE */
+  guint n_members;
+  GskbFormatCMember *members;
 };
 
 typedef enum
@@ -77,13 +112,13 @@ typedef enum
   GSKB_FORMAT_INT_VARLEN_INT64,
   GSKB_FORMAT_INT_VARLEN_UINT32,
   GSKB_FORMAT_INT_VARLEN_UINT64,
+  GSKB_FORMAT_INT_BIT
 } GskbFormatIntType;
 
 struct _GskbFormatInt
 {
   GskbFormatAny     base;
   GskbFormatIntType int_type;
-  const char       *name;
 };
 
 typedef enum
@@ -106,7 +141,7 @@ struct _GskbFormatString
 struct _GskbFormatFixedArray
 {
   GskbFormatAny base;
-  guint len;
+  guint length;
   GskbFormat *element_format;
 };
 
@@ -124,7 +159,6 @@ struct _GskbFormatStructMember
 struct _GskbFormatStruct
 {
   GskbFormatAny base;
-  const char *name;
   guint n_members;
   GskbFormatStructMember *members;
   GHashTable *name_to_member;
@@ -139,7 +173,6 @@ struct _GskbFormatUnionCase
 struct _GskbFormatUnion
 {
   GskbFormatAny base;
-  const char *name;
   guint n_cases;
   GskbFormatUnionCase *cases;
   GHashTable *name_to_case;
@@ -152,10 +185,10 @@ struct _GskbFormatEnumValue
   const char *name;
   guint value;
 };
+
 struct _GskbFormatEnum
 {
   GskbFormatAny base;
-  const char *name;
   GskbFormatIntType int_type;
   guint n_values;
   GskbFormatEnumValue *values;
@@ -166,10 +199,10 @@ struct _GskbFormatEnum
      or NULL if the enum values are 0-indexed corresponding to 'values' */
   GHashTable *value_to_value;
 };
+
 struct _GskbFormatAlias
 {
   GskbFormatAny base;
-  const char *name;
   GskbFormat *format;
 };
 
@@ -183,7 +216,6 @@ struct _GskbFormatExtensibleMember
 struct _GskbFormatExtensible
 {
   GskbFormatAny base;
-  const char *name;
   guint n_members;
   GskbFormatExtensibleMember *members;
 
@@ -271,4 +303,23 @@ GskbFormatExtensibleMember *gskb_format_extensible_find_member_code
 gboolean    gskb_format_is_anonymous   (GskbFormat *format);
 GskbFormat *gskb_format_name_anonymous (GskbFormat *anon_format,
                                         const char *name);
+
+gboolean    gskb_format_unpack_value   (GskbFormat    *format,
+                                        const guint8  *data,
+                                        guint         *n_used_out,
+                                        gpointer       value,
+                                        GskbAllocator *allocator,
+                                        GError       **error);
+void        gskb_format_clear_value    (GskbFormat    *format,
+                                        gpointer       value,
+                                        GskbAllocator *allocator);
+
+typedef void (*GskbAppendFunc) (guint len,
+                                const guint8 *data,
+                                gpointer func_data);
+
+void        gskb_format_pack_object    (GskbFormat    *format,
+                                        gconstpointer  value,
+                                        GskbAppendFunc func,
+                                        gpointer       func_data);
 
