@@ -17,16 +17,21 @@ struct _GskbStrTableEntry
   void *entry_data;
 };
 
+typedef void (*GskbTableEntryOutputFunc) (gconstpointer entry_data,
+                                          GskBuffer    *dest);
+
 GskbStrTable *gskb_str_table_new    (gsize     sizeof_entry_data,
                                      guint     n_entries,
 				     const GskbStrTableEntry *entry);
 void          gskb_str_table_print_compilable_deps
                                     (GskbStrTable *table,
 				     const char   *table_name,
+                                     GskbTableEntryOutputFunc output_func,
 				     GskBuffer    *output);
 void          gskb_str_table_print_compilable_object
                                     (GskbStrTable *table,
 				     const char   *table_name,
+                                     const char   *sizeof_entry_data_str,
 				     GskBuffer    *output);
 const void   *gskb_str_table_lookup (GskbStrTable *table,
                                      const char   *str);

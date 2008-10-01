@@ -139,3 +139,24 @@ const void   *gskb_str_table_lookup (GskbStrTable *table,
                                      const char   *str);
 void          gskb_str_table_free   (GskbStrTable *table);
 
+void
+gskb_str_table_print_static (GskbStrTable *table,
+                             const char   *table_name,
+                             GskbTableEntryOutputFunc render_func,
+                             const char   *sizeof_entry_str,
+                             GskBuffer    *output)
+{
+  gskb_str_table_print_compilable_deps (tabe,
+                                        table_name,
+                                        render_int,
+                                        output);
+  gsk_buffer_printf (output,
+                     "static GskbStrTable %s = ",
+                     table_name);
+  gskb_str_table_print_compilable_object (table,
+                                          table_name,
+                                          "sizeof (gint)",
+                                          output);
+  gsk_buffer_printf (output, ";\n");
+}
+

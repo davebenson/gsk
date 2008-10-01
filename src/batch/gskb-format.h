@@ -63,6 +63,7 @@ typedef enum
   GSKB_FORMAT_TYPE_ALIAS,
   GSKB_FORMAT_TYPE_EXTENSIBLE
 } GskbFormatType;
+#define GSKB_N_FORMAT_TYPES 10
 
 typedef enum
 {
@@ -173,7 +174,7 @@ struct _GskbFormatStruct
   GskbFormatAny base;
   guint n_members;
   GskbFormatStructMember *members;
-  gpointer name_to_member;
+  gpointer name_to_member_index;
 };
 
 struct _GskbFormatUnionCase
@@ -187,8 +188,8 @@ struct _GskbFormatUnion
   GskbFormatAny base;
   guint n_cases;
   GskbFormatUnionCase *cases;
-  gpointer name_to_case;
-  gpointer value_to_case;
+  gpointer name_to_case_index;
+  gpointer value_to_case_index;
   GskbFormat *type_enum;
 };
 
@@ -205,11 +206,8 @@ struct _GskbFormatEnum
   guint n_values;
   GskbFormatEnumValue *values;
 
-  /* char* => GskbFormatEnumValue */
-  GHashTable *name_to_value;
-  /* map from int => GskbFormatEnumValue,
-     or NULL if the enum values are 0-indexed corresponding to 'values' */
-  GHashTable *value_to_value;
+  gpointer name_to_index;
+  gpointer value_to_index;
 };
 
 struct _GskbFormatAlias
@@ -231,8 +229,8 @@ struct _GskbFormatExtensible
   guint n_members;
   GskbFormatExtensibleMember *members;
 
-  GHashTable *member_name_to_index;
-  GHashTable *member_code_to_index;
+  gpointer name_to_index;
+  gpointer code_to_index;
 };
 
 struct _GskbExtensibleUnknownValue

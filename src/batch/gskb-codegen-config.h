@@ -4,9 +4,14 @@ typedef enum
 {
   GSKB_CODEGEN_SECTION_TYPEDEFS,
   GSKB_CODEGEN_SECTION_STRUCTURES,
+  GSKB_CODEGEN_SECTION_FORMAT_DECLS,
+  GSKB_CODEGEN_SECTION_FORMAT_PRIVATE_DECLS,
+  GSKB_CODEGEN_SECTION_FORMAT_IMPLS,
   GSKB_CODEGEN_SECTION_FUNCTION_PROTOTYPES,
   GSKB_CODEGEN_SECTION_FUNCTION_IMPLS
 } GskbCodegenSection;
+
+#define GSKB_N_CODEGEN_SECTIONS (GSKB_CODEGEN_SECTION_FUNCTION_IMPLS+1)
 
 typedef enum
 {
@@ -61,12 +66,9 @@ typedef enum
                                    GskbAllocator  *allocator);   */
   GSKB_CODEGEN_OUTPUT_DESTRUCT,
 
-  /* peek at a shared format instance of the format:
-   *   GskbFormat *{lctype}_peek_format (void);
-   */
-  GSKB_CODEGEN_OUTPUT_PEEK_FORMAT
-  
 } GskbCodegenOutputFunction;
+
+#define GSKB_N_CODEGEN_OUTPUT_FUNCTIONS  (GSKB_CODEGEN_OUTPUT_DESTRUCT+1)
 
 
 typedef struct _GskbCodegenConfig GskbCodegenConfig;
@@ -87,7 +89,8 @@ void gskb_codegen_config_free           (GskbCodegenConfig *config);
 
 /* internal */
 #include "../gskbuffer.h"
-void        gskb_format_codegen        (GskbFormat *format,
+gboolean    gskb_format_codegen        (GskbFormat *format,
                                         GskbCodegenSection section,
                                         const GskbCodegenConfig *config,
-                                        GskBuffer *output);
+                                        GskBuffer *output,
+                                        GError   **error);
