@@ -92,7 +92,6 @@ struct _GskbFormatCMember
 struct _GskbFormatAny
 {
   GskbFormatType type;		/* must be first */
-  GskbFormatCType ctype;
   guint ref_count;
 
   char *name, *TypeName, *lc_name;
@@ -174,7 +173,7 @@ struct _GskbFormatStruct
   GskbFormatAny base;
   guint n_members;
   GskbFormatStructMember *members;
-  GHashTable *name_to_member;
+  gpointer name_to_member;
 };
 
 struct _GskbFormatUnionCase
@@ -188,8 +187,8 @@ struct _GskbFormatUnion
   GskbFormatAny base;
   guint n_cases;
   GskbFormatUnionCase *cases;
-  GHashTable *name_to_case;
-  GHashTable *value_to_case;
+  gpointer name_to_case;
+  gpointer value_to_case;
   GskbFormat *type_enum;
 };
 
