@@ -30,6 +30,7 @@ typedef guint8 gskb_bit;
 typedef gfloat gskb_float32;
 typedef gdouble gskb_float64;
 typedef char * gskb_string;
+typedef guint32 gskb_enum;
 
 #define GSKB_FOREACH_FUNDAMENTAL_TYPE(macro) \
  macro(int8) \

@@ -788,6 +788,7 @@ gskb_format_name_anonymous (GskbFormat *anon_format,
     }
 
 
+
 void
 gskb_format_pack           (GskbFormat    *format,
                             gconstpointer  value,
@@ -825,25 +826,112 @@ gskb_format_pack           (GskbFormat    *format,
       gskb_string_pack (*(char**)value, append_func, append_func_data);
       break;
     case GSKB_FORMAT_TYPE_FIXED_ARRAY:
-      ...
+      {
+        guint i;
+        GskbFormat *sub = format->v_fixed_array.element_format;
+        for (i = 0; i < format->v_fixed_array.length; i++)
+          {
+            gskb_format_pack (sub, value, append_func, append_func_data);
+            value = (char*) value + sub->any.c_size_of;
+          }
+      }
       break;
     case GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY:
-      ...
+      {
+        const struct { guint32 length; char *data; } *s = value;
+        char *data = (char*) s->data;;
+        GskbFormat *sub = format->v_length_prefixed_array.element_format;
+        gskb_uint_pack (s->length, append_func, append_func_data);
+        for (i = 0; i < s->length; i++)
+          {
+            gskb_format_pack (sub, data, append_func, append_func_data);
+            data += sub->any.c_size_of;
+          }
+      }
       break;
     case GSKB_FORMAT_TYPE_STRUCT:
-      ...
+      {
+        guint i;
+        for (i = 0; i < format->v_struct.n_members; i++)
+          gskb_format_pack (format->v_struct.members[i].format,
+                            (char*)value + format->any.members[i].c_offset_of,
+                            append_func, append_func_data);
+      }
       break;
     case GSKB_FORMAT_TYPE_UNION:
-      ...
+      {
+        guint32 case_value = * (guint32 *) value;
+        GskbFormatUnionCase *c = gskb_format_union_find_case_value (format, case_value);
+        g_assert (c != NULL);
+        gskb_uint32_pack (case_value, append_func, append_func_data);
+        if (c->format != NULL)
+          gskb_format_pack (c->format,
+                            (char*) value + format->any.members[1].c_offset_of,
+                            append_func, append_func_data);
+      }
       break;
     case GSKB_FORMAT_TYPE_ENUM:
-      ...
+      {
+        gskb_enum v = * (gskb_enum *) value;
+        switch (format->v_enum.int_type)
+          {
+#define WRITE_CASE(UC, lc) \
+          case GSKB_FORMAT_INT_##UC: \
+            gskb_##lc##_pack (v, append_func, append_func_data); \
+            break;
+          FOREACH_INT_TYPE(WRITE_CASE)
+#undef WRITE_CASE
+          default:
+            g_assert_not_reached ();
+          }
+      }
       break;
     case GSKB_FORMAT_TYPE_ALIAS:
-      ...
+      gskb_format_pack (format->v_alias.format, value, 
+                        append_func, append_func_data);
       break;
     case GSKB_FORMAT_TYPE_EXTENSIBLE:
-      ...
+      {
+        const GskbExtensible *ext = value;
+        const guint8 *bits = (guint8 *) (ext + 1);
+        guint8 mask = GSKB_BITFIELD_START_MASK;
+        guint ui = 0;
+        guint ki = 0;
+        while (ui < ext->n_unknown_members
+            && ki < format->v_extensible.n_members)
+          {
+            if (ext->unknown_members[ui].code < format->v_extensible.members[ki].code)
+              {
+                /* emit unknown member */
+                ...
+              }
+            else
+              {
+                /* maybe emit known member */
+                if (((*bits) & mask) != 0)
+                  {
+                    ...
+                  }
+                mask = GSKB_BITFIELD_NEXT_MASK (mask);
+                if (mask == 0)
+                  {
+                    mask = GSKB_BITFIELD_START_MASK;
+                    bits++;
+                  }
+              }
+          }
+        while (ui < ext->n_unknown_members)
+          {
+            /* emit unknown member */
+            ...
+          }
+        while (ki < format->v_extensible.n_members)
+          {
+            /* maybe emit known member */
+            ...
+          }
+        if (ui < format->n
+        for (ki = 0; ki < 
       break;
     default:
       g_assert_not_reached ();
