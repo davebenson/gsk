@@ -1,6 +1,8 @@
 /*
     GSKB - a batch processing framework
 
+    gskb-format: specify interpretation of packed bytes.
+
     Copyright (C) 2008 Dave Benson
 
     This library is free software; you can redistribute it and/or
@@ -79,14 +81,15 @@ typedef enum
   GSKB_FORMAT_CTYPE_FLOAT64,
   GSKB_FORMAT_CTYPE_STRING,
   GSKB_FORMAT_CTYPE_COMPOSITE,
-  GSKB_FORMAT_CTYPE_UNION_DATA
+  GSKB_FORMAT_CTYPE_UNION_DATA,
+  GSKB_FORMAT_CTYPE_ARRAY_POINTER
 } GskbFormatCType;
 
 struct _GskbFormatCMember
 {
   char *name;
   GskbFormatCType ctype;
-  GskbFormat *member;           /* NULL for UNION_DATA */
+  GskbFormat *format;           /* NULL for UNION_DATA */
   guint c_offset_of;
 };
 
@@ -102,6 +105,8 @@ struct _GskbFormatAny
   guint c_size_of, c_align_of;
   guint8 always_by_pointer : 1;
   guint8 requires_destruct : 1;
+
+  guint8 is_global : 1;         /* private */
 
   /* general info about this things packed values */
   guint fixed_length;           /* or 0 */
@@ -279,6 +284,10 @@ GskbFormat *gskb_format_enum_new  (const char *name,
 GskbFormat *gskb_format_extensible_new(const char *name,
                                    guint n_known_members,
                                    GskbFormatExtensibleMember *known_members);
+
+/* ref-count handling */
+GskbFormat *gskb_format_ref (GskbFormat *format);
+void        gskb_format_unref (GskbFormat *format);
 
 /* methods on certain formats */
 GskbFormatStructMember *gskb_format_struct_find_member (GskbFormat *format,

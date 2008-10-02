@@ -167,7 +167,7 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
       gsk_buffer_printf (output,
                          "struct _%s%s\n"
                          "{\n"
-                         "  guint length;\n"
+                         "  guint32 length;\n"
                          "  %s%s *data;\n"
                          "};\n\n",
                          config->type_prefix, format->any.TypeName,
@@ -439,7 +439,7 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
         gsk_buffer_printf (output, "static GskbStrTable %s = ", table_name);
         gskb_str_table_print_compilable_object (format->v_struct.name_to_member_index,
                                               table_name,
-                                              "sizeof (gint)",
+                                              "sizeof (gint32)",
                                               output);
         gsk_buffer_printf (output, ";\n");
         g_free (table_name);
@@ -495,7 +495,7 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
         gskb_str_table_print_static (format->v_union.name_to_case_index,
                                      by_name_table_name,
                                      render_int,
-                                     "sizeof (gint)",
+                                     "sizeof (gint32)",
                                      output);
 
         by_value_table_name = g_strdup_printf ("%s%s__value_to_case_index",
@@ -503,7 +503,7 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
         gskb_uint_table_print_static (format->v_union.value_to_case_index,
                                      by_value_table_name,
                                      render_int,
-                                     "sizeof (gint)",
+                                     "sizeof (gint32)",
                                      output);
 
         gsk_buffer_printf (output,
@@ -551,7 +551,7 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
           gskb_str_table_print_static (format->v_enum.name_to_index,
                                        table_name,
                                        render_int,
-                                       "sizeof (gint)",
+                                       "sizeof (gint32)",
                                        output);
           g_free (table_name);
         }
@@ -561,7 +561,7 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
           gskb_uint_table_print_static (format->v_enum.value_to_index,
                                         table_name,
                                         render_int,
-                                        "sizeof (gint)",
+                                        "sizeof (gint32)",
                                         output);
           g_free (table_name);
         }

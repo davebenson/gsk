@@ -17,6 +17,8 @@ struct _GskbStrTableEntry
   void *entry_data;
 };
 
+#include "../gskbuffer.h"
+
 typedef void (*GskbTableEntryOutputFunc) (gconstpointer entry_data,
                                           GskBuffer    *dest);
 
