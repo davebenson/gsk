@@ -77,8 +77,8 @@ gskb_format_codegen__emit_typedefs     (GskbFormat *format,
           GskbFormatFloatType float_type;
           const char *c_type;
         } float_c_types[] = {             /* NOTE: must match order of enum */
-          { GSKB_FORMAT_FLOAT_SINGLE,       "gfloat" },
-          { GSKB_FORMAT_FLOAT_DOUBLE,       "gdouble" },
+          { GSKB_FORMAT_FLOAT_FLOAT32,       "gfloat" },
+          { GSKB_FORMAT_FLOAT_FLOAT64,       "gdouble" },
         };
         
         /* validate that the table is ok.  (sigh) */

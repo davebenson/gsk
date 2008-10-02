@@ -141,8 +141,8 @@ struct _GskbFormatInt
 
 typedef enum
 {
-  GSKB_FORMAT_FLOAT_SINGLE,
-  GSKB_FORMAT_FLOAT_DOUBLE,
+  GSKB_FORMAT_FLOAT_FLOAT32,
+  GSKB_FORMAT_FLOAT_FLOAT64,
 } GskbFormatFloatType;
 
 struct _GskbFormatFloat
@@ -195,7 +195,7 @@ struct _GskbFormatUnion
   GskbFormatUnionCase *cases;
   gpointer name_to_case_index;
   gpointer value_to_case_index;
-  GskbFormat *type_enum;
+  GskbFormat *type_format;
 };
 
 struct _GskbFormatEnumValue
@@ -272,18 +272,22 @@ GskbFormat *gskb_format_fixed_array_new (guint length,
 GskbFormat *gskb_format_length_prefixed_array_new (GskbFormat *element_format);
 GskbFormat *gskb_format_struct_new (const char *name,
                                     guint n_members,
-                                    GskbFormatStructMember *members);
+                                    GskbFormatStructMember *members,
+                                    GError       **error);
 GskbFormat *gskb_format_union_new (const char *name,
                                    GskbFormatIntType int_type,
                                    guint n_cases,
-                                   GskbFormatUnionCase *cases);
+                                   GskbFormatUnionCase *cases,
+                                   GError       **error);
 GskbFormat *gskb_format_enum_new  (const char *name,
                                    GskbFormatIntType int_type,
                                    guint n_values,
-                                   GskbFormatEnumValue *values);
+                                   GskbFormatEnumValue *values,
+                                   GError       **error);
 GskbFormat *gskb_format_extensible_new(const char *name,
                                    guint n_known_members,
-                                   GskbFormatExtensibleMember *known_members);
+                                   GskbFormatExtensibleMember *known_members,
+                                   GError       **error);
 
 /* ref-count handling */
 GskbFormat *gskb_format_ref (GskbFormat *format);
@@ -306,7 +310,7 @@ GskbFormatExtensibleMember *gskb_format_extensible_find_member_code
 
 /* used internally by union_new and struct_new */
 gboolean    gskb_format_is_anonymous   (GskbFormat *format);
-GskbFormat *gskb_format_name_anonymous (GskbFormat *anon_format,
+void        gskb_format_name_anonymous (GskbFormat *anon_format,
                                         const char *name);
 
 typedef void (*GskbAppendFunc) (guint len,
