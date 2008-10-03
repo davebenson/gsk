@@ -48,9 +48,8 @@ typedef struct _GskbFormatEnumValue GskbFormatEnumValue;
 typedef struct _GskbFormatEnum GskbFormatEnum;
 typedef struct _GskbFormatAlias GskbFormatAlias;
 typedef struct _GskbFormatExtensibleMember GskbFormatExtensibleMember;
-typedef struct _GskbFormatExtensible GskbFormatExtensible;
-typedef struct _GskbExtensibleUnknownValue GskbExtensibleUnknownValue;
-typedef struct _GskbExtensible GskbExtensible;
+typedef struct _GskbUnknownValue GskbUnknownValue;
+typedef struct _GskbUnknownValueArray GskbUnknownValueArray;
 typedef struct _GskbFormatCMember GskbFormatCMember;
 
 typedef enum
@@ -63,10 +62,9 @@ typedef enum
   GSKB_FORMAT_TYPE_STRUCT,
   GSKB_FORMAT_TYPE_UNION,
   GSKB_FORMAT_TYPE_ENUM,
-  GSKB_FORMAT_TYPE_ALIAS,
-  GSKB_FORMAT_TYPE_EXTENSIBLE
+  GSKB_FORMAT_TYPE_ALIAS
 } GskbFormatType;
-#define GSKB_N_FORMAT_TYPES 10
+#define GSKB_N_FORMAT_TYPES 9
 
 typedef enum
 {
@@ -172,30 +170,34 @@ struct _GskbFormatLengthPrefixedArray
 
 struct _GskbFormatStructMember
 {
+  guint code;           /* 0 if not extensible */
   const char *name;
   GskbFormat *format;
 };
 struct _GskbFormatStruct
 {
   GskbFormatAny base;
+  gboolean is_extensible;
   guint n_members;
   GskbFormatStructMember *members;
   gpointer name_to_member_index;
+  gpointer code_to_member_index;
 };
 
 struct _GskbFormatUnionCase
 {
   const char *name;
-  guint value;
+  guint code;
   GskbFormat *format;
 };
 struct _GskbFormatUnion
 {
   GskbFormatAny base;
+  gboolean is_extensible;
   guint n_cases;
   GskbFormatUnionCase *cases;
-  gpointer name_to_case_index;
-  gpointer value_to_case_index;
+  gpointer name_to_index;
+  gpointer code_to_index;
   GskbFormat *type_format;
 };
 
@@ -211,6 +213,7 @@ struct _GskbFormatEnum
   GskbFormatIntType int_type;
   guint n_values;
   GskbFormatEnumValue *values;
+  gboolean is_extensible;
 
   gpointer name_to_index;
   gpointer value_to_index;
@@ -222,33 +225,16 @@ struct _GskbFormatAlias
   GskbFormat *format;
 };
 
-struct _GskbFormatExtensibleMember
-{
-  guint code;
-  char *name;
-  GskbFormat *format;
-};
-
-struct _GskbFormatExtensible
-{
-  GskbFormatAny base;
-  guint n_members;
-  GskbFormatExtensibleMember *members;
-
-  gpointer name_to_index;
-  gpointer code_to_index;
-};
-
-struct _GskbExtensibleUnknownValue
+struct _GskbUnknownValue
 {
   guint32 code;
   gsize len;
   guint8 *data;
 };
-struct _GskbExtensible
+struct _GskbUnknownValueArray
 {
-  guint n_unknown_members;
-  GskbExtensibleUnknownValue *unknown_members;
+  guint length;
+  GskbUnknownValue *values;
 };
 
 union _GskbFormat
@@ -265,7 +251,6 @@ union _GskbFormat
   GskbFormatUnion      v_union;
   GskbFormatEnum       v_enum;
   GskbFormatAlias      v_alias;
-  GskbFormatExtensible v_extensible;
 };
 
 GskbFormat *gskb_format_fixed_array_new (guint length,
