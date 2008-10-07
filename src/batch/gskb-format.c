@@ -212,6 +212,7 @@ gskb_format_length_prefixed_array_new (GskbFormat *element_format)
  */
 GskbFormat *
 gskb_format_struct_new (const char *name,
+                        gboolean is_extensible,
                         guint n_members,
                         GskbFormatStructMember *members,
                         GError       **error)
@@ -299,6 +300,7 @@ gskb_format_struct_new (const char *name,
   rv->base.n_members = n_members;
   rv->n_members = n_members;
   rv->members = g_new (GskbFormatStructMember, n_members);
+  rv->is_extensible = is_extensible;
   for (i = 0; i < n_members; i++)
     {
       rv->members[i].name = g_strdup (members[i].name);
@@ -315,8 +317,7 @@ gskb_format_struct_new (const char *name,
         entries[i].entry_data = indices + i;
         indices[i] = i;
       }
-    rv->name_to_member_index = gskb_str_table_new (sizeof (gint32),
-                                                   n_members, entries);
+    rv->name_to_index = gskb_str_table_new (sizeof (gint32), n_members, entries);
     g_free (indices);
     g_free (entries);
   }
@@ -328,6 +329,7 @@ gskb_format_struct_new (const char *name,
 
 GskbFormat *
 gskb_format_union_new (const char *name,
+                       gboolean is_extensible,
                        GskbFormatIntType int_type,
                        guint n_cases,
                        GskbFormatUnionCase *cases,
@@ -371,18 +373,18 @@ gskb_format_union_new (const char *name,
             g_hash_table_destroy (dup_value_check);
             return NULL;
           }
-        if (g_hash_table_lookup (dup_value_check, GUINT_TO_POINTER (cases[i].value)) != NULL)
+        if (g_hash_table_lookup (dup_value_check, GUINT_TO_POINTER (cases[i].code)) != NULL)
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
                          "non-unique member value %u -- not allowed (%s)",
-                         cases[i].value, name ? name : "anonymous union");
+                         cases[i].code, name ? name : "anonymous union");
             g_hash_table_destroy (dup_name_check);
             g_hash_table_destroy (dup_value_check);
             return NULL;
           }
         g_hash_table_insert (dup_name_check, (gpointer) cases[i].name, cases + i);
-        g_hash_table_insert (dup_value_check, GUINT_TO_POINTER (cases[i].value), cases + i);
+        g_hash_table_insert (dup_value_check, GUINT_TO_POINTER (cases[i].code), cases + i);
       }
     g_hash_table_destroy (dup_name_check);
     g_hash_table_destroy (dup_value_check);
@@ -395,9 +397,9 @@ gskb_format_union_new (const char *name,
     for (i = 0 ; i < n_cases; i++)
       {
         ev[i].name = cases[i].name;
-        ev[i].value = cases[i].value;
+        ev[i].code = cases[i].code;
       }
-    type_format = gskb_format_enum_new (NULL, GSKB_FORMAT_INT_UINT, n_cases, ev, error);
+    type_format = gskb_format_enum_new (NULL, is_extensible, GSKB_FORMAT_INT_UINT, n_cases, ev, error);
     g_assert (type_format != NULL);
     g_free (ev);
   }
@@ -433,6 +435,7 @@ gskb_format_union_new (const char *name,
   info_size += (info_align - 1);
   info_size &= ~(info_align - 1);
   rv->type_format = type_format;                /* takes ownership */
+  rv->is_extensible = is_extensible;
 
   if (name != NULL)
     gskb_format_name_anonymous ((GskbFormat*)rv, name);
@@ -442,6 +445,7 @@ gskb_format_union_new (const char *name,
 
 GskbFormat *
 gskb_format_enum_new  (const char *name,
+                       gboolean    is_extensible,
                        GskbFormatIntType int_type,
                        guint n_values,
                        GskbFormatEnumValue *values,
@@ -489,18 +493,18 @@ gskb_format_enum_new  (const char *name,
             g_hash_table_destroy (dup_value_check);
             return NULL;
           }
-        if (g_hash_table_lookup (dup_value_check, GUINT_TO_POINTER (values[i].value)) != NULL)
+        if (g_hash_table_lookup (dup_value_check, GUINT_TO_POINTER (values[i].code)) != NULL)
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
                          "non-unique member value %u -- not allowed (%s)",
-                         values[i].value, name ? name : "anonymous enum");
+                         values[i].code, name ? name : "anonymous enum");
             g_hash_table_destroy (dup_name_check);
             g_hash_table_destroy (dup_value_check);
             return NULL;
           }
         g_hash_table_insert (dup_name_check, (gpointer) values[i].name, values + i);
-        g_hash_table_insert (dup_value_check, GUINT_TO_POINTER (values[i].value), values + i);
+        g_hash_table_insert (dup_value_check, GUINT_TO_POINTER (values[i].code), values + i);
       }
     g_hash_table_destroy (dup_name_check);
     g_hash_table_destroy (dup_value_check);
@@ -538,126 +542,17 @@ gskb_format_enum_new  (const char *name,
   uint_table_entries = g_new (GskbUIntTableEntry, n_values);
   for (i = 0; i < n_values; i++)
     {
-      rv->values[i].value = values[i].value;
+      rv->values[i].code = values[i].code;
       rv->values[i].name = g_strdup (values[i].name);
       indices[i] = i;
       str_table_entries[i].str = values[i].name;
       str_table_entries[i].entry_data = indices + i;
-      uint_table_entries[i].value = values[i].value;
+      uint_table_entries[i].value = values[i].code;
       uint_table_entries[i].entry_data = indices + i;
     }
   rv->name_to_index = gskb_str_table_new (sizeof (gint32), n_values, str_table_entries);
   rv->value_to_index = gskb_uint_table_new (sizeof (gint32), n_values, uint_table_entries);
   g_free (indices);
-  g_free (str_table_entries);
-  g_free (uint_table_entries);
-  if (name != NULL)
-    gskb_format_name_anonymous ((GskbFormat*)rv, name);
-  return (GskbFormat *) rv;
-}
-
-GskbFormat *
-gskb_format_extensible_new(const char *name,
-                           guint n_known_members,
-                           GskbFormatExtensibleMember *known_members,
-                           GError **error)
-
-{
-  guint i;
-  GskbFormatExtensible *rv;
-  {
-    GHashTable *dup_name_check = g_hash_table_new (g_str_hash, g_str_equal);
-    guint last_code = 0;
-    for (i = 0; i < n_known_members;i ++)
-      {
-        if (known_members[i].name == NULL)
-          {
-            g_set_error (error, GSK_G_ERROR_DOMAIN,
-                         GSK_ERROR_INVALID_ARGUMENT,
-                         "member %u was unnamed -- not allowed (%s)",
-                         i, name ? name : "anonymous extensible");
-            g_hash_table_destroy (dup_name_check);
-            return NULL;
-          }
-        if (g_hash_table_lookup (dup_name_check, known_members[i].name) != NULL)
-          {
-            g_set_error (error, GSK_G_ERROR_DOMAIN,
-                         GSK_ERROR_INVALID_ARGUMENT,
-                         "non-unique member name %s -- not allowed (%s)",
-                         known_members[i].name, name ? name : "anonymous extensible");
-            g_hash_table_destroy (dup_name_check);
-            return NULL;
-          }
-        if (i > 0)
-          {
-            if (last_code >= known_members[i].code)
-              {
-                g_set_error (error, GSK_G_ERROR_DOMAIN,
-                             GSK_ERROR_INVALID_ARGUMENT,
-                             "extensible member codes must be increasing (at member '%s'; last code=%u, cur code=%u (%s)",
-                             known_members[i].name, last_code,
-                             known_members[i].code,
-                             name ? name : "anonymous extensible");
-                g_hash_table_destroy (dup_name_check);
-                return NULL;
-              }
-          }
-        last_code = known_members[i].code;
-
-        g_hash_table_insert (dup_name_check, (gpointer) known_members[i].name, known_members + i);
-      }
-    g_hash_table_destroy (dup_name_check);
-  }
- 
-  rv = g_new0 (GskbFormatExtensible, 1);
-  rv->base.type = GSKB_FORMAT_TYPE_EXTENSIBLE;
-  rv->base.ref_count = 1;
-  rv->base.ctype = GSKB_FORMAT_CTYPE_COMPOSITE;
-  rv->base.n_members = n_known_members;
-  rv->base.members = g_new (GskbFormatCMember, n_known_members);
-
-  guint size = 0;
-  guint align = 1;
-  size = sizeof (GskbExtensible);
-  align = MAX (GSKB_ALIGNOF_UINT32, GSKB_ALIGNOF_POINTER);
-  size += (n_known_members+7) / 8;
-  for (i = 0; i < n_known_members; i++)
-    {
-      GskbFormat *subformat = known_members[i].format;
-      size = ALIGN (size, subformat->any.c_align_of);
-      rv->base.members[i].name = g_strdup (known_members[i].name);
-      rv->base.members[i].ctype = known_members[i].format->any.ctype;
-      rv->base.members[i].format = gskb_format_ref (known_members[i].format);
-      rv->base.members[i].c_offset_of = size;
-      size += subformat->any.c_size_of;
-    }
-  size = ALIGN (size, align);
-  rv->base.c_size_of = size;
-  rv->base.c_align_of = align;
-  rv->base.always_by_pointer = 1;
-  rv->base.requires_destruct = 1;
-
-  rv->n_members = n_known_members;
-  rv->members = g_new (GskbFormatExtensibleMember, n_known_members);
-  GskbStrTableEntry *str_table_entries;
-  GskbUIntTableEntry *uint_table_entries;
-  gint32 *indices;
-  str_table_entries = g_new (GskbStrTableEntry, n_known_members);
-  uint_table_entries = g_new (GskbUIntTableEntry, n_known_members);
-  indices = g_new (gint32, n_known_members);
-  for (i = 0; i < n_known_members; i++)
-    {
-      rv->members[i].code = known_members[i].code;
-      rv->members[i].name = g_strdup (known_members[i].name);
-      rv->members[i].format = gskb_format_ref (known_members[i].format);
-      indices[i] = i;
-      str_table_entries[i].str = known_members[i].name;
-      str_table_entries[i].entry_data = indices + i;
-      uint_table_entries[i].value = known_members[i].code;
-      uint_table_entries[i].entry_data = indices + i;
-    }
-  rv->name_to_index = gskb_str_table_new (sizeof (gint32), n_known_members, str_table_entries);
-  rv->code_to_index = gskb_uint_table_new (sizeof (gint32), n_known_members, uint_table_entries);
   g_free (str_table_entries);
   g_free (uint_table_entries);
   if (name != NULL)
@@ -671,19 +566,33 @@ GskbFormatStructMember *gskb_format_struct_find_member (GskbFormat *format,
 {
   const gint32 *index_ptr;
   g_return_val_if_fail (format->type == GSKB_FORMAT_TYPE_STRUCT, NULL);
-  index_ptr = gskb_str_table_lookup (format->v_struct.name_to_member_index, name);
+  index_ptr = gskb_str_table_lookup (format->v_struct.name_to_index, name);
   if (index_ptr == NULL)
     return NULL;
   else
     return format->v_struct.members + (*index_ptr);
 }
+GskbFormatStructMember *gskb_format_struct_find_member_code
+                                                       (GskbFormat *format,
+                                                        guint       code)
+{
+  const gint32 *index_ptr;
+  g_return_val_if_fail (format->type == GSKB_FORMAT_TYPE_STRUCT, NULL);
+  g_return_val_if_fail (format->v_struct.is_extensible, NULL);
+  index_ptr = gskb_uint_table_lookup (format->v_struct.code_to_index, code);
+  if (index_ptr == NULL)
+    return NULL;
+  else
+    return format->v_struct.members + (*index_ptr);
+}
+
 GskbFormatUnionCase *
 gskb_format_union_find_case    (GskbFormat *format,
                                 const char *name)
 {
   const gint32 *index_ptr;
   g_return_val_if_fail (format->type == GSKB_FORMAT_TYPE_UNION, NULL);
-  index_ptr = gskb_str_table_lookup (format->v_union.name_to_case_index, name);
+  index_ptr = gskb_str_table_lookup (format->v_union.name_to_index, name);
   if (index_ptr == NULL)
     return NULL;
   else
@@ -694,37 +603,12 @@ GskbFormatUnionCase    *gskb_format_union_find_case_value(GskbFormat *format,
 {
   const gint32 *index_ptr;
   g_return_val_if_fail (format->type == GSKB_FORMAT_TYPE_UNION, NULL);
-  index_ptr = gskb_uint_table_lookup (format->v_union.value_to_case_index, case_value);
+  index_ptr = gskb_uint_table_lookup (format->v_union.code_to_index, case_value);
   if (index_ptr == NULL)
     return NULL;
   else
     return format->v_union.cases + (*index_ptr);
 }
-GskbFormatExtensibleMember *gskb_format_extensible_find_member
-                                                       (GskbFormat *format,
-                                                        const char *name)
-{
-  const gint32 *index_ptr;
-  g_return_val_if_fail (format->type == GSKB_FORMAT_TYPE_EXTENSIBLE, NULL);
-  index_ptr = gskb_str_table_lookup (format->v_extensible.name_to_index, name);
-  if (index_ptr == NULL)
-    return NULL;
-  else
-    return format->v_extensible.members + (*index_ptr);
-}
-GskbFormatExtensibleMember *gskb_format_extensible_find_member_code
-                                                       (GskbFormat *format,
-                                                        guint       code)
-{
-  const gint32 *index_ptr;
-  g_return_val_if_fail (format->type == GSKB_FORMAT_TYPE_EXTENSIBLE, NULL);
-  index_ptr = gskb_uint_table_lookup (format->v_extensible.code_to_index, code);
-  if (index_ptr == NULL)
-    return NULL;
-  else
-    return format->v_extensible.members + (*index_ptr);
-}
-
 
 /* used internally by union_new and struct_new */
 gboolean    gskb_format_is_anonymous   (GskbFormat *format)
@@ -775,18 +659,32 @@ gskb_format_name_anonymous (GskbFormat *anon_format,
         }
       maybe_name_subformat (anon_format->v_union.type_format, name, "type");
       break;
-    case GSKB_FORMAT_TYPE_EXTENSIBLE:
-      for (i = 0; i < anon_format->v_extensible.n_members; i++)
-        {
-          GskbFormatExtensibleMember *m = anon_format->v_extensible.members + i;
-          maybe_name_subformat (m->format, name, m->name);
-        }
-      break;
     default:
       /* no child types to name */
       break;
     }
+}
 
+static inline void
+append_code_and_size (guint32        code,
+                      guint32        size,
+                      GskbAppendFunc append_func,
+                      gpointer       append_func_data)
+{
+  guint8 packed_code_and_size[16];
+  guint rv = gskb_uint_pack_slab (code, packed_code_and_size);
+  rv += gskb_uint_pack_slab (size, packed_code_and_size + rv);
+  append_func (rv, packed_code_and_size, append_func_data);
+}
+
+static inline void
+pack_unknown_value (const GskbUnknownValue *uv,
+                    GskbAppendFunc          append_func,
+                    gpointer                append_func_data)
+{
+  append_code_and_size (uv->code, uv->length, append_func, append_func_data);
+  append_func (uv->length, uv->data, append_func_data);
+}
 
 
 void
@@ -841,6 +739,7 @@ gskb_format_pack           (GskbFormat    *format,
         const struct { guint32 length; char *data; } *s = value;
         char *data = (char*) s->data;;
         GskbFormat *sub = format->v_length_prefixed_array.element_format;
+        guint i;
         gskb_uint_pack (s->length, append_func, append_func_data);
         for (i = 0; i < s->length; i++)
           {
@@ -850,19 +749,57 @@ gskb_format_pack           (GskbFormat    *format,
       }
       break;
     case GSKB_FORMAT_TYPE_STRUCT:
-      {
-        guint i;
-        for (i = 0; i < format->v_struct.n_members; i++)
-          gskb_format_pack (format->v_struct.members[i].format,
-                            (char*)value + format->any.members[i].c_offset_of,
-                            append_func, append_func_data);
-      }
+      if (format->v_struct.is_extensible)
+        {
+          GskbUnknownValueArray *uva = (GskbUnknownValueArray *) value;
+          guint umi = 0;
+          guint8 mask = GSKB_BITFIELD_START_MASK;
+          const guint8 *bits_at = (const guint8 *) (uva + 1);
+          guint i;
+          guint8 zero = 0;
+          for (i = 0; i < format->v_struct.n_members; i++)
+            {
+              GskbFormatStructMember *member = format->v_struct.members + i;
+              while (umi < uva->length
+                  && uva->values[umi].code < member->code)
+                {
+                  pack_unknown_value (uva->values + umi, append_func, append_func_data);
+                  umi++;
+                }
+              if (*bits_at & mask)
+                {
+                  gconstpointer field_value = G_STRUCT_MEMBER_P (value, format->any.members[i].c_offset_of);
+                  guint packed_size = gskb_format_get_packed_size (member->format, field_value);
+                  append_code_and_size (member->code, packed_size, append_func, append_func_data);
+                  gskb_format_pack (member->format, field_value, append_func, append_func_data);
+                }
+              mask = GSKB_BITFIELD_NEXT_MASK (mask);
+            }
+          while (umi < uva->length)
+            {
+              pack_unknown_value (uva->values + umi, append_func, append_func_data);
+              umi++;
+            }
+          append_func (1, &zero, append_func_data);
+        }
+      else
+        {
+          guint i;
+          for (i = 0; i < format->v_struct.n_members; i++)
+            gskb_format_pack (format->v_struct.members[i].format,
+                              (char*)value + format->any.members[i].c_offset_of,
+                              append_func, append_func_data);
+        }
       break;
     case GSKB_FORMAT_TYPE_UNION:
       {
         guint32 case_value = * (guint32 *) value;
         GskbFormatUnionCase *c = gskb_format_union_find_case_value (format, case_value);
-        g_assert (c != NULL);
+        if (c == NULL)
+          {
+            g_assert (format->v_union.is_extensible);
+            ...
+          }
         gskb_uint32_pack (case_value, append_func, append_func_data);
         if (c->format != NULL)
           gskb_format_pack (c->format,
@@ -889,49 +826,6 @@ gskb_format_pack           (GskbFormat    *format,
     case GSKB_FORMAT_TYPE_ALIAS:
       gskb_format_pack (format->v_alias.format, value, 
                         append_func, append_func_data);
-      break;
-    case GSKB_FORMAT_TYPE_EXTENSIBLE:
-      {
-        const GskbExtensible *ext = value;
-        const guint8 *bits = (guint8 *) (ext + 1);
-        guint8 mask = GSKB_BITFIELD_START_MASK;
-        guint ui = 0;
-        guint ki = 0;
-        while (ui < ext->n_unknown_members
-            && ki < format->v_extensible.n_members)
-          {
-            if (ext->unknown_members[ui].code < format->v_extensible.members[ki].code)
-              {
-                /* emit unknown member */
-                ...
-              }
-            else
-              {
-                /* maybe emit known member */
-                if (((*bits) & mask) != 0)
-                  {
-                    ...
-                  }
-                mask = GSKB_BITFIELD_NEXT_MASK (mask);
-                if (mask == 0)
-                  {
-                    mask = GSKB_BITFIELD_START_MASK;
-                    bits++;
-                  }
-              }
-          }
-        while (ui < ext->n_unknown_members)
-          {
-            /* emit unknown member */
-            ...
-          }
-        while (ki < format->v_extensible.n_members)
-          {
-            /* maybe emit known member */
-            ...
-          }
-        if (ui < format->n
-        for (ki = 0; ki < 
       break;
     default:
       g_assert_not_reached ();

@@ -46,6 +46,7 @@ typedef struct _GskbFormatUnionCase GskbFormatUnionCase;
 typedef struct _GskbFormatUnion GskbFormatUnion;
 typedef struct _GskbFormatEnumValue GskbFormatEnumValue;
 typedef struct _GskbFormatEnum GskbFormatEnum;
+typedef struct _GskbFormatBitFields GskbFormatBitFields;
 typedef struct _GskbFormatAlias GskbFormatAlias;
 typedef struct _GskbFormatExtensibleMember GskbFormatExtensibleMember;
 typedef struct _GskbUnknownValue GskbUnknownValue;
@@ -61,10 +62,11 @@ typedef enum
   GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY,
   GSKB_FORMAT_TYPE_STRUCT,
   GSKB_FORMAT_TYPE_UNION,
+  GSKB_FORMAT_TYPE_BIT_FIELDS,
   GSKB_FORMAT_TYPE_ENUM,
   GSKB_FORMAT_TYPE_ALIAS
 } GskbFormatType;
-#define GSKB_N_FORMAT_TYPES 9
+#define GSKB_N_FORMAT_TYPES 10
 
 typedef enum
 {
@@ -180,8 +182,9 @@ struct _GskbFormatStruct
   gboolean is_extensible;
   guint n_members;
   GskbFormatStructMember *members;
-  gpointer name_to_member_index;
-  gpointer code_to_member_index;
+  GskbFormat *contents_format;
+  gpointer name_to_index;
+  gpointer code_to_index;
 };
 
 struct _GskbFormatUnionCase
@@ -204,7 +207,7 @@ struct _GskbFormatUnion
 struct _GskbFormatEnumValue
 {
   const char *name;
-  guint value;
+  guint code;
 };
 
 struct _GskbFormatEnum
@@ -228,7 +231,7 @@ struct _GskbFormatAlias
 struct _GskbUnknownValue
 {
   guint32 code;
-  gsize len;
+  gsize length;
   guint8 *data;
 };
 struct _GskbUnknownValueArray
@@ -257,22 +260,21 @@ GskbFormat *gskb_format_fixed_array_new (guint length,
                                          GskbFormat *element_format);
 GskbFormat *gskb_format_length_prefixed_array_new (GskbFormat *element_format);
 GskbFormat *gskb_format_struct_new (const char *name,
+                                    gboolean is_extensible,
                                     guint n_members,
                                     GskbFormatStructMember *members,
                                     GError       **error);
 GskbFormat *gskb_format_union_new (const char *name,
+                                   gboolean is_extensible,
                                    GskbFormatIntType int_type,
                                    guint n_cases,
                                    GskbFormatUnionCase *cases,
                                    GError       **error);
 GskbFormat *gskb_format_enum_new  (const char *name,
+                                   gboolean    is_extensible,
                                    GskbFormatIntType int_type,
                                    guint n_values,
                                    GskbFormatEnumValue *values,
-                                   GError       **error);
-GskbFormat *gskb_format_extensible_new(const char *name,
-                                   guint n_known_members,
-                                   GskbFormatExtensibleMember *known_members,
                                    GError       **error);
 
 /* ref-count handling */
@@ -282,16 +284,13 @@ void        gskb_format_unref (GskbFormat *format);
 /* methods on certain formats */
 GskbFormatStructMember *gskb_format_struct_find_member (GskbFormat *format,
                                                         const char *name);
+GskbFormatStructMember *gskb_format_struct_find_member_code
+                                                       (GskbFormat *format,
+                                                        guint       code);
 GskbFormatUnionCase    *gskb_format_union_find_case    (GskbFormat *format,
                                                         const char *name);
 GskbFormatUnionCase    *gskb_format_union_find_case_value(GskbFormat *format,
                                                         guint       case_value);
-GskbFormatExtensibleMember *gskb_format_extensible_find_member
-                                                       (GskbFormat *format,
-                                                        const char *name);
-GskbFormatExtensibleMember *gskb_format_extensible_find_member_code
-                                                       (GskbFormat *format,
-                                                        guint       code);
 
 
 /* used internally by union_new and struct_new */
@@ -312,12 +311,14 @@ guint       gskb_format_get_packed_size(GskbFormat    *format,
 guint       gskb_format_pack_slab      (GskbFormat    *format,
                                         gconstpointer  value,
                                         guint8        *slab);
-
+guint       gskb_format_validate_packed(GskbFormat    *format,
+                                        guint          len,
+                                        const guint8  *data,
+                                        GError       **error);
 gboolean    gskb_format_unpack_value   (GskbFormat    *format,
                                         const guint8  *data,
                                         guint         *n_used_out,
-                                        gpointer       value,
-                                        GError       **error);
+                                        gpointer       value);
 void        gskb_format_clear_value    (GskbFormat    *format,
                                         gpointer       value);
 gboolean    gskb_format_unpack_value_mempool
@@ -325,8 +326,7 @@ gboolean    gskb_format_unpack_value_mempool
                                         const guint8  *data,
                                         guint         *n_used_out,
                                         gpointer       value,
-                                        GskMemPool    *mem_pool,
-                                        GError       **error);
+                                        GskMemPool    *mem_pool);
 
 
 #endif
