@@ -35,6 +35,11 @@
      ( ((unaligned_offset)+((alignment)-1))         \
                 & ~((alignment)-1)          )
 
+typedef struct {
+  guint32 length;
+  char *data;
+} GenericLengthPrefixedArray;
+
 #define FOREACH_INT_TYPE(macro) \
   macro(INT8, int8) \
   macro(INT16, int16) \
@@ -180,8 +185,7 @@ gskb_format_length_prefixed_array_new (GskbFormat *element_format)
       rv->base.lc_name = g_strdup_printf ("%s_array", element_format->any.lc_name);
     }
   rv->base.ctype = GSKB_FORMAT_CTYPE_COMPOSITE;
-  typedef struct { guint32 len; gpointer data; } StdArray;
-  rv->base.c_size_of = sizeof (StdArray);
+  rv->base.c_size_of = sizeof (GenericLengthPrefixedArray);
   rv->base.c_align_of = MAX (GSKB_ALIGNOF_UINT32, GSKB_ALIGNOF_POINTER);
   rv->base.always_by_pointer = 1;
   rv->base.requires_destruct = TRUE;
@@ -196,7 +200,7 @@ gskb_format_length_prefixed_array_new (GskbFormat *element_format)
   rv->base.members[1].name = g_strdup ("data");
   rv->base.members[1].ctype = GSKB_FORMAT_CTYPE_ARRAY_POINTER;
   rv->base.members[1].format = NULL;
-  rv->base.members[1].c_offset_of = G_STRUCT_OFFSET (StdArray, data);
+  rv->base.members[1].c_offset_of = G_STRUCT_OFFSET (GenericLengthPrefixedArray, data);
   rv->element_format = gskb_format_ref (element_format);
   return (GskbFormat *) rv;
 }
@@ -667,10 +671,10 @@ gskb_format_name_anonymous (GskbFormat *anon_format,
 }
 
 static inline void
-append_code_and_size (guint32        code,
-                      guint32        size,
-                      GskbAppendFunc append_func,
-                      gpointer       append_func_data)
+pack_code_and_size (guint32        code,
+                    guint32        size,
+                    GskbAppendFunc append_func,
+                    gpointer       append_func_data)
 {
   guint8 packed_code_and_size[16];
   guint rv = gskb_uint_pack_slab (code, packed_code_and_size);
@@ -683,7 +687,7 @@ pack_unknown_value (const GskbUnknownValue *uv,
                     GskbAppendFunc          append_func,
                     gpointer                append_func_data)
 {
-  append_code_and_size (uv->code, uv->length, append_func, append_func_data);
+  pack_code_and_size (uv->code, uv->length, append_func, append_func_data);
   append_func (uv->length, uv->data, append_func_data);
 }
 
@@ -737,7 +741,7 @@ gskb_format_pack           (GskbFormat    *format,
       break;
     case GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY:
       {
-        const struct { guint32 length; char *data; } *s = value;
+        const GenericLengthPrefixedArray *s = value;
         char *data = (char*) s->data;;
         GskbFormat *sub = format->v_length_prefixed_array.element_format;
         guint i;
@@ -771,7 +775,7 @@ gskb_format_pack           (GskbFormat    *format,
                 {
                   gconstpointer field_value = G_STRUCT_MEMBER_P (value, format->any.members[i].c_offset_of);
                   guint packed_size = gskb_format_get_packed_size (member->format, field_value);
-                  append_code_and_size (member->code, packed_size, append_func, append_func_data);
+                  pack_code_and_size (member->code, packed_size, append_func, append_func_data);
                   gskb_format_pack (member->format, field_value, append_func, append_func_data);
                 }
               mask <<= 1;
@@ -978,7 +982,7 @@ gskb_format_get_packed_size(GskbFormat    *format,
       }
     case GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY:
       {
-        const struct { guint32 length; char *data; } *s = value;
+        const GenericLengthPrefixedArray *s = value;
         const char *data = (const char*) s->data;;
         GskbFormat *sub = format->v_length_prefixed_array.element_format;
         guint i;
@@ -994,7 +998,31 @@ gskb_format_get_packed_size(GskbFormat    *format,
     case GSKB_FORMAT_TYPE_STRUCT:
       if (format->v_struct.is_extensible)
         {
-          ...
+          guint i;
+          guint rv = 0;
+          const GskbUnknownValueArray *uv = value;
+          const guint8 *bit_fields = (const guint8 *) (uv + 1);
+          guint8 mask = 1;
+          for (i = 0; i < uv->length; i++)
+            {
+              rv += gskb_uint_get_packed_size (uv->values[i].code);
+              rv += gskb_uint_get_packed_size (uv->values[i].length);
+              rv += uv->values[i].length;
+            }
+          for (i = 0; i < format->v_struct.n_members; i++)
+            {
+              if ((*bit_fields & mask) != 0)
+                {
+                  GskbFormatStructMember *member = format->v_struct.members + i;
+                  GskbFormat *sub = member->format;
+                  guint sub_length = gskb_format_get_packed_size (sub, (const guint8 *)value + format->any.members[i].c_offset_of);
+                  rv += gskb_uint_get_packed_size (member->code);
+                  rv += gskb_uint_get_packed_size (sub_length);
+                  rv += sub_length;
+                }
+            }
+          rv += 1;              /* final NUL */
+          return rv;
         }
       else
         {
@@ -1008,9 +1036,46 @@ gskb_format_get_packed_size(GskbFormat    *format,
       break;
     case GSKB_FORMAT_TYPE_UNION:
       {
-        ...
+        guint32 code = * (const guint32*)value;
+        GskbFormatUnionCase *ca = gskb_format_union_find_case_code (format, code);
+        gconstpointer info = (const guint8 *) value + format->any.members[1].c_offset_of;
+        guint real_code, value_len;
+        guint code_len;
+        if (ca == NULL)
+          {
+            const GskbUnknownValue *uv = info;
+            g_assert (code == GSKB_FORMAT_ENUM_UNKNOWN_VALUE_CODE);
+            real_code = uv->code;
+            value_len = uv->length;
+          }
+        else
+          {
+            real_code = code;
+            if (ca->format == NULL)
+              {
+                value_len = 0;
+              }
+            else
+              {
+                value_len = gskb_format_get_packed_size (ca->format, info);
+              }
+          }
+        switch (format->v_union.type_format->v_int.int_type)
+          {
+#define WRITE_CASE(UC, lc) \
+          case GSKB_FORMAT_INT_##UC: \
+            code_len = gskb_##lc##_get_packed_size (real_code); \
+            break;
+          FOREACH_INT_TYPE(WRITE_CASE)
+#undef WRITE_CASE
+          default:
+            g_assert_not_reached ();
+          }
+        if (format->v_union.is_extensible)
+          return code_len + gskb_uint_get_packed_size (value_len) + value_len;
+        else
+          return code_len + value_len;
       }
-      break;
     case GSKB_FORMAT_TYPE_ENUM:
       {
         gskb_enum v = * (gskb_enum *) value;
@@ -1034,12 +1099,251 @@ gskb_format_get_packed_size(GskbFormat    *format,
   g_return_val_if_reached (0);
 }
 
+static inline guint
+pack_slab_code_and_size (guint32        code,
+                         guint32        size,
+                         guint8        *slab)
+{
+  guint sub_rv = gskb_uint_pack_slab (code, slab);
+  return sub_rv + gskb_uint_pack_slab (size, slab + sub_rv);
+}
+
+static inline guint
+pack_slab_unknown_value (const GskbUnknownValue *uv,
+                         guint8                 *slab)
+{
+  guint a = pack_slab_code_and_size (uv->code, uv->length, slab);
+  memcpy (slab + a, uv->data, uv->length);
+  return a + uv->length;
+}
+
 guint
 gskb_format_pack_slab      (GskbFormat    *format,
                             gconstpointer  value,
                             guint8        *slab)
 {
-  ...
+  guint sub_rv;
+  switch (format->type)
+    {
+    case GSKB_FORMAT_TYPE_INT:
+      switch (format->v_int.int_type)
+        {
+#define WRITE_CASE(UC, lc) \
+        case GSKB_FORMAT_INT_##UC: \
+          return gskb_##lc##_pack_slab (*(gskb_##lc*)value, slab); \
+        FOREACH_INT_TYPE(WRITE_CASE)
+#undef WRITE_CASE
+        default:
+          g_assert_not_reached ();
+        }
+      break;
+    case GSKB_FORMAT_TYPE_FLOAT:
+      switch (format->v_float.float_type)
+        {
+#define WRITE_CASE(UC, lc) \
+        case GSKB_FORMAT_FLOAT_##UC: \
+          return gskb_##lc##_pack_slab (*(gskb_##lc*)value, slab);
+        FOREACH_FLOAT_TYPE(WRITE_CASE)
+#undef WRITE_CASE
+        default:
+          g_assert_not_reached ();
+        }
+    case GSKB_FORMAT_TYPE_STRING:
+      return gskb_string_pack_slab (*(char**)value, slab);
+    case GSKB_FORMAT_TYPE_FIXED_ARRAY:
+      {
+        guint i;
+        GskbFormat *sub = format->v_fixed_array.element_format;
+        guint rv = 0;
+        for (i = 0; i < format->v_fixed_array.length; i++)
+          {
+            rv += gskb_format_pack_slab (sub, value, slab + rv);
+            value = (char*) value + sub->any.c_size_of;
+          }
+        return rv;
+      }
+    case GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY:
+      {
+        const GenericLengthPrefixedArray *s = value;
+        char *data = (char*) s->data;;
+        GskbFormat *sub = format->v_length_prefixed_array.element_format;
+        guint i;
+        guint rv = gskb_uint_pack_slab (s->length, slab);
+        for (i = 0; i < s->length; i++)
+          {
+            rv += gskb_format_pack_slab (sub, data, slab + rv);
+            data += sub->any.c_size_of;
+          }
+      }
+      break;
+    case GSKB_FORMAT_TYPE_STRUCT:
+      if (format->v_struct.is_extensible)
+        {
+          GskbUnknownValueArray *uva = (GskbUnknownValueArray *) value;
+          guint umi = 0;
+          guint8 mask = 1;
+          const guint8 *bits_at = (const guint8 *) (uva + 1);
+          guint i;
+          guint8 zero = 0;
+          guint rv = 0;
+          for (i = 0; i < format->v_struct.n_members; i++)
+            {
+              GskbFormatStructMember *member = format->v_struct.members + i;
+              while (umi < uva->length
+                  && uva->values[umi].code < member->code)
+                {
+                  rv += pack_slab_unknown_value (uva->values + umi, slab + rv);
+                  umi++;
+                }
+              if (*bits_at & mask)
+                {
+                  gconstpointer field_value = G_STRUCT_MEMBER_P (value, format->any.members[i].c_offset_of);
+                  guint packed_size = gskb_format_get_packed_size (member->format, field_value);
+                  rv += pack_slab_code_and_size (member->code, packed_size, slab + rv);
+                  rv += gskb_format_pack_slab (member->format, field_value, slab + rv);
+                }
+              mask <<= 1;
+              if (mask == 0)
+                {
+                  mask = 1;
+                  bits_at++;
+                }
+            }
+          while (umi < uva->length)
+            {
+              rv += pack_slab_unknown_value (uva->values + umi, slab + rv);
+              umi++;
+            }
+          slab[rv++] = 0;
+          return rv;
+        }
+      else
+        {
+          guint i;
+          guint rv = 0;
+          for (i = 0; i < format->v_struct.n_members; i++)
+            rv += gskb_format_pack_slab (format->v_struct.members[i].format,
+                                         (char*)value + format->any.members[i].c_offset_of,
+                                         slab + rv);
+          return rv;
+        }
+    case GSKB_FORMAT_TYPE_UNION:
+      {
+        guint32 case_value = * (const guint32 *) value;
+        gconstpointer uvalue = (char*)value + format->any.members[1].c_offset_of;
+        GskbFormatUnionCase *c = gskb_format_union_find_case_value (format, case_value);
+        if (format->v_union.is_extensible)
+          {
+            if (c == NULL)
+              {
+                /* TODO: assert case_value == UNKNOWN */
+                const GskbUnknownValue *uv = uvalue;
+                guint rv = gskb_format_pack_slab (format->v_union.type_format, &uv->code, slab);
+                rv += gskb_uint_pack_slab (uv->length, slab + rv);
+                memcpy (slab + rv, uv->data, uv->length);
+                return rv + uv->length;
+              }
+            else if (c->format == NULL)
+              {
+                guint8 zero = 0;
+                guint rv = gskb_format_pack_slab (format->v_union.type_format, value, slab);
+                slab[rv++] = 0;
+                return rv;
+              }
+            else
+              {
+                guint size = gskb_format_get_packed_size (c->format, uvalue);
+                guint rv = gskb_format_pack_slab (format->v_union.type_format, value, slab);
+                rv += gskb_uint_pack_slab (size, slab + rv);
+                rv += gskb_format_pack_slab (c->format, uvalue, slab + rv);
+                return rv;
+              }
+          }
+        else
+          {
+            guint rv = gskb_format_pack_slab (format->v_union.type_format, value, slab);
+            if (c->format != NULL)
+              rv += gskb_format_pack_slab (c->format,
+                                           (char*) value + format->any.members[1].c_offset_of,
+                                           slab + rv);
+            return rv;
+          }
+      }
+      break;
+    case GSKB_FORMAT_TYPE_BIT_FIELDS:
+      {
+        if (format->v_bit_fields.has_holes)
+          {
+            guint8 bits = 0;
+            guint8 *bits_at = slab;
+            guint8 bits_shift = 0;
+            const guint8 *at = value;
+            guint at_shift = 0;
+            guint i;
+            for (i = 0; i < format->v_bit_fields.n_fields; i++)
+              {
+                const GskbFormatBitField *field = format->v_bit_fields.fields + i;
+                guint8 v;
+                if (at_shift + field->length > 8)
+                  {
+                    at_shift = 0;
+                    at++;
+                  }
+                v = *at >> at_shift;
+                if (bits_shift + field->length > 8)
+                  {
+                    guint bits_avail = field->length;
+                    if (bits_shift < 8)
+                      {
+                        bits |= v << bits_shift;
+                        v >>= (8 - bits_shift);
+                        bits_avail -= (8 - bits_shift);
+                      }
+                    *bits_at++ = bits;
+                    bits = v & ((1<<bits_avail)-1);
+                    bits_shift = bits_avail;
+                  }
+                else
+                  {
+                    bits |= ((v & ((1<<field->length)-1)) << bits_shift);
+                    bits_shift += field->length;
+                  }
+              }
+            g_assert (bits_shift != 0);
+            *bits_at++ = bits;
+            g_assert (bits_at == slab + format->any.fixed_length);
+          }
+        else
+          {
+            guint total_bits = format->v_bit_fields.total_bits;
+            memcpy (slab, value, format->any.fixed_length);
+            if (total_bits % 8 != 0)
+              slab[format->any.fixed_length-1] &= ~((1<<(total_bits%8))-1);
+          }
+          return format->any.fixed_length;
+      }
+      break;
+    case GSKB_FORMAT_TYPE_ENUM:
+      {
+        gskb_enum v = * (gskb_enum *) value;
+        switch (format->v_enum.int_type)
+          {
+#define WRITE_CASE(UC, lc) \
+          case GSKB_FORMAT_INT_##UC: \
+            return gskb_##lc##_pack_slab (v, slab); \
+            break;
+          FOREACH_INT_TYPE(WRITE_CASE)
+#undef WRITE_CASE
+          default:
+            g_assert_not_reached ();
+          }
+      }
+      break;
+    case GSKB_FORMAT_TYPE_ALIAS:
+      return gskb_format_pack_slab (format->v_alias.format, value, slab);
+    default:
+      g_assert_not_reached ();
+    }
 }
 
 gboolean
@@ -1076,7 +1380,7 @@ gskb_format_clear_value    (GskbFormat    *format,
       break;
     case GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY:
       {
-        struct { guint32 length; char *data; } *s = value;
+        GenericLengthPrefixedArray *s = value;
         GskbFormat *sub = format->v_length_prefixed_array.element_format;
         guint i;
         if (sub->any.requires_destruct)

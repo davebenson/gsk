@@ -242,6 +242,7 @@ struct _GskbFormatEnum
   gpointer name_to_index;
   gpointer value_to_index;
 };
+#define GSKB_FORMAT_ENUM_UNKNOWN_VALUE_CODE 0x7fffffff
 
 struct _GskbFormatAlias
 {
@@ -311,9 +312,14 @@ GskbFormatStructMember *gskb_format_struct_find_member_code
                                                         guint       code);
 GskbFormatUnionCase    *gskb_format_union_find_case    (GskbFormat *format,
                                                         const char *name);
-GskbFormatUnionCase    *gskb_format_union_find_case_value(GskbFormat *format,
+GskbFormatUnionCase    *gskb_format_union_find_case_code(GskbFormat *format,
                                                         guint       case_value);
-/* TODO: enums and bit-fields */
+GskbFormatEnumValue    *gskb_format_enum_find_value    (GskbFormat *format,
+                                                        const char *name);
+GskbFormatEnumValue    *gskb_format_enum_find_value_code(GskbFormat *format,
+                                                        guint32      code);
+GskbFormatBitField     *gskb_format_bit_fields_find_field(GskbFormat *format,
+                                                        const char *name);
 
 
 /* used internally by union_new and struct_new */
@@ -341,7 +347,8 @@ guint       gskb_format_validate_packed(GskbFormat    *format,
 gboolean    gskb_format_unpack_value   (GskbFormat    *format,
                                         const guint8  *data,
                                         guint         *n_used_out,
-                                        gpointer       value);
+                                        gpointer       value,
+                                        GError       **error);
 void        gskb_format_clear_value    (GskbFormat    *format,
                                         gpointer       value);
 gboolean    gskb_format_unpack_value_mempool
