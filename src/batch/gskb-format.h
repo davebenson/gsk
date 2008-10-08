@@ -340,16 +340,18 @@ guint       gskb_format_get_packed_size(GskbFormat    *format,
 guint       gskb_format_pack_slab      (GskbFormat    *format,
                                         gconstpointer  value,
                                         guint8        *slab);
-guint       gskb_format_validate_packed(GskbFormat    *format,
+guint       gskb_format_validate_partial(GskbFormat    *format,
                                         guint          len,
                                         const guint8  *data,
                                         GError       **error);
-gboolean    gskb_format_unpack_value   (GskbFormat    *format,
+gboolean    gskb_format_validate_packed(GskbFormat    *format,
+                                        guint          len,
                                         const guint8  *data,
-                                        guint         *n_used_out,
-                                        gpointer       value,
                                         GError       **error);
-void        gskb_format_clear_value    (GskbFormat    *format,
+guint       gskb_format_unpack         (GskbFormat    *format,
+                                        const guint8  *data,
+                                        gpointer       value);
+void        gskb_format_destruct_value (GskbFormat    *format,
                                         gpointer       value);
 gboolean    gskb_format_unpack_value_mempool
                                        (GskbFormat    *format,

@@ -1031,9 +1031,9 @@ implement__pack_slab      (GskbFormat *format,
     }
 }
 
-/* validate */
-#define return_value__validate     "guint"
-static const char *type_name_pairs__validate[] = {
+/* validate_partial */
+#define return_value__validate_partial     "guint"
+static const char *type_name_pairs__validate_partial[] = {
   "guint", "length",
   "const guint8 *", "data",
   "GError **", "error",
@@ -1041,10 +1041,10 @@ static const char *type_name_pairs__validate[] = {
 };
 
 static gboolean 
-implement__validate       (GskbFormat *format,
-                           const GskbCodegenConfig *config,
-                           GskBuffer *output,
-                           GError **error)
+implement__validate_partial  (GskbFormat *format,
+                              const GskbCodegenConfig *config,
+                              GskBuffer *output,
+                              GError **error)
 {
   guint i;
   switch (format->type)
@@ -1057,7 +1057,7 @@ implement__validate       (GskbFormat *format,
           {
             for (i = 0; i < format->v_fixed_array.length; i++)
               gsk_buffer_printf (output,
-                                 "  if ((sub_used = %s%s_validate (len - rv, data + rv, error)) == 0)\n"
+                                 "  if ((sub_used = %s%s_validate_partial (len - rv, data + rv, error)) == 0)\n"
                                  "    {\n"
                                  "      gsk_g_error_add_prefix (error, \"validating element #%%u of %%u\", %u, %u);\n"
                                  "      return 0;\n"
@@ -1071,7 +1071,7 @@ implement__validate       (GskbFormat *format,
             gsk_buffer_printf (output,
                                "  guint i, rv = 0;\n"
                                "  for (i = 0; i < %u; i++)\n"
-                               "    if ((sub_used = %s%s_validate (len - rv, out + rv, error)) == 0)\n"
+                               "    if ((sub_used = %s%s_validate_partial (len - rv, out + rv, error)) == 0)\n"
                                "      {\n"
                                  "      gsk_g_error_add_prefix (error, \"validating element #%%u of %%u\", i, %u);\n"
                                  "      return FALSE;\n"
@@ -1099,7 +1099,7 @@ implement__validate       (GskbFormat *format,
         gsk_buffer_printf (output,
                            "  for (i = 0; i < n; i++)\n"
                            "    {\n"
-                           "      if (!%s%s_validate (len - rv, out + rv, &sub_used, error))\n"
+                           "      if (!%s%s_validate_partial (len - rv, out + rv, &sub_used, error))\n"
                            "        {\n"
                            "          gsk_g_error_add_prefix (error, \"validating element #%%u of %%u\", i, n);\n"
                            "          return 0;\n"
@@ -1150,7 +1150,7 @@ implement__validate       (GskbFormat *format,
                 GskbFormat *sub = member->format;
                 gsk_buffer_printf (output,
                                    "        case %u:\n"
-                                   "          sub_used = %s%s_validate (len - rv, out + rv, error);\n"
+                                   "          sub_used = %s%s_validate_partial (len - rv, out + rv, error);\n"
                                    "          if (G_UNLIKELY (sub_used == 0))\n"
                                    "            {\n"
                                    "              gsk_g_error_add_prefix (error, \"error parsing member %%s of %%s\", \"%s\", \"%s\");\n"
@@ -1183,7 +1183,7 @@ implement__validate       (GskbFormat *format,
               {
                 GskbFormatStructMember *member = format->v_struct.members + i;
                 gsk_buffer_printf (output,
-                                   "  if ((sub_used = %s%s_validate (len - rv, out + rv, error)) == 0)\n"
+                                   "  if ((sub_used = %s%s_validate_partial (len - rv, out + rv, error)) == 0)\n"
                                    "    {\n"
                                    "      gsk_g_error_add_prefix (error, \"validating member '%s' of %s\", \"%s\", \"%s\");\n"
                                    "      return FALSE;\n"
@@ -1249,7 +1249,7 @@ implement__validate       (GskbFormat *format,
             else
               {
                 gsk_buffer_printf (output, "      rv = sub_used;\n"
-                                           "      if ((sub_used = %s%s_validate (len - rv, data + rv, error)) == 0)\n"
+                                           "      if ((sub_used = %s%s_validate_partial (len - rv, data + rv, error)) == 0)\n"
                                            "        {\n"
                                            "           gsk_g_error_add_prefix (error, \"validating case '%%s' of '%%s'\", \"%s\", \"%s\");\n"
                                            "           return FALSE;\n"
@@ -1298,7 +1298,7 @@ implement__validate       (GskbFormat *format,
         if (format->v_enum.is_extensible)
           {
             gsk_buffer_printf (output,
-                               "  return gskb_uint_validate (len, data, error);\n");
+                               "  return gskb_uint_validate_partial (len, data, error);\n");
             break;
           }
         gsk_buffer_printf (output,
@@ -1685,7 +1685,7 @@ static struct {
   ENTRY (PACK, pack),
   ENTRY (GET_PACKED_SIZE, get_packed_size),
   ENTRY (PACK_SLAB, pack_slab),
-  ENTRY (VALIDATE, validate),
+  ENTRY (VALIDATE_PARTIAL, validate_partial),
   ENTRY (UNPACK, unpack),
   ENTRY (UNPACK_MEMPOOL, unpack_mempool),
   ENTRY (DESTRUCT, destruct)

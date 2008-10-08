@@ -30,30 +30,30 @@ typedef guint8 gskb_bit;
 typedef gfloat gskb_float32;
 typedef gdouble gskb_float64;
 typedef char * gskb_string;
-typedef guint32 gskb_enum;
+typedef guint32 gskb_enum;              /* all enums map to this type in the c binding */
 
 #define GSKB_FOREACH_FUNDAMENTAL_TYPE(macro) \
- macro(int8) \
- macro(int16) \
- macro(int32) \
- macro(int64) \
- macro(uint8) \
- macro(uint16) \
- macro(uint32) \
- macro(uint64) \
- macro(int) \
- macro(uint) \
- macro(long) \
- macro(ulong) \
- macro(bit) \
- macro(float32) \
- macro(float64) \
- macro(string)
+ macro(int8, ) \
+ macro(int16, ) \
+ macro(int32, ) \
+ macro(int64, ) \
+ macro(uint8, ) \
+ macro(uint16, ) \
+ macro(uint32, ) \
+ macro(uint64, ) \
+ macro(int, ) \
+ macro(uint, ) \
+ macro(long, ) \
+ macro(ulong, ) \
+ macro(bit, ) \
+ macro(float32, ) \
+ macro(float64, ) \
+ macro(string, const)
 
 
 /* declare pack() */
-#define GSKB_DECLARE_PACK(lctypename) \
-G_INLINE_FUNC void  gskb_##lctypename##_pack (gskb_##lctypename value, \
+#define GSKB_DECLARE_PACK(lctypename, maybe_const) \
+G_INLINE_FUNC void  gskb_##lctypename##_pack (maybe_const gskb_##lctypename value, \
                                               GskbAppendFunc append, \
                                               gpointer append_data);
 
@@ -78,19 +78,18 @@ G_INLINE_FUNC guint gskb_string_get_packed_size(const char * value);
 #define gskb_float64_get_packed_size(value) 8
 
 /* declare pack_slab() */
-#define DECLARE_PACK_SLAB(name) \
-  G_INLINE_FUNC guint gskb_##name##_pack_slab (gskb_##name value, \
+#define DECLARE_PACK_SLAB(name, maybe_const) \
+  G_INLINE_FUNC guint gskb_##name##_pack_slab (maybe_const gskb_##name value, \
                                         guint8     *slab);
 GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_PACK_SLAB)
 #undef DECLARE_PACK_SLAB
 
-/* declare validate() */
-#define DECLARE_VALIDATE(name) \
-  guint gskb_##name##_validate  (guint          len, \
-                                 const guint8  *data, \
-                                 guint         *n_used_out, \
-                                 GError       **error);
-GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_VALIDATE)
+/* declare validate_partial() */
+#define DECLARE_VALIDATE_PARTIAL(name, maybe_const) \
+  guint gskb_##name##_validate_partial(guint          len, \
+                                       const guint8  *data, \
+                                       GError       **error);
+GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_VALIDATE_PARTIAL)
 #undef DECLARE_VALIDATE
 
 /* common formats */
@@ -127,3 +126,4 @@ extern GskbFormatFloat gskb_float64_format_instance;
 extern GskbFormatString gskb_string_format_instance;
 #define gskb_string_format ((GskbFormat *)&gskb_string_format_instance)
 
+#undef GSKB_FOREACH_FUNDAMENTAL_TYPE

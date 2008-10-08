@@ -41,11 +41,10 @@ typedef enum
   GSKB_CODEGEN_OUTPUT_PACK_SLAB,
 
 
-  /*     gboolean {lctype}_validate  (guint          len,
-                                      const guint8  *data,
-                                      guint         *n_used_out,
-                                      GError       **error);    */
-  GSKB_CODEGEN_OUTPUT_VALIDATE,
+  /*     guint    {lctype}_validate_partial  (guint          len,
+                                              const guint8  *data,
+                                              GError       **error);    */
+  GSKB_CODEGEN_OUTPUT_VALIDATE_PARTIAL,
 
   /*     guint {lctype}_unpack     (const guint8  *data,
                                     {type}        *value_out);
