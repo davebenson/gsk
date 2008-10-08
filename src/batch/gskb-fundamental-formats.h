@@ -73,7 +73,7 @@ G_INLINE_FUNC guint gskb_int_get_packed_size(gint32 value);
 G_INLINE_FUNC guint gskb_long_get_packed_size(gint64 value);
 G_INLINE_FUNC guint gskb_uint_get_packed_size(guint32 value);
 G_INLINE_FUNC guint gskb_ulong_get_packed_size(guint64 value);
-G_INLINE_FUNC guint gskb_string_get_packed_size(char * value);
+G_INLINE_FUNC guint gskb_string_get_packed_size(const char * value);
 #define gskb_float32_get_packed_size(value) 4
 #define gskb_float64_get_packed_size(value) 8
 

@@ -46,6 +46,7 @@ typedef struct _GskbFormatUnionCase GskbFormatUnionCase;
 typedef struct _GskbFormatUnion GskbFormatUnion;
 typedef struct _GskbFormatEnumValue GskbFormatEnumValue;
 typedef struct _GskbFormatEnum GskbFormatEnum;
+typedef struct _GskbFormatBitField GskbFormatBitField;
 typedef struct _GskbFormatBitFields GskbFormatBitFields;
 typedef struct _GskbFormatAlias GskbFormatAlias;
 typedef struct _GskbFormatExtensibleMember GskbFormatExtensibleMember;
@@ -204,6 +205,26 @@ struct _GskbFormatUnion
   GskbFormat *type_format;
 };
 
+struct _GskbFormatBitField
+{
+  const char *name;
+  guint length;                 /* 1..8 */
+};
+struct _GskbFormatBitFields
+{
+  GskbFormatAny base;
+  // XXX: do we want an is_extensible member?
+  guint n_fields;
+  GskbFormatBitField *fields;
+
+  /* optimization: whether padding is needed to keep things aligned. */
+  gboolean has_holes;
+
+  guint total_bits;
+
+  gpointer name_to_index;
+};
+
 struct _GskbFormatEnumValue
 {
   const char *name;
@@ -252,6 +273,7 @@ union _GskbFormat
   GskbFormatLengthPrefixedArray  v_length_prefixed_array;
   GskbFormatStruct     v_struct;
   GskbFormatUnion      v_union;
+  GskbFormatBitFields  v_bit_fields;
   GskbFormatEnum       v_enum;
   GskbFormatAlias      v_alias;
 };
@@ -291,6 +313,7 @@ GskbFormatUnionCase    *gskb_format_union_find_case    (GskbFormat *format,
                                                         const char *name);
 GskbFormatUnionCase    *gskb_format_union_find_case_value(GskbFormat *format,
                                                         guint       case_value);
+/* TODO: enums and bit-fields */
 
 
 /* used internally by union_new and struct_new */
