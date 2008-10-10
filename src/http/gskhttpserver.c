@@ -995,7 +995,7 @@ gsk_http_server_post_stream_process (GskHttpServerPostStream *post_stream)
    && !ended)
     {
       post_stream->blocking_server_write = 1;
-      gsk_io_unblock_write (post_stream->server);
+      gsk_io_block_write (post_stream->server);
     }
   if (ended)
     {
