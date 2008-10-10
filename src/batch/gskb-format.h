@@ -69,6 +69,8 @@ typedef enum
 } GskbFormatType;
 #define GSKB_N_FORMAT_TYPES 10
 
+const char *gskb_format_type_name (GskbFormatType type);
+
 typedef enum
 {
   GSKB_FORMAT_CTYPE_INT8,
@@ -134,6 +136,9 @@ typedef enum
   GSKB_FORMAT_INT_ULONG,        /* var-len unsigned int, max 64 bits   */
   GSKB_FORMAT_INT_BIT           /* byte that may only be set to 0 or 1 */
 } GskbFormatIntType;
+extern GskbFormat *gskb_format_ints_array[];
+#define gskb_format_int_type_name(int_type) \
+  ((const char *)(gskb_format_ints_array[(int_type)]->any.name))
 
 struct _GskbFormatInt
 {
@@ -219,8 +224,10 @@ struct _GskbFormatBitFields
 
   /* optimization: whether padding is needed to keep things aligned. */
   gboolean has_holes;
+  guint8 *bits_per_unpacked_byte;
 
   guint total_bits;
+
 
   gpointer name_to_index;
 };
@@ -360,5 +367,11 @@ gboolean    gskb_format_unpack_value_mempool
                                         gpointer       value,
                                         GskMemPool    *mem_pool);
 
+
+/* useful for code generation */
+const char *gskb_format_type_enum_name (GskbFormatType type);
+const char *gskb_format_ctype_enum_name (GskbFormatCType type);
+const char *gskb_format_int_type_enum_name (GskbFormatIntType type);
+const char *gskb_format_float_type_enum_name (GskbFormatFloatType type);
 
 #endif

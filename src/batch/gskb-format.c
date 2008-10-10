@@ -404,7 +404,7 @@ gskb_format_union_new (const char *name,
         ev[i].name = cases[i].name;
         ev[i].code = cases[i].code;
       }
-    type_format = gskb_format_enum_new (NULL, is_extensible, GSKB_FORMAT_INT_UINT, n_cases, ev, error);
+    type_format = gskb_format_enum_new (NULL, is_extensible, int_type, n_cases, ev, error);
     g_assert (type_format != NULL);
     g_free (ev);
   }
@@ -1352,17 +1352,33 @@ gskb_format_validate_partial(GskbFormat    *format,
                             const guint8  *data,
                             GError       **error)
 {
+  if (format->any.fixed_length != 0
+   && len < format->any.fixed_length)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_TOO_SHORT,
+                   "validating fixed-length %s (%s): too short (expected %u, got %u)",
+                   gskb_format_type_name (format->type),
+                   format->any.name ?  format->any.name : "*unnamed*",
+                   format->any.fixed_length, len);
+      return 0;
+    }
+
   switch (format->type)
     {
     case GSKB_FORMAT_TYPE_INT:
       switch (format->v_int.int_type)
         {
-#define WRITE_CASE(UC, lc) \
-        case GSKB_FORMAT_INT_##UC: \
-          return gskb_##lc##_validate_partial (len, data, error);
+        case GSKB_FORMAT_INT_INT:
+          return gskb_int_validate_partial (len, data, error);
+        case GSKB_FORMAT_INT_UINT:
+          return gskb_uint_validate_partial (len, data, error);
+        case GSKB_FORMAT_INT_LONG:
+          return gskb_long_validate_partial (len, data, error);
+        case GSKB_FORMAT_INT_ULONG:
+          return gskb_ulong_validate_partial (len, data, error);
+        default:
+          return format->any.fixed_length;
         }
-#undef WRITE_CASE
-      g_return_val_if_reached (0);
     case GSKB_FORMAT_TYPE_FLOAT:
       switch (format->v_float.float_type)
         {
@@ -1580,13 +1596,73 @@ gskb_format_validate_partial(GskbFormat    *format,
       }
 
     case GSKB_FORMAT_TYPE_BIT_FIELDS:
-      {
-        ...
-      }
+      if (format->v_bit_fields.n_fields % 8 != 0)
+        {
+          guint n_unused_bits = 8 - format->v_bit_fields.n_fields % 8;
+          guint8 unused_mask = ((1<<n_unused_bits) - 1) << (8 - n_unused_bits);
+          guint8 last = data[format->any.fixed_length - 1];
+          if ((last & unused_mask) != 0)
+            {
+              g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                           "%u unused bits at the end of bit fields (%s) were not 0",
+                           n_unused_bits,
+                           format->any.name ? format->any.name : "unnamed bitfield");
+              return 0;
+            }
+        }
+      return format->any.fixed_length;
 
     case GSKB_FORMAT_TYPE_ENUM:
       {
-        ...
+        gskb_enum value;
+        guint rv = format->any.fixed_length;
+        switch (format->v_enum.int_type)
+          {
+          case GSKB_FORMAT_INT_UINT8:
+            {
+              value = data[0];
+              break;
+            }
+          case GSKB_FORMAT_INT_UINT16:
+            {
+              guint16 v;
+              gskb_uint16_unpack (data, &v);
+              value = v;
+              break;
+            }
+          case GSKB_FORMAT_INT_UINT32:
+            {
+              guint32 v;
+              gskb_uint32_unpack (data, &v);
+              value = v;
+              break;
+            }
+          case GSKB_FORMAT_INT_UINT:
+            {
+              gskb_uint v;
+              rv = gskb_uint_validate_unpack (len, data, &v, error);
+              if (rv == 0)
+                {
+                  gsk_error_add_prefix (error, "validating enum (%s)",
+                                        format->any.name ? format->any.name : "unnamed");
+                  return 0;
+                }
+              value = v;
+              break;
+            }
+          default:
+            g_assert_not_reached ();
+          }
+        if (format->v_enum.is_extensible)
+          return rv;
+        if (gskb_format_enum_find_value_code (format, value) == NULL)
+          {
+            g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                         "no enum with value %u (%s)",
+                         value, format->any.name ? format->any.name : "unnamed");
+            return 0;
+          }
+        return rv;
       }
 
     case GSKB_FORMAT_TYPE_ALIAS:
@@ -1651,11 +1727,33 @@ gskb_format_unpack_value   (GskbFormat    *format,
 
     case GSKB_FORMAT_TYPE_FIXED_ARRAY:
       {
-        ...
+        guint rv = 0;
+        GskbFormat *sub = format->v_fixed_array.element_format;
+        guint i;
+        for (i = 0; i < format->v_fixed_array.length; i++)
+          {
+            rv += gskb_format_unpack_value (sub, data + rv, value);
+            value = (char*) value + format->v_any.c_size_of;
+          }
+        return rv;
       }
-      ...
     case GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY:
-      ...
+      {
+        guint32 n_elements;
+        guint rv = gskb_uint_unpack (data, &n_elements);
+        GenericLengthPrefixedArray *array = value;
+        GskbFormat *sub = format->v_length_prefixed_array.element_format;
+        char *elements_at;
+        array->length = n_elements;
+        array->data = g_malloc (sub->any.c_size_of * n_elements);
+        elements_at = array->data;
+        for (i = 0; i < n_elements; i++)
+          {
+            rv += gskb_format_unpack_value (sub, data + rv, elements_at);
+            elements_at += sub->any.c_size_of;
+          }
+        return rv;
+      }
     case GSKB_FORMAT_TYPE_STRUCT:
       ...
     case GSKB_FORMAT_TYPE_UNION:

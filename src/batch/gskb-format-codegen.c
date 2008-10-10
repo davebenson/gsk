@@ -27,52 +27,24 @@ gskb_codegen_config_free (GskbCodegenConfig *config)
   g_slice_free (GskbCodegenConfig, config);
 }
 
-static gboolean
+static void
 gskb_format_codegen__emit_typedefs     (GskbFormat *format,
                                         GskbCodegenSection section,
                                         const GskbCodegenConfig *config,
-                                        GskBuffer *output,
-                                        GError **error)
+                                        GskBuffer *output)
 {
   g_assert (section == GSKB_CODEGEN_SECTION_TYPEDEFS);
+
   switch (format->type)
     {
     case GSKB_FORMAT_TYPE_INT:
-      {
-        const char *src_type;
-        static struct {
-          GskbFormatIntType int_type;
-          const char *c_type;
-        } int_c_types[] = {             /* NOTE: must match order of enum */
-          { GSKB_FORMAT_INT_INT8,           "gint8" },
-          { GSKB_FORMAT_INT_INT16,          "gint16" },
-          { GSKB_FORMAT_INT_INT32,          "gint32" },
-          { GSKB_FORMAT_INT_INT64,          "gint64" },
-          { GSKB_FORMAT_INT_UINT8,          "guint8" },
-          { GSKB_FORMAT_INT_UINT16,         "guint16" },
-          { GSKB_FORMAT_INT_UINT32,         "guint32" },
-          { GSKB_FORMAT_INT_UINT64,         "guint64" },
-          { GSKB_FORMAT_INT_INT,            "gint32" },
-          { GSKB_FORMAT_INT_UINT,           "guint32" },
-          { GSKB_FORMAT_INT_LONG,           "gint64" },
-          { GSKB_FORMAT_INT_ULONG,          "guint64" },
-          { GSKB_FORMAT_INT_BIT,            "gboolean" }
-        };
-        
-        /* validate that the table is ok.  (sigh) */
-        g_assert (format->v_int.int_type < G_N_ELEMENTS (int_c_types));
-        g_assert (int_c_types[format->v_int.int_type].int_type
-                  == format->v_int.int_type);
-
-        gsk_buffer_printf (output,
-                           "typedef %s %s%s;\n",
-                           int_c_types[format->v_int.int_type].c_type,
-                           config->type_prefix, format->any.TypeName);
-      }
+      gsk_buffer_printf (output,
+                         "typedef gskb_%s %s%s;\n",
+                         gskb_format_int_type_name (format->v_int.int_type),
+                         config->type_prefix, format->any.TypeName);
       break;
     case GSKB_FORMAT_TYPE_FLOAT:
       {
-        const char *src_type;
         static struct {
           GskbFormatFloatType float_type;
           const char *c_type;
@@ -108,17 +80,16 @@ gskb_format_codegen__emit_typedefs     (GskbFormat *format,
                          config->type_prefix, format->any.TypeName);
       break;
     }
-  return TRUE;
 }
 
-static gboolean
+static void
 gskb_format_codegen__emit_structures   (GskbFormat *format,
                                         GskbCodegenSection phase,
                                         const GskbCodegenConfig *config,
-                                        GskBuffer *output,
-                                        GError **error)
+                                        GskBuffer *output)
 {
   guint i;
+  (void) phase;
   switch (format->type)
     {
     case GSKB_FORMAT_TYPE_ALIAS:
@@ -131,12 +102,12 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
         char *uc_name;
         guint expected = 0;
         uc_name = g_ascii_strup (format->any.lc_name, -1);
-        gsk_buffer_append_str (output, "typedef enum {\n");
+        gsk_buffer_append_string (output, "typedef enum {\n");
         for (i = 0; i < format->v_enum.n_values; i++)
           {
             char *enum_uc_name = g_ascii_strup (format->v_enum.values[i].name, -1);
             if (i > 0)
-              gsk_buffer_append_str (output, ",\n");
+              gsk_buffer_append_string (output, ",\n");
             if (format->v_enum.values[i].code == expected)
               gsk_buffer_printf (output,
                                  "  %s__%s", uc_name, enum_uc_name);
@@ -147,9 +118,9 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
             expected = format->v_enum.values[i].code + 1;
             g_free (enum_uc_name);
           }
-        gsk_buffer_append_str (output, "} %s%s;\n\n",
-                               config->type_prefix,
-                               format->any.TypeName);
+        gsk_buffer_printf (output, "} %s%s;\n\n",
+                           config->type_prefix,
+                           format->any.TypeName);
         g_free (uc_name);
       }
       break;
@@ -221,7 +192,6 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
     default:
       g_assert_not_reached ();
     }
-  return TRUE;
 }
 
 static void
@@ -257,24 +227,20 @@ implement_format_any (GskbFormat *format,
                          config->func_prefix, format->any.lc_name);
 }
 
-static gboolean
+static void
 gskb_format_codegen__emit_format_decls (GskbFormat *format,
-                                          GskbCodegenSection phase,
-                                          const GskbCodegenConfig *config,
-                                          GskBuffer *output,
-                                          GError **error)
+                                        const GskbCodegenConfig *config,
+                                        GskBuffer *output)
 {
   gsk_buffer_printf (output,
                  "#define %s%s_format  ((GskbFormat *)(&%s%s_format_instance))\n",
                  config->func_prefix, format->any.lc_name,
                  config->func_prefix, format->any.lc_name);
 }
-static gboolean
+static void
 gskb_format_codegen__emit_format_private_decls (GskbFormat *format,
-                                          GskbCodegenSection phase,
-                                          const GskbCodegenConfig *config,
-                                          GskBuffer *output,
-                                          GError **error)
+                                                const GskbCodegenConfig *config,
+                                                GskBuffer *output)
 {
   static const char *format_type_names[GSKB_N_FORMAT_TYPES] = {
     "GskbFormatInt",
@@ -291,7 +257,6 @@ gskb_format_codegen__emit_format_private_decls (GskbFormat *format,
                      "extern %s %s%s_format_instance;\n",
                      format_type_names[format->type],
                      config->func_prefix, format->any.lc_name);
-  return TRUE;
 }
 
 static void
@@ -300,12 +265,21 @@ render_int (gconstpointer entry_data,
 {
   gsk_buffer_printf (dest, "%d", * (const gint *) entry_data);
 }
-static gboolean
+static void
+define_format_from_instance (GskbFormat *format,
+                             const GskbCodegenConfig *config,
+                             GskBuffer *output)
+{
+  gsk_buffer_printf (output,
+                     "#define %s%s_format    ((GskbFormat*)(&%s%s_format_instance))\n",
+                     config->func_prefix, format->any.lc_name,
+                     config->func_prefix, format->any.lc_name);
+}
+
+static void
 gskb_format_codegen__emit_format_impls (GskbFormat *format,
-                                          GskbCodegenSection phase,
-                                          const GskbCodegenConfig *config,
-                                          GskBuffer *output,
-                                          GError **error)
+                                        const GskbCodegenConfig *config,
+                                        GskBuffer *output)
 {
   switch (format->type)
     {
@@ -319,9 +293,11 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            config->func_prefix, format->any.name,
                            config->func_prefix, format->any.name);
         gsk_buffer_printf (output,
+                           "#define %s%s_format_instance   gskb_%s_format_instance\n"
                            "#define %s%s_format   gskb_%s_format\n",
+                           config->func_prefix, format->any.name, format->any.name,
                            config->func_prefix, format->any.name, format->any.name);
-        return TRUE;
+        return;
       }
     case GSKB_FORMAT_TYPE_FIXED_ARRAY:
       {
@@ -343,8 +319,9 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
       gsk_buffer_printf (output, "};\n");
 
       gsk_buffer_printf (output,
-                         "static GskbFormatFixedArray %s%s_format_instance =\n"
+                         "%sstatic GskbFormatFixedArray %s%s_format_instance =\n"
                          "{\n",
+                         config->all_static ? "static " : "",
                          config->func_prefix, format->any.lc_name);
       implement_format_any (format, config, output);
       gsk_buffer_printf (output,
@@ -352,10 +329,9 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                          "  %s%s_format\n"
                          "};\n",
                          format->v_fixed_array.length,
-                         config->func_prefix, format->any.lc_name,
                          config->func_prefix, format->v_fixed_array.element_format->any.lc_name);
       define_format_from_instance (format, config, output);
-      return TRUE;
+      return;
       }
 
     case GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY:
@@ -371,8 +347,9 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                          config->type_prefix, format->any.TypeName,
                          config->type_prefix, format->any.TypeName);
         gsk_buffer_printf (output,
-                           "static GskbFormatLengthPrefixedArray %s%s_format_instance =\n"
+                           "%sGskbFormatLengthPrefixedArray %s%s_format_instance =\n"
                            "{\n",
+                           config->all_static ? "static " : "",
                            config->func_prefix, format->any.lc_name);
         implement_format_any (format, config, output);
         gsk_buffer_printf (output,
@@ -380,7 +357,7 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            "};\n",
                            config->func_prefix, format->v_length_prefixed_array.element_format->any.lc_name);
         define_format_from_instance (format, config, output);
-        return TRUE;
+        return;
       }
 
     case GSKB_FORMAT_TYPE_STRUCT:
@@ -408,7 +385,9 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            "};\n");
 
         gsk_buffer_printf (output,
-                           "static GskbFormatStructMember %s%s__members[%u] = {\n");
+                           "static GskbFormatStructMember %s%s__members[%u] = {\n",
+                           config->func_prefix, format->any.lc_name, format->v_struct.n_members);
+
         for (i = 0; i < format->v_struct.n_members; i++)
           {
             GskbFormat *mformat = format->v_struct.members[i].format;
@@ -436,8 +415,9 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
         g_free (table_name);
 
         gsk_buffer_printf (output,
-                           "static GskbFormatStruct %s%s_format_instance =\n"
+                           "%sGskbFormatStruct %s%s_format_instance =\n"
                            "{\n",
+                           config->all_static ? "static " : "",
                            config->func_prefix, format->any.lc_name);
         implement_format_any (format, config, output);
         gsk_buffer_printf (output,
@@ -448,7 +428,7 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            config->func_prefix, format->any.lc_name,
                            config->func_prefix, format->any.lc_name);
         define_format_from_instance (format, config, output);
-        return TRUE;
+        return;
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
@@ -498,8 +478,9 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                                      output);
 
         gsk_buffer_printf (output,
-                           "static GskbFormatUnion %s%s_format_instance =\n"
+                           "%sGskbFormatUnion %s%s_format_instance =\n"
                            "{\n",
+                           config->all_static ? "static " : "",
                            config->func_prefix, format->any.lc_name);
         implement_format_any (format, config, output);
         gsk_buffer_printf (output,
@@ -514,7 +495,7 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            by_name_table_name,
                            by_code_table_name,
                            config->func_prefix, format->any.lc_name);
-        define_static_format_from_instance (format, config, output);
+        define_format_from_instance (format, config, output);
         g_free (by_name_table_name);
         g_free (by_code_table_name);
         break;
@@ -558,8 +539,9 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
         }
 
         gsk_buffer_printf (output,
-                           "GskbFormatEnum %s%s_format_instance =\n"
+                           "%sGskbFormatEnum %s%s_format_instance =\n"
                            "{\n",
+                           config->all_static ? "static " : "",
                            config->func_prefix, format->any.lc_name);
         implement_format_any (format, config, output);
         gsk_buffer_printf (output,
@@ -579,12 +561,13 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
 
     case GSKB_FORMAT_TYPE_ALIAS:
       gsk_buffer_printf (output,
-                         "GskbFormatAlias %s%s_format_instance =\n"
+                         "%sGskbFormatAlias %s%s_format_instance =\n"
                          "{\n",
+                         config->all_static ? "static " : "",
                          config->func_prefix, format->any.lc_name);
       implement_format_any (format, config, output);
       gsk_buffer_printf (output,
-                         "  %s\n"
+                         "  %s%s_format\n"
                          "};\n",
                          config->func_prefix, format->v_alias.format->any.lc_name);
       break;
@@ -596,10 +579,9 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
 
 
 
-typedef gboolean (*OutputFunctionImplementor)   (GskbFormat *format,
-                                                 const GskbCodegenConfig *config,
-                                                 GskBuffer *output,
-                                                 GError **error);
+typedef void (*OutputFunctionImplementor)   (GskbFormat *format,
+                                             const GskbCodegenConfig *config,
+                                             GskBuffer *output);
 
 
 /* helper functions, used by implementor functions */
@@ -620,15 +602,19 @@ static const char *type_name_pairs__pack[] = {
   "gpointer", "append_func_data",
   NULL
 };
-static gboolean 
+static void
 implement__pack(GskbFormat *format,
                 const GskbCodegenConfig *config,
-                GskBuffer *output,
-                GError **error)
+                GskBuffer *output)
 {
   guint i;
   switch (format->type)
     {
+    case GSKB_FORMAT_TYPE_STRING:
+    case GSKB_FORMAT_TYPE_FLOAT:
+    case GSKB_FORMAT_TYPE_INT:
+      g_return_if_reached ();
+
     case GSKB_FORMAT_TYPE_FIXED_ARRAY:
       {
         GskbFormat *sub = format->v_fixed_array.element_format;
@@ -702,8 +688,8 @@ implement__pack(GskbFormat *format,
                                    "    }\n",
                                member->name,
                                member->code,
-                               config->func_prefix, member->format->any.lc_name, member->format->any.always_by_pointer, member->name,
-                               config->func_prefix, member->format->any.lc_name, member->format->any.always_by_pointer, member->name);
+                               config->func_prefix, member->format->any.lc_name, member->format->any.always_by_pointer?"&":"", member->name,
+                               config->func_prefix, member->format->any.lc_name, member->format->any.always_by_pointer?"&":"", member->name);
                 last_code = member->code;
               }
             else
@@ -712,7 +698,7 @@ implement__pack(GskbFormat *format,
                                    "%s  %s%s_pack (%svalue->%s, append_func, append_func_data);\n",
                                    ext ? "    " : "",
                                    config->func_prefix, member->format->any.lc_name,
-                                   member->format->any.always_by_pointer,
+                                   member->format->any.always_by_pointer?"&":"",
                                    member->name);
               }
           }
@@ -746,12 +732,12 @@ implement__pack(GskbFormat *format,
               gsk_buffer_printf (output,
                                  "      gskb_uint_pack (%s%s_get_packed_size (%svalue->info.%s), append_func, append_func_data);\n",
                                  config->func_prefix, c->format->any.lc_name,
-                                 c->name);
+                                 c->format->any.always_by_pointer?"&":"", c->name);
             gsk_buffer_printf (output,
                                "      %s%s_pack (%svalue->info.%s, append_func, append_func_data);\n"
                                "      break;\n",
                                config->func_prefix, c->format->any.lc_name,
-                               c->name);
+                               c->format->any.always_by_pointer?"&":"", c->name);
             g_free (uccasename);
           }
         if (format->v_union.is_extensible)
@@ -775,8 +761,10 @@ implement__pack(GskbFormat *format,
       gsk_buffer_printf (output,
                          "  gskb_uint_pack (value, append_func, append_func_data);\n");
       break;
+
+    case GSKB_FORMAT_TYPE_BIT_FIELDS:
+      ...
     }
-  return TRUE;
 }
 
 /* get_packed_size */
@@ -785,11 +773,10 @@ static const char *type_name_pairs__get_packed_size[] = {
   "$maybe_const $type_name $maybe_ptr", "value",
   NULL
 };
-static gboolean 
+static void
 implement__get_packed_size(GskbFormat *format,
                            const GskbCodegenConfig *config,
-                           GskBuffer *output,
-                           GError **error)
+                           GskBuffer *output)
 {
   guint i;
   switch (format->type)
@@ -917,10 +904,13 @@ implement__get_packed_size(GskbFormat *format,
       /* note: never happens, as this is implemented with a macro instead */
       gsk_buffer_printf (output, "  return gskb_uint_get_packed_size (value);\n");
       break;
+
+    case GSKB_FORMAT_TYPE_BIT_FIELDS:
+      ...
+
     default:
-      g_return_val_if_reached (FALSE);
+      g_return_if_reached ();
     }
-  return TRUE;
 }
 
 /* pack_slab */
@@ -930,11 +920,10 @@ static const char *type_name_pairs__pack_slab[] = {
   "guint8 *", "out",
   NULL
 };
-static gboolean 
+static void
 implement__pack_slab      (GskbFormat *format,
                            const GskbCodegenConfig *config,
-                           GskBuffer *output,
-                           GError **error)
+                           GskBuffer *output)
 {
   guint i;
   switch (format->type)
@@ -1026,8 +1015,12 @@ implement__pack_slab      (GskbFormat *format,
       /* note: never happens, as this is implemented with a macro instead */
       gsk_buffer_printf (output, "  return gskb_uint_get_packed_size (value);\n");
       break;
+
+    case GSKB_FORMAT_TYPE_BIT_FIELDS:
+      ...
+
     default:
-      g_return_val_if_reached (FALSE);
+      g_return_if_reached ();
     }
 }
 
@@ -1040,11 +1033,10 @@ static const char *type_name_pairs__validate_partial[] = {
   NULL
 };
 
-static gboolean 
+static void
 implement__validate_partial  (GskbFormat *format,
                               const GskbCodegenConfig *config,
-                              GskBuffer *output,
-                              GError **error)
+                              GskBuffer *output)
 {
   guint i;
   switch (format->type)
@@ -1326,8 +1318,12 @@ implement__validate_partial  (GskbFormat *format,
         g_free (ucname);
       }
       break;
+
+    case GSKB_FORMAT_TYPE_BIT_FIELDS:
+      ...
+
     default:
-      g_return_val_if_reached (FALSE);
+      g_return_if_reached ();
     }
 }
 
@@ -1339,12 +1335,11 @@ static const char *type_name_pairs__unpack[] = {
   "{type_name} *", "value_out",
   NULL
 };
-static gboolean 
+static void
 implement_unpack_functions         (GskbFormat *format,
                                     const GskbCodegenConfig *config,
                                     gboolean with_mempool,
-                                    GskBuffer *output,
-                                    GError **error)
+                                    GskBuffer *output)
 {
   guint i;
   const char *mempool_suffix, *mempool_last_arg;
@@ -1531,8 +1526,12 @@ implement_unpack_functions         (GskbFormat *format,
         break;
       }
       break;
+
+    case GSKB_FORMAT_TYPE_BIT_FIELDS:
+      ...
+
     default:
-      g_return_val_if_reached (FALSE);
+      g_return_if_reached ();
     }
 }
 static gboolean 
@@ -1552,11 +1551,10 @@ static const char *type_name_pairs__unpack_mempool[] = {
   "GskMemPool *", "mem_pool",
   NULL
 };
-static gboolean 
+static void
 implement__unpack_mempool (GskbFormat *format,
                            const GskbCodegenConfig *config,
-                           GskBuffer *output,
-                           GError **error)
+                           GskBuffer *output)
 {
   return implement_unpack_functions (format, config, TRUE, output, error);
 }
@@ -1567,11 +1565,10 @@ static const char *type_name_pairs__destruct[] = {
   "{type_name} *", "value",
   NULL
 };
-static gboolean 
+static void
 implement__destruct (GskbFormat *format,
                      const GskbCodegenConfig *config,
-                     GskBuffer *output,
-                     GError **error)
+                     GskBuffer *output)
 {
   guint i;
   switch (format->type)
@@ -1658,15 +1655,13 @@ implement__destruct (GskbFormat *format,
 static const char *type_name_pairs__peek_format[] = {
   NULL
 };
-static gboolean 
+static void
 implement__peek_format (GskbFormat *format,
                         const GskbCodegenConfig *config,
-                        GskBuffer *output,
-                        GError **error)
+                        GskBuffer *output)
 {
   gsk_buffer_printf (output, "  return %s%s_format;\n",
                      config->func_prefix, format->any.lc_name);
-  return TRUE;
 }
 
 static struct {
@@ -1835,26 +1830,25 @@ is_fundamental (GskbFormat *format)
       || format->type == GSKB_FORMAT_TYPE_STRING;
 }
 
-gboolean
+static void
 gskb_format_codegen_emit_function      (GskbFormat *format,
                                         GskbCodegenOutputFunction function,
                                         const char *qualifiers,
                                         gboolean emit_implementation,
                                         const GskbCodegenConfig *config,
-                                        GskBuffer *output,
-                                        GError **error)
+                                        GskBuffer *output)
 {
   const char *name = output_function_info[function].name;
   g_assert (output_function_info[function].output_function == function);
   if (is_fundamental (format))
     {
       if (emit_implementation)
-        return TRUE;
+        return;
       gsk_buffer_printf (output,
                          "#define %s%s_%s gskb_%s_%s\n",
                          config->func_prefix, format->any.lc_name, name,
                          format->any.lc_name, name);
-      return TRUE;
+      return;
     }
   if (format->type == GSKB_FORMAT_TYPE_ALIAS)
     {
@@ -1863,7 +1857,7 @@ gskb_format_codegen_emit_function      (GskbFormat *format,
                          config->func_prefix, format->any.lc_name, name,
                          config->func_prefix, format->v_alias.format->any.lc_name, name,
                          format->any.lc_name, name);
-      return TRUE;
+      return;
     }
 
   /* misc hacks. */
@@ -1876,36 +1870,31 @@ gskb_format_codegen_emit_function      (GskbFormat *format,
                              "#define %s%s_get_packed_size(value) %u\n",
                              config->func_prefix, format->any.lc_name,
                              format->any.fixed_length);
-          return TRUE;
+          return;
         }
       if (format->type == GSKB_FORMAT_TYPE_ENUM)
         {
           gsk_buffer_printf (output,
                              "#define %s%s_get_packed_size(value) gskb_uint_get_packed_size(value)\n",
                              config->func_prefix, format->any.lc_name);
-          return TRUE;
+          return;
         }
       break;
     }
 
   start_function (qualifiers, format, config, function, output);
   gsk_buffer_append_string (output, "\n{\n");
-  if (!output_function_info[function].implementor (format, 
-                                                   config,
-                                                   output,
-                                                   error))
-    return FALSE;
+  output_function_info[function].implementor (format, config, output);
   gsk_buffer_append_string (output, "}\n\n");
-  return TRUE;
+  return;
 }
 
-static gboolean
-gskb_format_codegen__emit_function   
+static void
+gskb_format_codegen__emit_function_decls
                                        (GskbFormat *format,
                                         GskbCodegenSection phase,
                                         const GskbCodegenConfig *config,
-                                        GskBuffer *output,
-                                        GError **error)
+                                        GskBuffer *output)
 {
   GskbCodegenOutputFunction i;
   const char *qualifiers;
@@ -1914,19 +1903,14 @@ gskb_format_codegen__emit_function
   else
     qualifiers = "";
   for (i = 0; i < GSKB_N_CODEGEN_OUTPUT_FUNCTIONS; i++)
-    {
-      if (!gskb_format_codegen_emit_function (format, i, qualifiers,
-                                              phase == GSKB_CODEGEN_SECTION_FUNCTION_IMPLS, config, output, error))
-        return FALSE;
-    }
-  return TRUE;
+    gskb_format_codegen_emit_function (format, i, qualifiers,
+                                       FALSE, config, output, error);
 }
 
-typedef gboolean (*Emitter) (GskbFormat *format,
+typedef void (*Emitter) (GskbFormat *format,
                          GskbCodegenSection phase,
                          const GskbCodegenConfig *config,
-                         GskBuffer *output,
-                         GError **error);
+                         GskBuffer *output);
 /* must match order of GskbCodegenSection */
 static Emitter emitters[] = {
   gskb_format_codegen__emit_typedefs,

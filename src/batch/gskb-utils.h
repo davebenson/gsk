@@ -35,6 +35,13 @@ void          gskb_str_table_print_compilable_object
 				     const char   *table_name,
                                      const char   *sizeof_entry_data_str,
 				     GskBuffer    *output);
+/* helper function which calls the above to functions to declare the table staticly. */
+void          gskb_str_table_print_static
+                                    (GskbStrTable *table,
+				     const char   *table_name,
+                                     GskbTableEntryOutputFunc output_func,
+                                     const char   *sizeof_entry_data_str,
+				     GskBuffer    *output);
 const void   *gskb_str_table_lookup (GskbStrTable *table,
                                      const char   *str);
 void          gskb_str_table_free   (GskbStrTable *table);
@@ -69,6 +76,12 @@ void           gskb_uint_table_print_compilable_deps
 void           gskb_uint_table_print_compilable_object
                                      (GskbUIntTable *table,
 	         		      const char   *table_name,
+                                      const char   *sizeof_entry_data_str,
+	         		      GskBuffer    *output);
+void           gskb_uint_table_print_static
+                                     (GskbUIntTable *table,
+	         		      const char   *table_name,
+                                      GskbTableEntryOutputFunc output_func,
                                       const char   *sizeof_entry_data_str,
 	         		      GskBuffer    *output);
 const void   * gskb_uint_table_lookup(GskbUIntTable *table,
