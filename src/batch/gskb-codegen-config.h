@@ -88,8 +88,7 @@ void gskb_codegen_config_free           (GskbCodegenConfig *config);
 
 /* internal */
 #include "../gskbuffer.h"
-gboolean    gskb_format_codegen        (GskbFormat *format,
+void        gskb_format_codegen        (GskbFormat *format,
                                         GskbCodegenSection section,
                                         const GskbCodegenConfig *config,
-                                        GskBuffer *output,
-                                        GError   **error);
+                                        GskBuffer *output);

@@ -69,6 +69,7 @@ GSKB_FOREACH_FUNDAMENTAL_TYPE(GSKB_DECLARE_PACK)
 #define gskb_uint16_get_packed_size(value)  2
 #define gskb_uint32_get_packed_size(value)  4
 #define gskb_uint64_get_packed_size(value)  8
+#define gskb_bit_get_packed_size(value)     1
 G_INLINE_FUNC guint gskb_int_get_packed_size(gint32 value);
 G_INLINE_FUNC guint gskb_long_get_packed_size(gint64 value);
 G_INLINE_FUNC guint gskb_uint_get_packed_size(guint32 value);
@@ -91,6 +92,12 @@ GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_PACK_SLAB)
                                        GError       **error);
 GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_VALIDATE_PARTIAL)
 #undef DECLARE_VALIDATE
+guint gskb_uint_validate_unpack (guint len, const guint8 *data, guint32 *value_out, GError **error);
+
+#define DECLARE_UNPACK(name, maybe_const) \
+  G_INLINE_FUNC guint gskb_##name##_unpack (const guint8 *data, gskb_##name *value_out);
+GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_UNPACK);
+#undef DECLARE_UNPACK
 
 /* common formats */
 extern GskbFormatInt gskb_int8_format_instance;

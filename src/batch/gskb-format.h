@@ -49,7 +49,6 @@ typedef struct _GskbFormatEnum GskbFormatEnum;
 typedef struct _GskbFormatBitField GskbFormatBitField;
 typedef struct _GskbFormatBitFields GskbFormatBitFields;
 typedef struct _GskbFormatAlias GskbFormatAlias;
-typedef struct _GskbFormatExtensibleMember GskbFormatExtensibleMember;
 typedef struct _GskbUnknownValue GskbUnknownValue;
 typedef struct _GskbUnknownValueArray GskbUnknownValueArray;
 typedef struct _GskbFormatCMember GskbFormatCMember;

@@ -27,6 +27,7 @@
 #include "gskb-fundamental-formats.h"
 #include "gskb-utils.h"
 #include "../gskerror.h"
+#include "../gskghelpers.h"
 
 /* align an offset to 'alignment';
    note that 'alignment' is evaluated twice!
@@ -378,6 +379,16 @@ gskb_format_union_new (const char *name,
             g_hash_table_destroy (dup_value_check);
             return NULL;
           }
+        if (cases[i].code == GSKB_FORMAT_ENUM_UNKNOWN_VALUE_CODE)
+          {
+            g_set_error (error, GSK_G_ERROR_DOMAIN,
+                         GSK_ERROR_INVALID_ARGUMENT,
+                         "case '%s' had code 0x%x: reserved for unknown-value",
+                         cases[i].name, GSKB_FORMAT_ENUM_UNKNOWN_VALUE_CODE);
+            g_hash_table_destroy (dup_name_check);
+            g_hash_table_destroy (dup_value_check);
+            return NULL;
+          }
         if (g_hash_table_lookup (dup_value_check, GUINT_TO_POINTER (cases[i].code)) != NULL)
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
@@ -395,14 +406,20 @@ gskb_format_union_new (const char *name,
     g_hash_table_destroy (dup_value_check);
   }
 
-  /* XXX: this goes through very similar attempts at perfect hashing.
+  /* XXX: if !is_extensible, this goes through very similar attempts at perfect hashing.
      combine the work.  perhaps using a private api. */
   {
-    GskbFormatEnumValue *ev = g_new (GskbFormatEnumValue, n_cases);
+    guint n_enum_codes = n_cases + (is_extensible ? 1 : 0);
+    GskbFormatEnumValue *ev = g_new (GskbFormatEnumValue, n_enum_codes);
     for (i = 0 ; i < n_cases; i++)
       {
         ev[i].name = cases[i].name;
         ev[i].code = cases[i].code;
+      }
+    if (is_extensible)
+      {
+        ev[i].name = "unknown_value";
+        ev[i].code = GSKB_FORMAT_ENUM_UNKNOWN_VALUE_CODE;
       }
     type_format = gskb_format_enum_new (NULL, is_extensible, int_type, n_cases, ev, error);
     g_assert (type_format != NULL);
@@ -542,6 +559,7 @@ gskb_format_enum_new  (const char *name,
   rv->int_type = int_type;
   rv->n_values = n_values;
   rv->values = g_new (GskbFormatEnumValue, n_values);
+  rv->is_extensible = is_extensible;
   indices = g_new (gint32, n_values);
   str_table_entries = g_new (GskbStrTableEntry, n_values);
   uint_table_entries = g_new (GskbUIntTableEntry, n_values);
@@ -1122,7 +1140,6 @@ gskb_format_pack_slab      (GskbFormat    *format,
                             gconstpointer  value,
                             guint8        *slab)
 {
-  guint sub_rv;
   switch (format->type)
     {
     case GSKB_FORMAT_TYPE_INT:
@@ -1184,7 +1201,6 @@ gskb_format_pack_slab      (GskbFormat    *format,
           guint8 mask = 1;
           const guint8 *bits_at = (const guint8 *) (uva + 1);
           guint i;
-          guint8 zero = 0;
           guint rv = 0;
           for (i = 0; i < format->v_struct.n_members; i++)
             {
@@ -1245,7 +1261,6 @@ gskb_format_pack_slab      (GskbFormat    *format,
               }
             else if (c->format == NULL)
               {
-                guint8 zero = 0;
                 guint rv = gskb_format_pack_slab (format->v_union.type_format, value, slab);
                 slab[rv++] = 0;
                 return rv;
@@ -1333,16 +1348,13 @@ gskb_format_pack_slab      (GskbFormat    *format,
             return gskb_##lc##_pack_slab (v, slab);
           FOREACH_INT_TYPE(WRITE_CASE)
 #undef WRITE_CASE
-          default:
-            g_assert_not_reached ();
           }
       }
       break;
     case GSKB_FORMAT_TYPE_ALIAS:
       return gskb_format_pack_slab (format->v_alias.format, value, slab);
-    default:
-      g_assert_not_reached ();
     }
+  g_return_val_if_reached (0);
 }
 
 /* TODO: use G_UNLIKELY() for error cases? */
@@ -1385,6 +1397,7 @@ gskb_format_validate_partial(GskbFormat    *format,
 #define WRITE_CASE(UC, lc) \
         case GSKB_FORMAT_FLOAT_##UC: \
           return gskb_##lc##_validate_partial (len, data, error);
+        FOREACH_FLOAT_TYPE(WRITE_CASE)
         }
 #undef WRITE_CASE
       g_return_val_if_reached (0);
@@ -1416,7 +1429,6 @@ gskb_format_validate_partial(GskbFormat    *format,
       {
         guint32 N;
         guint rv = gskb_uint_validate_unpack (len, data, &N, error);
-        guint sub_rv;
         GskbFormat *sub = format->v_length_prefixed_array.element_format;
         guint i;
         if (rv == 0)
@@ -1444,7 +1456,6 @@ gskb_format_validate_partial(GskbFormat    *format,
         {
           guint rv = 0;
           guint32 last_code = 0;
-          guint next_member = 0;
           for (;;)
             {
               guint32 code, sub_len;
@@ -1584,7 +1595,8 @@ gskb_format_validate_partial(GskbFormat    *format,
                 guint sub_rv = gskb_format_validate_packed (c->format, len - rv, data + rv, error);
                 if (sub_rv == 0)
                   {
-                    gsk_g_error_add_prefix ("validating %s case %s",
+                    gsk_g_error_add_prefix (error,
+                                            "validating %s case %s",
                                             format->any.name ? format->any.name : "unnamed union",
                                             c->name);
                     return 0;
@@ -1643,7 +1655,7 @@ gskb_format_validate_partial(GskbFormat    *format,
               rv = gskb_uint_validate_unpack (len, data, &v, error);
               if (rv == 0)
                 {
-                  gsk_error_add_prefix (error, "validating enum (%s)",
+                  gsk_g_error_add_prefix (error, "validating enum (%s)",
                                         format->any.name ? format->any.name : "unnamed");
                   return 0;
                 }
@@ -1733,7 +1745,7 @@ gskb_format_unpack_value   (GskbFormat    *format,
         for (i = 0; i < format->v_fixed_array.length; i++)
           {
             rv += gskb_format_unpack_value (sub, data + rv, value);
-            value = (char*) value + format->v_any.c_size_of;
+            value = (char*) value + format->any.c_size_of;
           }
         return rv;
       }
@@ -1744,6 +1756,7 @@ gskb_format_unpack_value   (GskbFormat    *format,
         GenericLengthPrefixedArray *array = value;
         GskbFormat *sub = format->v_length_prefixed_array.element_format;
         char *elements_at;
+        guint i;
         array->length = n_elements;
         array->data = g_malloc (sub->any.c_size_of * n_elements);
         elements_at = array->data;
@@ -1755,15 +1768,126 @@ gskb_format_unpack_value   (GskbFormat    *format,
         return rv;
       }
     case GSKB_FORMAT_TYPE_STRUCT:
-      ...
+      if (format->v_struct.is_extensible)
+        {
+          GArray *unknown_values = NULL;
+          guint rv = 0;
+          guint8 *has_bits = (guint8*) ((GskbUnknownValueArray*)value + 1);
+
+          /* clear 'has' bits */
+          memset (has_bits, 0, (format->v_struct.n_members + 7) / 8);
+
+          for (;;)
+            {
+              guint32 code, member_len;
+              GskbFormatStructMember *member;
+              rv += gskb_uint_unpack (data + rv, &code);
+              if (code == 0)
+                break;
+              rv += gskb_uint_unpack (data + rv, &member_len);
+              member = gskb_format_struct_find_member_code (format, code);
+              if (member == NULL)
+                {
+                  /* add unknown value */
+                  GskbUnknownValue uv;
+                  if (unknown_values == NULL)
+                    unknown_values = g_array_new (FALSE, FALSE, sizeof (GskbUnknownValueArray));
+                  uv.code = code;
+                  uv.length = member_len;
+                  uv.data = g_malloc (member_len);
+                  memcpy (uv.data, data + rv, member_len);
+                }
+              else
+                {
+                  guint member_index = format->v_struct.members - member;  /* the member's index */
+                  GskbFormat *member_format = member->format;
+                  guint member_c_offset = format->any.members[member_index].c_offset_of;
+                  gpointer member_value = G_STRUCT_MEMBER_P (value, member_c_offset);
+
+                  /* mark 'has' bit */
+                  has_bits[member_index / 8] |= (1 << (member_index % 8));
+
+                  /* unpack value */
+                  rv += gskb_format_unpack_value (member_format, data + rv, member_value);
+                }
+              rv += member_len;
+            }
+          return rv;
+        }
+      else
+        {
+          guint rv = 0;
+          guint i;
+          for (i = 0; i < format->v_struct.n_members; i++)
+            rv += gskb_format_unpack_value (format->v_struct.members[i].format,
+                                            data + rv,
+                                            G_STRUCT_MEMBER_P (value, format->any.members[i].c_offset_of));
+          return rv;
+        }
     case GSKB_FORMAT_TYPE_UNION:
-      ...
+      {
+        gskb_enum evalue;
+        GskbFormatUnionCase *c;
+        guint rv;
+        gpointer info;
+        switch (format->v_union.type_format->v_enum.int_type)
+          {
+#define WRITE_CASE(UC, lc) \
+          case GSKB_FORMAT_INT_##UC: \
+            { \
+              gskb_##lc t; \
+              rv = gskb_##lc##_unpack (data, &t); \
+              evalue = t; \
+              break; \
+            }
+          FOREACH_INT_TYPE(WRITE_CASE)
+#undef WRITE_CASE
+          default:
+            g_return_val_if_reached (0);
+          }
+        * (guint32 *) value = evalue;
+        info = (char*)value + format->any.members[1].c_offset_of;
+        c = gskb_format_union_find_case_code (format, evalue);
+        if (format->v_union.is_extensible)
+          {
+            guint32 piece_len;
+            rv += gskb_uint_unpack (data + rv, &piece_len);
+            if (c == NULL)
+              {
+                /* set to unknown */
+                GskbUnknownValue *uv = info;
+                g_assert (format->v_union.is_extensible);
+                uv->code = evalue;
+                uv->length = piece_len;
+                uv->data = g_memdup (data + rv, piece_len);
+                rv += piece_len;
+              }
+            else
+              {
+                * (guint32 *) value = evalue;
+                if (c->format)
+                  rv += gskb_format_unpack_value (c->format, data + rv, info);
+              }
+          }
+        else
+          {
+            g_assert (c != NULL);
+            * (guint32 *) value = evalue;
+            if (c->format)
+              rv += gskb_format_unpack_value (c->format, data + rv, info);
+          }
+        return rv;
+      }
     case GSKB_FORMAT_TYPE_BIT_FIELDS:
-      ...
+      {
+        ...
+      }
     case GSKB_FORMAT_TYPE_ENUM:
-      ...
+      {
+        ...
+      }
     case GSKB_FORMAT_TYPE_ALIAS:
-      ...
+      return gskb_format_unpack_value (format->v_alias.format, data, value);
     default:
       g_return_val_if_reached (0);
     }

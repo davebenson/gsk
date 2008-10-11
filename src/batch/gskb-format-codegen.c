@@ -29,12 +29,9 @@ gskb_codegen_config_free (GskbCodegenConfig *config)
 
 static void
 gskb_format_codegen__emit_typedefs     (GskbFormat *format,
-                                        GskbCodegenSection section,
                                         const GskbCodegenConfig *config,
                                         GskBuffer *output)
 {
-  g_assert (section == GSKB_CODEGEN_SECTION_TYPEDEFS);
-
   switch (format->type)
     {
     case GSKB_FORMAT_TYPE_INT:
@@ -84,12 +81,10 @@ gskb_format_codegen__emit_typedefs     (GskbFormat *format,
 
 static void
 gskb_format_codegen__emit_structures   (GskbFormat *format,
-                                        GskbCodegenSection phase,
                                         const GskbCodegenConfig *config,
                                         GskBuffer *output)
 {
   guint i;
-  (void) phase;
   switch (format->type)
     {
     case GSKB_FORMAT_TYPE_ALIAS:
@@ -613,6 +608,7 @@ implement__pack(GskbFormat *format,
     case GSKB_FORMAT_TYPE_STRING:
     case GSKB_FORMAT_TYPE_FLOAT:
     case GSKB_FORMAT_TYPE_INT:
+    case GSKB_FORMAT_TYPE_ALIAS:
       g_return_if_reached ();
 
     case GSKB_FORMAT_TYPE_FIXED_ARRAY:
@@ -763,7 +759,16 @@ implement__pack(GskbFormat *format,
       break;
 
     case GSKB_FORMAT_TYPE_BIT_FIELDS:
-      ...
+      {
+        gsk_buffer_printf (output,
+                           "  const guint8 *unpacked = (const guint8 *) value;\n"
+                           "  guint8 packed[%u];\n"
+                           "  %s%s_pack_slab (value, packed);\n"
+                           "  append_func (sizeof (packed), packed, append_func_data);\n",
+                           format->any.fixed_length,
+                           config->func_prefix, format->any.lc_name);
+        break;
+      }
     }
 }
 
@@ -844,7 +849,7 @@ implement__get_packed_size(GskbFormat *format,
             gsk_buffer_printf (output,
                                "  rv += %s%s_get_packed_size (%svalue->%s);\n",
                                config->func_prefix, member->format->any.lc_name,
-                               member->format->any.always_by_pointer, member->name);
+                               member->format->any.always_by_pointer?"&":"", member->name);
           }
         if (format->v_struct.is_extensible)
           gsk_buffer_printf (output, "  rv += 1;                /* 0 terminated */\n");
@@ -868,7 +873,8 @@ implement__get_packed_size(GskbFormat *format,
                                      ucname, uccasename);
                 else
                   gsk_buffer_printf (output, "      return gskb_uint_get_packed_size (%s__%s) + %s%s_get_packed_size (%svalue->info.%s);\n",
-                                     ucname, uccasename, config->func_prefix, c->name);
+                                     ucname, uccasename,
+                                     config->func_prefix, c->format->any.lc_name, c->format->any.always_by_pointer?"&":"", c->name);
               }
             else
               {
@@ -881,9 +887,9 @@ implement__get_packed_size(GskbFormat *format,
                                      "        guint subsize = %s%s_get_packed_size (%svalue->info.%s);\n"
                                      "        return gskb_uint_get_packed_size (%s__%s)\n"
                                      "             + gskb_uint_get_packed_size (subsize)\n"
-                                     "             + subsize;\n",
+                                     "             + subsize;\n"
                                      "      }\n",
-                                     config->func_prefix, c->name,
+                                     config->func_prefix, c->format->any.lc_name, c->format->any.always_by_pointer?"&":"", c->name,
                                      ucname, uccasename);
               }
             g_free (uccasename);
@@ -892,7 +898,8 @@ implement__get_packed_size(GskbFormat *format,
           {
             gsk_buffer_printf (output,
                                "  case %s__UNKNOWN_VALUE:\n"
-                               "    return gskb_unknown_value_get_packed_size (&value->info.unknown_value);\n");
+                               "    return gskb_unknown_value_get_packed_size (&value->info.unknown_value);\n",
+                               ucname);
           }
         g_free (ucname);
         gsk_buffer_printf (output, "    default:\n"
@@ -904,9 +911,6 @@ implement__get_packed_size(GskbFormat *format,
       /* note: never happens, as this is implemented with a macro instead */
       gsk_buffer_printf (output, "  return gskb_uint_get_packed_size (value);\n");
       break;
-
-    case GSKB_FORMAT_TYPE_BIT_FIELDS:
-      ...
 
     default:
       g_return_if_reached ();
@@ -979,7 +983,7 @@ implement__pack_slab      (GskbFormat *format,
             gsk_buffer_printf (output,
                                "  rv += %s%s_pack_slab (%svalue->%s, out + rv);\n",
                                config->func_prefix, member->format->any.lc_name,
-                               member->format->any.always_by_pointer, member->name);
+                               member->format->any.always_by_pointer?"&":"", member->name);
           }
         gsk_buffer_printf (output, "  return rv;\n");
         break;
@@ -1002,7 +1006,8 @@ implement__pack_slab      (GskbFormat *format,
                                          "         guint size1 = gskb_uint_pack_slab (%s__%s, out);\n"
                                          "         return size1 + %s%s_pack_slab (%svalue->info.%s, out + size1);\n"
                                          "      }\n",
-                                         ucname, uccasename, config->func_prefix, c->name);
+                                         ucname, uccasename,
+                                         config->func_prefix, c->format->any.lc_name, c->format->any.always_by_pointer?"&":"", c->name);
             g_free (uccasename);
           }
         g_free (ucname);
@@ -1011,13 +1016,52 @@ implement__pack_slab      (GskbFormat *format,
                                    "    }\n");
         break;
       }
-    case GSKB_FORMAT_TYPE_ENUM:
-      /* note: never happens, as this is implemented with a macro instead */
-      gsk_buffer_printf (output, "  return gskb_uint_get_packed_size (value);\n");
-      break;
 
     case GSKB_FORMAT_TYPE_BIT_FIELDS:
-      ...
+      {
+        guint n_packed_bits = 0;
+        for (i = 0; i < format->any.c_size_of; i++)
+          {
+            guint8 bits = format->v_bit_fields.bits_per_unpacked_byte[i];
+            if (n_packed_bits % 8 + bits <= 8)
+              {
+                /* packs to one byte */
+                if (n_packed_bits % 8 == 0)
+                  {
+                    /* need to initialize the byte */
+                    if (bits == 8)
+                      gsk_buffer_printf (output,
+                                         "  packed[%u] = unpacked[%u];",
+                                         n_packed_bits / 8, i);
+                    else
+                      gsk_buffer_printf (output,
+                                         "  packed[%u] = unpacked[%u] & 0x%02x;\n",
+                                         n_packed_bits / 8, i, (guint8)((1<<bits) - 1));
+                  }
+                else
+                  {
+                    gsk_buffer_printf (output,
+                                       "  packed[%u] |= (unpacked[%u] & 0x%02x) << %u;\n",
+                                       n_packed_bits / 8, i, (guint8)((1<<bits) - 1),
+                                       n_packed_bits % 8);
+                  }
+              }
+            else
+              {
+                /* straddles two bytes */
+                guint bits1 = 8 - n_packed_bits % 8;
+                guint bits2 = bits - bits1;
+                gsk_buffer_printf (output,
+                                   "  packed[%u] |= (unpacked[%u] & 0x%02x) << %u;\n"
+                                   "  packed[%u] = (unpacked[%u] & 0x%02x) >> %u;\n",
+                                   n_packed_bits / 8, i, ((1<<bits1)-1), n_packed_bits % 8,
+                                   n_packed_bits / 8 + 1, i, ((1<<bits2)-1)<<bits1, bits1);
+              }
+            n_packed_bits += bits;
+          }
+        gsk_buffer_printf (output, "  return %u;\n", format->any.fixed_length);
+        break;
+      }
 
     default:
       g_return_if_reached ();
@@ -1066,7 +1110,7 @@ implement__validate_partial  (GskbFormat *format,
                                "    if ((sub_used = %s%s_validate_partial (len - rv, out + rv, error)) == 0)\n"
                                "      {\n"
                                  "      gsk_g_error_add_prefix (error, \"validating element #%%u of %%u\", i, %u);\n"
-                                 "      return FALSE;\n"
+                                 "      return 0;\n"
                                  "    }\n"
                                  "  rv += sub_used;\n",
                                  format->v_fixed_array.length,
@@ -1159,6 +1203,7 @@ implement__validate_partial  (GskbFormat *format,
                                    "          break;\n",
                                    member->code,
                                    config->func_prefix, sub->any.lc_name,
+                                   member->name, format->any.name,
                                    member->name, format->any.name);
               }
             gsk_buffer_printf (output,
@@ -1177,9 +1222,10 @@ implement__validate_partial  (GskbFormat *format,
                 gsk_buffer_printf (output,
                                    "  if ((sub_used = %s%s_validate_partial (len - rv, out + rv, error)) == 0)\n"
                                    "    {\n"
-                                   "      gsk_g_error_add_prefix (error, \"validating member '%s' of %s\", \"%s\", \"%s\");\n"
-                                   "      return FALSE;\n"
-                                   "    }\n",
+                                   "      gsk_g_error_add_prefix (error, \"validating member '%%s' of %%s\", \"%s\", \"%s\");\n"
+                                   "      return 0;\n"
+                                   "    }\n"
+                                   "  rv += sub_used;\n",
                                    config->func_prefix, member->format->any.lc_name,
                                    member->name, format->any.name);
               }
@@ -1252,7 +1298,7 @@ implement__validate_partial  (GskbFormat *format,
                                      "      if (sub_used != len)\n"
                                      "        {\n"
                                      "          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,\n"
-         "                  \"validated length for case %%s of union %%s had length mismatch (header said %%u, got %%u)\",\n",
+         "                  \"validated length for case %%s of union %%s had length mismatch (header said %%u, got %%u)\",\n"
                                      "                       \"%s\", \"%s\", len, sub_used);\n"
                                      "          return FALSE;\n"
                                      "        }\n",
@@ -1278,7 +1324,7 @@ implement__validate_partial  (GskbFormat *format,
             gsk_buffer_printf (output, "    default:\n"
                                        "      g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,\n"
                                        "                   GSK_ERROR_BAD_FORMAT,\n"
-                                       "                   \"invalid tag %u for '%%s'\", type, \"%s\");\n"
+                                       "                   \"invalid tag %%u for '%%s'\", type, \"%s\");\n"
                                        "      return FALSE;\n"
                                        "    }\n", format->any.name);
           }
@@ -1320,7 +1366,24 @@ implement__validate_partial  (GskbFormat *format,
       break;
 
     case GSKB_FORMAT_TYPE_BIT_FIELDS:
-      ...
+      if (format->v_bit_fields.total_bits % 8 != 0)
+        {
+          guint unused_bits = 8 - format->v_bit_fields.total_bits % 8;
+          gsk_buffer_printf (output,
+                             "  if ((data[%u] & 0x%02x) != 0)\n"
+                             "    {\n"
+                             "      g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,\n"
+                             "                   GSK_ERROR_BAD_FORMAT,\n"
+                             "                   \"expected few %%u bits of packed bit fields %%s to be zero\",\n"
+                             "                   %u, \"%s\");\n"
+                             "      return 0;\n"
+                             "    }\n",
+                             format->any.fixed_length-1, ((1<<unused_bits)-1) << (8-unused_bits),
+                             unused_bits, format->any.name);
+        }
+      gsk_buffer_printf (output,
+                         "return %u;\n", format->any.fixed_length);
+      break;
 
     default:
       g_return_if_reached ();
@@ -1355,6 +1418,12 @@ implement_unpack_functions         (GskbFormat *format,
     }
   switch (format->type)
     {
+    case GSKB_FORMAT_TYPE_INT:
+    case GSKB_FORMAT_TYPE_FLOAT:
+    case GSKB_FORMAT_TYPE_STRING:
+    case GSKB_FORMAT_TYPE_ALIAS:
+      g_assert_not_reached ();
+
     case GSKB_FORMAT_TYPE_FIXED_ARRAY:
       {
         GskbFormat *sub = format->v_fixed_array.element_format;
@@ -1400,7 +1469,6 @@ implement_unpack_functions         (GskbFormat *format,
         gsk_buffer_printf (output, "  guint rv = 0;\n");
         if (format->v_struct.is_extensible)
           {
-            guint last_code = 0;
             gsk_buffer_printf (output,
                                "  GArray *unknown_members = NULL;\n"
                                "  guint sub_used;\n"
@@ -1528,19 +1596,55 @@ implement_unpack_functions         (GskbFormat *format,
       break;
 
     case GSKB_FORMAT_TYPE_BIT_FIELDS:
-      ...
+      {
+        guint packed_bits_used = 0;
+        for (i = 0; i < format->any.fixed_length; i++)
+          {
+            guint bits = format->v_bit_fields.bits_per_unpacked_byte[i];
+            if (packed_bits_used % 8 + bits > 8)
+              {
+                char maybe_mask[20];
+                if (bits == 8)
+                  maybe_mask[0] = 0;
+                else
+                  g_snprintf (maybe_mask, sizeof (maybe_mask), " & 0x%02x", (1<<bits)-1);
+                gsk_buffer_printf (output,
+                                   "  unpacked[%u] = ((data[%u] >> %u) | (data[%u] << %u))%s;\n",
+                                   i,
+                                   packed_bits_used / 8, packed_bits_used % 8,
+                                   packed_bits_used / 8 + 1, 8 - packed_bits_used % 8,
+                                   maybe_mask);
+              }
+            else
+              {
+                char maybe_shift[20], maybe_mask[20];
+                if (packed_bits_used % 8 == 0)
+                  maybe_shift[0] = 0;
+                else
+                  g_snprintf (maybe_shift, sizeof (maybe_shift), " >> %u", packed_bits_used % 8);
+                if ((packed_bits_used + bits) % 8 == 0
+                  || (packed_bits_used + bits == format->v_bit_fields.total_bits))
+                  maybe_mask[0] = 0;
+                else
+                  g_snprintf (maybe_mask, sizeof (maybe_mask), " & 0x%02x", (1<<bits)-1);
+                gsk_buffer_printf (output,
+                                   "  unpacked[%u] = ((data[%u]%s)%s);\n",
+                                   i, packed_bits_used/8, maybe_shift, maybe_mask);
+              }
+            packed_bits_used += bits;
+          }
+      }
 
     default:
       g_return_if_reached ();
     }
 }
-static gboolean 
+static void
 implement__unpack (GskbFormat *format,
                    const GskbCodegenConfig *config,
-                   GskBuffer *output,
-                   GError **error)
+                   GskBuffer *output)
 {
-  return implement_unpack_functions (format, config, FALSE, output, error);
+  implement_unpack_functions (format, config, FALSE, output);
 }
 
 /* unpack_mempool */
@@ -1556,7 +1660,7 @@ implement__unpack_mempool (GskbFormat *format,
                            const GskbCodegenConfig *config,
                            GskBuffer *output)
 {
-  return implement_unpack_functions (format, config, TRUE, output, error);
+  implement_unpack_functions (format, config, TRUE, output);
 }
 
 /* destruct */
@@ -1645,9 +1749,8 @@ implement__destruct (GskbFormat *format,
         break;
       }
     default:
-      g_return_val_if_reached (FALSE);
+    g_return_if_reached ();
     }
-  return TRUE;
 }
 
 /* peek_format */
@@ -1855,8 +1958,7 @@ gskb_format_codegen_emit_function      (GskbFormat *format,
       gsk_buffer_printf (output,
                          "#define %s%s_%s %s%s_%s\n",
                          config->func_prefix, format->any.lc_name, name,
-                         config->func_prefix, format->v_alias.format->any.lc_name, name,
-                         format->any.lc_name, name);
+                         config->func_prefix, format->v_alias.format->any.lc_name, name);
       return;
     }
 
@@ -1880,6 +1982,8 @@ gskb_format_codegen_emit_function      (GskbFormat *format,
           return;
         }
       break;
+    default:
+      break;
     }
 
   start_function (qualifiers, format, config, function, output);
@@ -1889,12 +1993,12 @@ gskb_format_codegen_emit_function      (GskbFormat *format,
   return;
 }
 
+
 static void
-gskb_format_codegen__emit_function_decls
-                                       (GskbFormat *format,
-                                        GskbCodegenSection phase,
-                                        const GskbCodegenConfig *config,
-                                        GskBuffer *output)
+gskb_format_codegen_emit_functions(GskbFormat *format,
+                                    const GskbCodegenConfig *config,
+                                    gboolean emit_implementation,
+                                    GskBuffer *output)
 {
   GskbCodegenOutputFunction i;
   const char *qualifiers;
@@ -1904,11 +2008,24 @@ gskb_format_codegen__emit_function_decls
     qualifiers = "";
   for (i = 0; i < GSKB_N_CODEGEN_OUTPUT_FUNCTIONS; i++)
     gskb_format_codegen_emit_function (format, i, qualifiers,
-                                       FALSE, config, output, error);
+                                       emit_implementation, config, output);
+}
+static void
+gskb_format_codegen__emit_function_decls (GskbFormat *format,
+                                          const GskbCodegenConfig *config,
+                                          GskBuffer *output)
+{
+  gskb_format_codegen_emit_functions (format, config, FALSE, output);
+}
+static void
+gskb_format_codegen__emit_function_impls (GskbFormat *format,
+                                          const GskbCodegenConfig *config,
+                                          GskBuffer *output)
+{
+  gskb_format_codegen_emit_functions (format, config, TRUE, output);
 }
 
 typedef void (*Emitter) (GskbFormat *format,
-                         GskbCodegenSection phase,
                          const GskbCodegenConfig *config,
                          GskBuffer *output);
 /* must match order of GskbCodegenSection */
@@ -1918,15 +2035,14 @@ static Emitter emitters[] = {
   gskb_format_codegen__emit_format_decls,
   gskb_format_codegen__emit_format_private_decls,
   gskb_format_codegen__emit_format_impls,
-  gskb_format_codegen__emit_function,
-  gskb_format_codegen__emit_function
+  gskb_format_codegen__emit_function_decls,
+  gskb_format_codegen__emit_function_impls
 };
-gboolean    gskb_format_codegen        (GskbFormat *format,
+void        gskb_format_codegen        (GskbFormat *format,
                                         GskbCodegenSection phase,
                                         const GskbCodegenConfig *config,
-                                        GskBuffer *output,
-                                        GError **error)
+                                        GskBuffer *output)
 {
-  return emitters[phase] (format, phase, config, output, error);
+  emitters[phase] (format, config, output);
 }
 
