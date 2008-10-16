@@ -143,6 +143,23 @@ extern GskbFormatString gskb_string_format_instance;
 
 /* implementations */
 #if defined(G_CAN_INLINE) || defined(GSKB_INTERNAL_IMPLEMENT_INLINES)
+#include "../gskerror.h"
+/* helper function for fixed length validation */
+G_INLINE_FUNC guint
+gskb_simple_fixed_length_validate_partial (const char *type_name,
+                                           guint length,
+                                           guint exp_length,
+                                           GError **error)
+{
+  if (length < exp_length)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_TOO_SHORT,
+                   "too short validating %s (expected %u bytes, got %u)",
+                   type_name, exp_length, length);
+      return 0;
+    }
+  return exp_length;
+}
 G_INLINE_FUNC void
 gskb_int8_pack (gskb_int8 value, GskbAppendFunc func, gpointer data)
 {
@@ -154,6 +171,13 @@ gskb_int8_pack_slab (gskb_int8 value, guint8 *out)
 {
   *out = (guint8) value;
   return 1;
+}
+G_INLINE_FUNC guint
+gskb_int8_validate_partial (guint length,
+                            const guint8 *data,
+                            GError **error)
+{
+  return gskb_simple_fixed_length_validate_partial ("int8", length, 1, error);
 }
 G_INLINE_FUNC guint
 gskb_int8_unpack (const guint8 *data, gskb_int8 *value_out)
@@ -181,6 +205,13 @@ gskb_int16_pack_slab (gskb_int16 value, guint8 *out)
   out[1] = value >> 8;
 #endif
   return 2;
+}
+G_INLINE_FUNC guint
+gskb_int16_validate_partial (guint length,
+                            const guint8 *data,
+                            GError **error)
+{
+  return gskb_simple_fixed_length_validate_partial ("int16", length, 2, error);
 }
 G_INLINE_FUNC guint
 gskb_int16_unpack (const guint8 *data, gskb_int16 *value_out)
@@ -216,6 +247,13 @@ gskb_int32_pack_slab (gskb_int32 value, guint8 *out)
   out[3] = value >> 24;
 #endif
   return 4;
+}
+G_INLINE_FUNC guint
+gskb_int32_validate_partial (guint length,
+                            const guint8 *data,
+                            GError **error)
+{
+  return gskb_simple_fixed_length_validate_partial ("int32", length, 4, error);
 }
 G_INLINE_FUNC guint
 gskb_int32_unpack (const guint8 *data, gskb_int32 *value_out)
@@ -256,6 +294,13 @@ gskb_int64_pack_slab (gskb_int64 value, guint8 *out)
   return 8;
 }
 G_INLINE_FUNC guint
+gskb_int64_validate_partial (guint length,
+                            const guint8 *data,
+                            GError **error)
+{
+  return gskb_simple_fixed_length_validate_partial ("int64", length, 8, error);
+}
+G_INLINE_FUNC guint
 gskb_int64_unpack (const guint8 *data, gskb_int64 *value_out)
 {
 #if GSKB_OPTIMIZE_LITTLE_ENDIAN
@@ -279,6 +324,13 @@ gskb_uint8_pack_slab (gskb_uint8 value, guint8 *out)
 {
   *out = value;
   return 1;
+}
+G_INLINE_FUNC guint
+gskb_uint8_validate_partial (guint length,
+                            const guint8 *data,
+                            GError **error)
+{
+  return gskb_simple_fixed_length_validate_partial ("uint8", length, 1, error);
 }
 G_INLINE_FUNC guint
 gskb_uint8_unpack (const guint8 *data, gskb_uint8 *value_out)
@@ -306,6 +358,13 @@ gskb_uint16_pack_slab (gskb_uint16 value, guint8 *out)
   out[1] = value >> 8;
 #endif
   return 2;
+}
+G_INLINE_FUNC guint
+gskb_uint16_validate_partial (guint length,
+                            const guint8 *data,
+                            GError **error)
+{
+  return gskb_simple_fixed_length_validate_partial ("uint16", length, 2, error);
 }
 G_INLINE_FUNC guint
 gskb_uint16_unpack (const guint8 *data, gskb_uint16 *value_out)
@@ -341,6 +400,13 @@ gskb_uint32_pack_slab (gskb_uint32 value, guint8 *out)
   out[3] = value >> 24;
 #endif
   return 4;
+}
+G_INLINE_FUNC guint
+gskb_uint32_validate_partial (guint length,
+                            const guint8 *data,
+                            GError **error)
+{
+  return gskb_simple_fixed_length_validate_partial ("uint32", length, 4, error);
 }
 G_INLINE_FUNC guint
 gskb_uint32_unpack (const guint8 *data, gskb_uint32 *value_out)
@@ -379,6 +445,13 @@ gskb_uint64_pack_slab (gskb_uint64 value, guint8 *out)
   gskb_uint32_pack_slab (hi, out+4);
 #endif
   return 8;
+}
+G_INLINE_FUNC guint
+gskb_uint64_validate_partial (guint length,
+                            const guint8 *data,
+                            GError **error)
+{
+  return gskb_simple_fixed_length_validate_partial ("uint64", length, 8, error);
 }
 G_INLINE_FUNC guint
 gskb_uint64_unpack (const guint8 *data, gskb_uint64 *value_out)
@@ -438,6 +511,21 @@ gskb_int_pack (gskb_int value, GskbAppendFunc func, gpointer data)
 {
   guint8 slab[GSKB_INT_MAX_PACKED_SIZE];
   func (gskb_int_pack_slab (value, slab), slab, data);
+}
+G_INLINE_FUNC guint
+gskb_int_validate_partial (guint length,
+                           const guint8 *data,
+                           GError **error)
+{
+  /* TODO: verify this returns the shortest encoding possible? */
+  if ((data[0] & 0x80) == 0) return 1;
+  if ((data[1] & 0x80) == 0) return 2;
+  if ((data[2] & 0x80) == 0) return 3;
+  if ((data[3] & 0x80) == 0) return 4;
+  if ((data[4] & 0x80) == 0) return 5;
+  g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+               "validating data of type 'int': too long");
+  return 0;
 }
 G_INLINE_FUNC guint
 gskb_int_unpack (const guint8 *data, gskb_int *value_out)
@@ -528,6 +616,21 @@ gskb_uint_pack (gskb_uint value, GskbAppendFunc func, gpointer data)
 {
   guint8 slab[GSKB_UINT_MAX_PACKED_SIZE];
   func (gskb_uint_pack_slab (value, slab), slab, data);
+}
+G_INLINE_FUNC guint
+gskb_uint_validate_partial (guint length,
+                           const guint8 *data,
+                           GError **error)
+{
+  /* TODO: verify this returns the shortest encoding possible? */
+  if ((data[0] & 0x80) == 0) return 1;
+  if ((data[1] & 0x80) == 0) return 2;
+  if ((data[2] & 0x80) == 0) return 3;
+  if ((data[3] & 0x80) == 0) return 4;
+  if ((data[4] & 0x80) == 0) return 5;
+  g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+               "validating data of type 'uint': too long");
+  return 0;
 }
 G_INLINE_FUNC guint
 gskb_uint_unpack (const guint8 *data, gskb_uint *value_out)

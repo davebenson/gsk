@@ -83,18 +83,8 @@ typedef enum
   GSKB_FORMAT_CTYPE_FLOAT32,
   GSKB_FORMAT_CTYPE_FLOAT64,
   GSKB_FORMAT_CTYPE_STRING,
-  GSKB_FORMAT_CTYPE_COMPOSITE,
-  GSKB_FORMAT_CTYPE_UNION_DATA,
-  GSKB_FORMAT_CTYPE_ARRAY_POINTER
+  GSKB_FORMAT_CTYPE_COMPOSITE
 } GskbFormatCType;
-
-struct _GskbFormatCMember
-{
-  char *name;
-  GskbFormatCType ctype;
-  GskbFormat *format;           /* NULL for UNION_DATA */
-  guint c_offset_of;
-};
 
 struct _GskbFormatAny
 {
@@ -113,10 +103,6 @@ struct _GskbFormatAny
 
   /* general info about this things packed values */
   guint fixed_length;           /* or 0 */
-
-  /* for ctype==COMPOSITE */
-  guint n_members;
-  GskbFormatCMember *members;
 };
 
 typedef enum
@@ -173,6 +159,9 @@ struct _GskbFormatLengthPrefixedArray
 {
   GskbFormatAny base;
   GskbFormat *element_format;
+
+  /* layout of the c structure */
+  guint sys_length_offset, sys_data_offset;
 };
 
 struct _GskbFormatStructMember
@@ -188,6 +177,7 @@ struct _GskbFormatStruct
   guint n_members;
   GskbFormatStructMember *members;
   GskbFormat *contents_format;
+  guint *sys_member_offsets;
   gpointer name_to_index;
   gpointer code_to_index;
 };
@@ -204,6 +194,7 @@ struct _GskbFormatUnion
   gboolean is_extensible;
   guint n_cases;
   GskbFormatUnionCase *cases;
+  guint sys_type_offset, sys_info_offset;
   gpointer name_to_index;
   gpointer code_to_index;
   GskbFormat *type_format;
@@ -248,7 +239,7 @@ struct _GskbFormatEnum
   gpointer name_to_index;
   gpointer value_to_index;
 };
-#define GSKB_FORMAT_ENUM_UNKNOWN_VALUE_CODE 0x7fffffff
+#define GSKB_FORMAT_UNION_UNKNOWN_VALUE_CODE 0
 
 struct _GskbFormatAlias
 {
@@ -305,6 +296,11 @@ GskbFormat *gskb_format_enum_new  (const char *name,
                                    guint n_values,
                                    GskbFormatEnumValue *values,
                                    GError       **error);
+GskbFormat *gskb_format_bit_fields_new
+                                  (const char            *name,
+                                   guint                  n_fields,
+                                   GskbFormatBitField    *fields,
+                                   GError               **error);
 
 /* ref-count handling */
 GskbFormat *gskb_format_ref (GskbFormat *format);
