@@ -133,4 +133,713 @@ extern GskbFormatFloat gskb_float64_format_instance;
 extern GskbFormatString gskb_string_format_instance;
 #define gskb_string_format ((GskbFormat *)&gskb_string_format_instance)
 
+/* implementations */
+#if defined(G_CAN_INLINE) || defined(GSKB_INTERNAL_IMPLEMENT_INLINES)
+G_INLINE_FUNC void
+gskb_int8_pack (gskb_int8 value, GskbAppendFunc func, gpointer data)
+{
+  guint8 v = value;
+  func (1, &v, data);
+}
+G_INLINE_FUNC guint
+gskb_int8_pack_slab (gskb_int8 value, guint8 *out)
+{
+  *out = (guint8) value;
+  return 1;
+}
+G_INLINE_FUNC guint
+gskb_int8_unpack (const guint8 *data, gskb_int8 *value_out)
+{
+  *value_out = (gint8) *data;
+  return 1;
+}
+G_INLINE_FUNC void
+gskb_int16_pack (gskb_int16 value, GskbAppendFunc func, gpointer data)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  func (2, &value, data);
+#else
+  guint8 slab[2] = { (guint8) value, (guint8) (value>>8) };
+  func (2, slab, data);
+#endif
+}
+G_INLINE_FUNC guint
+gskb_int16_pack_slab (gskb_int16 value, guint8 *out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (out, &value, 2);
+#else
+  out[0] = value;
+  out[1] = value >> 8;
+#endif
+  return 2;
+}
+G_INLINE_FUNC guint
+gskb_int16_unpack (const guint8 *data, gskb_int16 *value_out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (value_out, data, 2);
+#else
+  *value_out = (gint16)data[0]
+             | ((gint16)data[1] << 8);
+#endif
+  return 2;
+}
+G_INLINE_FUNC void
+gskb_int32_pack (gskb_int32 value, GskbAppendFunc func, gpointer data)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  func (4, &value, data);
+#else
+  guint8 slab[4] = { (guint8) value, (guint8) (value>>8),
+                     (guint8) (value>>16), (guint8) (value>>24) };
+  func (4, slab, data);
+#endif
+}
+G_INLINE_FUNC guint
+gskb_int32_pack_slab (gskb_int32 value, guint8 *out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (out, &value, 4);
+#else
+  out[0] = value;
+  out[1] = value >> 8;
+  out[2] = value >> 16;
+  out[3] = value >> 24;
+#endif
+  return 4;
+}
+G_INLINE_FUNC guint
+gskb_int32_unpack (const guint8 *data, gskb_int32 *value_out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (value_out, data, 4);
+#else
+  *value_out = (gint32)data[0]
+             | ((gint32)data[1] << 8)
+             | ((gint32)data[2] << 16)
+             | ((gint32)data[3] << 24);
+#endif
+  return 4;
+}
+G_INLINE_FUNC void
+gskb_int64_pack (gskb_int64 value, GskbAppendFunc func, gpointer data)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  func (8, &value, data);
+#else
+  guint8 slab[8];
+  gskb_int32_pack_slab ((gskb_int32)value, slab);
+  gskb_int32_pack_slab ((gskb_int32)(value>>32), slab+4);
+  func (8, slab, data);
+#endif
+}
+G_INLINE_FUNC guint
+gskb_int64_pack_slab (gskb_int64 value, guint8 *out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (out, &value, 8);
+#else
+  guint32 hi = value >> 32;
+  guint32 lo = (guint32) value;
+  gskb_int32_pack_slab (lo, out);
+  gskb_int32_pack_slab (hi, out+4);
+#endif
+  return 8;
+}
+G_INLINE_FUNC guint
+gskb_int64_unpack (const guint8 *data, gskb_int64 *value_out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (value_out, data, 8);
+#else
+  gint32 lo, hi;
+  gskb_int32_unpack (data, &lo);
+  gskb_int32_unpack (data+4, &hi);
+  *value_out = (((gint64)hi) << 32) | (gint64) (guint32)lo;
+#endif
+  return 8;
+}
+G_INLINE_FUNC void
+gskb_uint8_pack (gskb_uint8 value, GskbAppendFunc func, gpointer data)
+{
+  guint8 v = value;
+  func (1, &v, data);
+}
+G_INLINE_FUNC guint
+gskb_uint8_pack_slab (gskb_uint8 value, guint8 *out)
+{
+  *out = value;
+  return 1;
+}
+G_INLINE_FUNC guint
+gskb_uint8_unpack (const guint8 *data, gskb_uint8 *value_out)
+{
+  *value_out = *data;
+  return 1;
+}
+G_INLINE_FUNC void
+gskb_uint16_pack (gskb_uint16 value, GskbAppendFunc func, gpointer data)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  func (2, &value, data);
+#else
+  guint8 slab[2] = { (guint8) value, (guint8) (value>>8) };
+  func (2, slab, data);
+#endif
+}
+G_INLINE_FUNC guint
+gskb_uint16_pack_slab (gskb_uint16 value, guint8 *out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (out, &value, 2);
+#else
+  out[0] = value;
+  out[1] = value >> 8;
+#endif
+  return 2;
+}
+G_INLINE_FUNC guint
+gskb_uint16_unpack (const guint8 *data, gskb_uint16 *value_out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (value_out, data, 2);
+#else
+  *value_out = (guint16)data[0]
+             | ((guint16)data[1] << 8);
+#endif
+  return 2;
+}
+G_INLINE_FUNC void
+gskb_uint32_pack (gskb_uint32 value, GskbAppendFunc func, gpointer data)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  func (4, &value, data);
+#else
+  guint8 slab[4] = { (guint8) value, (guint8) (value>>8),
+                     (guint8) (value>>16), (guint8) (value>>24) };
+  func (4, slab, data);
+#endif
+}
+G_INLINE_FUNC guint
+gskb_uint32_pack_slab (gskb_uint32 value, guint8 *out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (out, &value, 4);
+#else
+  out[0] = value;
+  out[1] = value >> 8;
+  out[2] = value >> 16;
+  out[3] = value >> 24;
+#endif
+  return 4;
+}
+G_INLINE_FUNC guint
+gskb_uint32_unpack (const guint8 *data, gskb_uint32 *value_out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (value_out, data, 4);
+#else
+  *value_out = (guint32)data[0]
+             | ((guint32)data[1] << 8)
+             | ((guint32)data[2] << 16)
+             | ((guint32)data[3] << 24);
+#endif
+  return 4;
+}
+G_INLINE_FUNC void
+gskb_uint64_pack (gskb_uint64 value, GskbAppendFunc func, gpointer data)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  func (8, &value, data);
+#else
+  guint8 slab[8];
+  gskb_uint32_pack_slab ((gskb_uint32)value, slab);
+  gskb_uint32_pack_slab ((gskb_uint32)(value>>32), slab+4);
+  func (8, slab, data);
+#endif
+}
+G_INLINE_FUNC guint
+gskb_uint64_pack_slab (gskb_uint64 value, guint8 *out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (out, &value, 8);
+#else
+  guint32 hi = (guint32) (value >> 32);
+  guint32 lo = (guint32) value;
+  gskb_uint32_pack_slab (lo, out);
+  gskb_uint32_pack_slab (hi, out+4);
+#endif
+  return 8;
+}
+G_INLINE_FUNC guint
+gskb_uint64_unpack (const guint8 *data, gskb_uint64 *value_out)
+{
+#if GSKB_IS_LITTLE_ENDIAN
+  memcpy (value_out, data, 8);
+#else
+  guint32 lo, hi;
+  gskb_uint32_unpack (data, &lo);
+  gskb_uint32_unpack (data+4, &hi);
+  *value_out = (((gint64)hi) << 32) | (gint64) (guint32)lo;
+#endif
+  return 8;
+}
+G_INLINE_FUNC guint
+gskb_int_pack_slab (gskb_int value, guint8 *out)
+{
+  if (-(1<<6) <= value && value < (1<<6))
+    {
+      out[0] = value & 0x7f;
+      return 1;
+    }
+  else if (-(1<<13) <= value && value < (1<<13))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) & 0x7f;
+      return 2;
+    }
+  else if (-(1<<20) <= value && value < (1<<20))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) & 0x7f;
+      return 3;
+    }
+  else if (-(1<<27) <= value && value < (1<<27))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) | 0x80;
+      out[3] = (value >> 21) & 0x7f;
+      return 4;
+    }
+  else
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) | 0x80;
+      out[3] = (value >> 21) | 0x80;
+      out[4] = (value >> 28) & 0x7f;
+      return 5;
+    }
+}
+#define GSKB_INT_MAX_PACKED_SIZE 5
+G_INLINE_FUNC void
+gskb_int_pack (gskb_int value, GskbAppendFunc func, gpointer data)
+{
+  guint8 slab[GSKB_INT_MAX_PACKED_SIZE];
+  func (gskb_int_pack_slab (value, slab), slab, data);
+}
+G_INLINE_FUNC guint
+gskb_int_unpack (const guint8 *data, gskb_int *value_out)
+{
+  if ((data[0] & 0x80) == 0)
+    {
+      gint8 v = data[0] << 1;
+      *value_out = v >> 1;
+      return 1;
+    }
+  else if ((data[1] & 0x80) == 0)
+    {
+      gint16 v = ((data[0]&0x7f) << 2)
+               | ((gint16) data[1] << 9);
+      *value_out = v >> 2;
+      return 2;
+    }
+  else if ((data[2] & 0x80) == 0)
+    {
+      gint32 v = ((gint32)(data[0]&0x7f) << 11)
+               | ((gint32)(data[1]&0x7f) << 18)
+               | ((gint32)(data[2]     ) << 25);
+      *value_out = v >> 11;
+      return 3;
+    }
+  else if ((data[3] & 0x80) == 0)
+    {
+      gint32 v = ((gint32)(data[0]&0x7f) << 4)
+               | ((gint32)(data[1]&0x7f) << 11)
+               | ((gint32)(data[2]&0x7f) << 18)
+               | ((gint32)(data[3]     ) << 25);
+      *value_out = v >> 4;
+      return 4;
+    }
+  else
+    {
+      gint32 v = ((gint32)(data[0]&0x7f))
+               | ((gint32)(data[1]&0x7f) << 7)
+               | ((gint32)(data[2]&0x7f) << 14)
+               | ((gint32)(data[3]&0x7f) << 21)
+               | ((gint32)(data[4]     ) << 28);
+      *value_out = v;
+      return 5;
+    }
+}
+G_INLINE_FUNC guint
+gskb_uint_pack_slab (gskb_uint value, guint8 *out)
+{
+  if (value < (1<<7))
+    {
+      out[0] = value;
+      return 1;
+    }
+  else if (value < (1<<14))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7);
+      return 2;
+    }
+  else if (value < (1<<21))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14);
+      return 3;
+    }
+  else if (value < (1<<28))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) | 0x80;
+      out[3] = (value >> 21);
+      return 4;
+    }
+  else
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) | 0x80;
+      out[3] = (value >> 21) | 0x80;
+      out[4] = (value >> 28);
+      return 5;
+    }
+}
+#define GSKB_UINT_MAX_PACKED_SIZE 5
+G_INLINE_FUNC void
+gskb_uint_pack (gskb_uint value, GskbAppendFunc func, gpointer data)
+{
+  guint8 slab[GSKB_UINT_MAX_PACKED_SIZE];
+  func (gskb_uint_pack_slab (value, slab), slab, data);
+}
+G_INLINE_FUNC guint
+gskb_uint_unpack (const guint8 *data, gskb_uint *value_out)
+{
+  if ((data[0] & 0x80) == 0)
+    {
+      *value_out = data[0];
+      return 1;
+    }
+  else if ((data[1] & 0x80) == 0)
+    {
+      *value_out = (guint32) (data[0] & 0x7f)
+                 | (guint32) (data[1] << 7);
+      return 2;
+    }
+  else if ((data[2] & 0x80) == 0)
+    {
+      *value_out = (guint32) (data[0] & 0x7f)
+                 | ((guint32) (data[1] & 0x7f) << 7)
+                 | (guint32) (data[2] << 14);
+      return 3;
+    }
+  else if ((data[3] & 0x80) == 0)
+    {
+      *value_out = (guint32) (data[0] & 0x7f)
+                 | ((guint32) (data[1] & 0x7f) << 7)
+                 | ((guint32) (data[2] & 0x7f) << 14)
+                 | (guint32) (data[3] << 21);
+      return 4;
+    }
+  else
+    {
+      *value_out = (guint32) (data[0] & 0x7f)
+                 | ((guint32) (data[1] & 0x7f) << 7)
+                 | ((guint32) (data[2] & 0x7f) << 14)
+                 | ((guint32) (data[3] & 0x7f) << 21)
+                 | (guint32) (data[4] << 28);
+      return 5;
+    }
+}
+G_INLINE_FUNC guint
+gskb_long_pack_slab (gskb_long value, guint8 *out)
+{
+  if ((1LL<<31) <= value && value <= ((1LL<<31)-1))
+    return gskb_int_pack_slab (value, out);
+  if (-(1LL<<34) <= value && value < (1LL<<34))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) | 0x80;
+      out[3] = (value >> 21) | 0x80;
+      out[4] = (value >> 28) & 0x7f;
+      return 5;
+    }
+  else if (-(1LL<<41) <= value && value < (1LL<<41))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) | 0x80;
+      out[3] = (value >> 21) | 0x80;
+      out[4] = (value >> 28) | 0x80;
+      out[5] = (value >> 35) & 0x7f;
+      return 6;
+    }
+  else if (-(1LL<<48) <= value && value < (1LL<<48))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) | 0x80;
+      out[3] = (value >> 21) | 0x80;
+      out[4] = (value >> 28) | 0x80;
+      out[5] = (value >> 35) | 0x80;
+      out[6] = (value >> 42) & 0x7f;
+      return 7;
+    }
+  else if (-(1LL<<55) <= value && value < (1LL<<55))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) | 0x80;
+      out[3] = (value >> 21) | 0x80;
+      out[4] = (value >> 28) | 0x80;
+      out[5] = (value >> 35) | 0x80;
+      out[6] = (value >> 42) | 0x80;
+      out[7] = (value >> 49) & 0x7f;
+      return 8;
+    }
+  else if (-(1LL<<62) <= value && value < (1LL<<62))
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) | 0x80;
+      out[3] = (value >> 21) | 0x80;
+      out[4] = (value >> 28) | 0x80;
+      out[5] = (value >> 35) | 0x80;
+      out[6] = (value >> 42) | 0x80;
+      out[7] = (value >> 49) | 0x80;
+      out[8] = (value >> 56) & 0x7f;
+      return 9;
+    }
+  else
+    {
+      out[0] = value | 0x80;
+      out[1] = (value >> 7) | 0x80;
+      out[2] = (value >> 14) | 0x80;
+      out[3] = (value >> 21) | 0x80;
+      out[4] = (value >> 28) | 0x80;
+      out[5] = (value >> 35) | 0x80;
+      out[6] = (value >> 42) | 0x80;
+      out[7] = (value >> 49) | 0x80;
+      out[8] = (value >> 56) | 0x80;
+      out[9] = (value >> 63) & 0x7f;
+      return 10;
+    }
+}
+#define GSKB_LONG_MAX_PACKED_SIZE 10
+G_INLINE_FUNC void
+gskb_long_pack (gskb_long value, GskbAppendFunc func, gpointer data)
+{
+  guint8 slab[GSKB_LONG_MAX_PACKED_SIZE];
+  func (gskb_long_pack_slab (value, slab), slab, data);
+}
+G_INLINE_FUNC guint
+gskb_long_unpack (const guint8 *data, gskb_long *value_out)
+{
+  gint32 ff;
+  if ((data[0] & 0x80) == 0
+   || (data[1] & 0x80) == 0
+   || (data[2] & 0x80) == 0
+   || (data[3] & 0x80) == 0)
+    {
+      gskb_int v;
+      guint rv = gskb_int_unpack (data, &v);
+      *value_out = v;
+      return rv;
+    }
+  ff = ((gint32)(data[0]&0x7f))
+     | ((gint32)(data[1]&0x7f) << 7)
+     | ((gint32)(data[2]&0x7f) << 14)
+     | ((gint32)(data[3]&0x7f) << 21);
+  if ((data[4] & 0x80) == 0)
+    {
+      *value_out = (gint64) ff 
+                 | ((gint64)data[4] << 28);
+      return 5;
+    }
+  else if ((data[5] & 0x80) == 0)
+    {
+      *value_out = (gint64)ff
+                 | ((gint64)(data[4]&0x7f) << 28)
+                 | ((gint64)(data[5]     ) << 35);
+      return 6;
+    }
+  else if ((data[6] & 0x80) == 0)
+    {
+      *value_out = (gint64)ff
+                 | ((gint64)(data[4]&0x7f) << 28)
+                 | ((gint64)(data[5]&0x7f) << 35)
+                 | ((gint64)(data[6]     ) << 42);
+
+      return 7;
+    }
+  else if ((data[7] & 0x80) == 0)
+    {
+      *value_out = (gint64)ff
+                 | ((gint64)(data[4]&0x7f) << 28)
+                 | ((gint64)(data[5]&0x7f) << 35)
+                 | ((gint64)(data[6]&0x7f) << 42)
+                 | ((gint64)(data[7]     ) << 49);
+      return 8;
+    }
+  else if ((data[7] & 0x80) == 0)
+    {
+      *value_out = (gint64)ff
+                 | ((gint64)(data[4]&0x7f) << 28)
+                 | ((gint64)(data[5]&0x7f) << 35)
+                 | ((gint64)(data[6]&0x7f) << 42)
+                 | ((gint64)(data[7]     ) << 49);
+      return 8;
+    }
+  else if ((data[8] & 0x80) == 0)
+    {
+      *value_out = (gint64)ff
+                 | ((gint64)(data[4]&0x7f) << 28)
+                 | ((gint64)(data[5]&0x7f) << 35)
+                 | ((gint64)(data[6]&0x7f) << 42)
+                 | ((gint64)(data[7]&0x7f) << 49)
+                 | ((gint64)(data[8]     ) << 56);
+      return 9;
+    }
+  else
+    {
+      *value_out = (gint64)ff
+                 | ((gint64)(data[4]&0x7f) << 28)
+                 | ((gint64)(data[5]&0x7f) << 35)
+                 | ((gint64)(data[6]&0x7f) << 42)
+                 | ((gint64)(data[7]&0x7f) << 49)
+                 | ((gint64)(data[8]&0x7f) << 56)
+                 | ((gint64)(data[9]     ) << 63);
+      return 10;
+    }
+}
+G_INLINE_FUNC guint
+gskb_ulong_pack_slab (gskb_ulong value, guint8 *out)
+{
+  if (value <= (guint64) G_MAXUINT)
+    return gskb_uint_pack_slab (value, out);
+  out[0] = value | 0x80;
+  out[1] = (value >> 7) | 0x80;
+  out[2] = (value >> 14) | 0x80;
+  out[3] = (value >> 21) | 0x80;
+  if (value < (1ULL<<34))
+    {
+      out[4] = (value >> 28) & 0x7f;
+      return 5;
+    }
+  else if (value < (1ULL<<41))
+    {
+      out[4] = (value >> 28) | 0x80;
+      out[5] = (value >> 35) & 0x7f;
+      return 6;
+    }
+  else if (value < (1ULL<<48))
+    {
+      out[4] = (value >> 28) | 0x80;
+      out[5] = (value >> 35) | 0x80;
+      out[6] = (value >> 42) & 0x7f;
+      return 7;
+    }
+  else if (value < (1ULL<<55))
+    {
+      out[4] = (value >> 28) | 0x80;
+      out[5] = (value >> 35) | 0x80;
+      out[6] = (value >> 42) | 0x80;
+      out[7] = (value >> 49) & 0x7f;
+      return 8;
+    }
+  else if (value < (1ULL<<62))
+    {
+      out[4] = (value >> 28) | 0x80;
+      out[5] = (value >> 35) | 0x80;
+      out[6] = (value >> 42) | 0x80;
+      out[7] = (value >> 49) | 0x80;
+      out[8] = (value >> 56) & 0x7f;
+      return 9;
+    }
+  else
+    {
+      out[4] = (value >> 28) | 0x80;
+      out[5] = (value >> 35) | 0x80;
+      out[6] = (value >> 42) | 0x80;
+      out[7] = (value >> 49) | 0x80;
+      out[8] = (value >> 56) | 0x80;
+      out[9] = (value >> 63) & 0x7f;
+      return 10;
+    }
+}
+G_INLINE_FUNC void
+gskb_ulong_pack (gskb_ulong value, GskbAppendFunc func, gpointer data)
+{
+  guint8 slab[5];
+  func (gskb_ulong_pack_slab (value, slab), slab, data);
+}
+G_INLINE_FUNC guint
+gskb_ulong_unpack (const guint8 *data, gskb_ulong *value_out)
+{
+  if ((data[0] & 0x80) == 0)
+    {
+      *value_out = data[0];
+      return 1;
+    }
+  else if ((data[1] & 0x80) == 0)
+    {
+      *value_out = (guint32) (data[0] & 0x7f)
+                 | (guint32) (data[1] << 7);
+      return 2;
+    }
+  else if ((data[2] & 0x80) == 0)
+    {
+      *value_out = (guint32) (data[0] & 0x7f)
+                 | ((guint32) (data[1] & 0x7f) << 7)
+                 | (guint32) (data[2] << 14);
+      return 3;
+    }
+  else if ((data[3] & 0x80) == 0)
+    {
+      *value_out = (guint32) (data[0] & 0x7f)
+                 | ((guint32) (data[1] & 0x7f) << 7)
+                 | ((guint32) (data[2] & 0x7f) << 14)
+                 | (guint32) (data[3] << 21);
+      return 4;
+    }
+  else
+    {
+      *value_out = (guint32) (data[0] & 0x7f)
+                 | ((guint32) (data[1] & 0x7f) << 7)
+                 | ((guint32) (data[2] & 0x7f) << 14)
+                 | ((guint32) (data[3] & 0x7f) << 21)
+                 | (guint32) (data[4] << 28);
+      return 5;
+    }
+}
+G_INLINE_FUNC void
+gskb_bit_pack (gskb_bit value, GskbAppendFunc func, gpointer data)
+{
+  guint8 v = value;
+  func (1, &v, data);
+}
+G_INLINE_FUNC guint
+gskb_bit_pack_slab (gskb_bit value, guint8 *out)
+{
+  *out = value;
+  return 1;
+}
+G_INLINE_FUNC guint
+gskb_bit_unpack (const guint8 *data, gskb_bit *value_out)
+{
+  *value_out = *data;
+  return 1;
+}
+#endif
+
 #undef GSKB_FOREACH_FUNDAMENTAL_TYPE

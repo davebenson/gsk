@@ -22,6 +22,7 @@
 */
 
 
+typedef struct _GskbNamespace GskbNamespace;
 struct _GskbNamespace
 {
   guint ref_count;

@@ -1,3 +1,9 @@
+#ifndef __GSKB_CODEGEN_CONFIG_H_
+#define __GSKB_CODEGEN_CONFIG_H_
+
+#include "gskb-format.h"
+
+G_BEGIN_DECLS
 
 
 typedef enum
@@ -92,3 +98,7 @@ void        gskb_format_codegen        (GskbFormat *format,
                                         GskbCodegenSection section,
                                         const GskbCodegenConfig *config,
                                         GskBuffer *output);
+
+G_END_DECLS
+
+#endif

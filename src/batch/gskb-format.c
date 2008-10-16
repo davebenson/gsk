@@ -879,6 +879,7 @@ gskb_format_pack           (GskbFormat    *format,
               {
                 to_free = packed = g_malloc (format->any.fixed_length);
               }
+            bits_at = packed;
             for (i = 0; i < format->v_bit_fields.n_fields; i++)
               {
                 const GskbFormatBitField *field = format->v_bit_fields.fields + i;
@@ -1880,11 +1881,75 @@ gskb_format_unpack_value   (GskbFormat    *format,
       }
     case GSKB_FORMAT_TYPE_BIT_FIELDS:
       {
-        ...
+        guint len = format->any.c_size_of;
+        guint8 *v_out = value;
+        if (format->v_bit_fields.has_holes)
+          {
+            const guint8 *in = data;
+            guint8 in_n_bits = 8;
+            const guint8 *bpub = format->v_bit_fields.bits_per_unpacked_byte;
+            guint i;
+            for (i = 0; i < len; i++)
+              {
+                guint bits = *bpub++;
+                if (bits < in_n_bits)
+                  {
+                    v_out[i] = (*in >> (8-in_n_bits)) & ((1<<bits)-1);
+                    in_n_bits -= bits;
+                  }
+                else if (bits > in_n_bits)
+                  {
+                    v_out[i] = (in[0] >> (8-in_n_bits))
+                             | (in[1] << in_n_bits);
+                    in_n_bits = in_n_bits + 8 - bits;
+                    in++;
+                  }
+                else
+                  {
+                    /* bits == in_n_bits */
+                    v_out[i] = (in[0] >> (8-in_n_bits));
+                    in++;
+                    in_n_bits = 8;
+                  }
+              }
+          }
+        return format->any.fixed_length;
       }
     case GSKB_FORMAT_TYPE_ENUM:
       {
-        ...
+        switch (format->v_enum.int_type)
+          {
+          case GSKB_FORMAT_INT_UINT8:
+            {
+              guint8 v;
+              gskb_uint8_unpack (data, &v);
+              *(gskb_enum*)value = v;
+              return 1;
+            }
+          case GSKB_FORMAT_INT_UINT16:
+            {
+              guint16 v;
+              gskb_uint16_unpack (data, &v);
+              *(gskb_enum*)value = v;
+              return 1;
+            }
+          case GSKB_FORMAT_INT_UINT32:
+            {
+              guint32 v;
+              gskb_uint32_unpack (data, &v);
+              *(gskb_enum*)value = v;
+              return 1;
+            }
+          case GSKB_FORMAT_INT_UINT:
+            {
+              guint32 v;
+              guint rv = gskb_uint_unpack (data, &v);
+              *(gskb_enum*)value = v;
+              return rv;
+            }
+          default:
+            g_return_val_if_reached (0);
+          }
       }
     case GSKB_FORMAT_TYPE_ALIAS:
       return gskb_format_unpack_value (format->v_alias.format, data, value);
@@ -1935,11 +2000,33 @@ gskb_format_destruct_value (GskbFormat    *format,
     case GSKB_FORMAT_TYPE_STRUCT:
       if (format->v_struct.is_extensible)
         {
-          ...
+          GskbUnknownValueArray *base = value;
+          guint8 *bits = (guint8 *) (base + 1);
+          guint i;
+          for (i = 0; i < base->length; i++)
+            g_free (base->values[i].data);
+          for (i = 0; i < format->v_struct.n_members; i++)
+            {
+              GskbFormat *sub = format->v_struct.members[i].format;
+              if (sub->any.requires_destruct
+                && ((bits[i/8] & (1<<(i%8))) != 0))
+                {
+                  gpointer member_ptr = (char*)base
+                                      + format->any.members[i].c_offset_of;
+                  gskb_format_destruct_value (sub, member_ptr);
+                }
+            }
         }
       else
         {
-          ...
+          guint i;
+          for (i = 0; i < format->v_struct.n_members; i++)
+            {
+              GskbFormat *sub = format->v_struct.members[i].format;
+              gpointer member_ptr = (char*)value
+                                  + format->any.members[i].c_offset_of;
+              gskb_format_destruct_value (sub, member_ptr);
+            }
         }
       break;
     case GSKB_FORMAT_TYPE_UNION:

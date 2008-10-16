@@ -1,7 +1,6 @@
 #include <string.h>
 #include "gskb-format.h"
 #include "gskb-codegen-config.h"
-#include "gskb-format-codegen.h"
 #include "gskb-utils.h"
 
 GskbCodegenConfig *
@@ -1751,20 +1750,6 @@ implement__destruct (GskbFormat *format,
     default:
     g_return_if_reached ();
     }
-}
-
-/* peek_format */
-#define return_value__peek_format       "GskbFormat *"
-static const char *type_name_pairs__peek_format[] = {
-  NULL
-};
-static void
-implement__peek_format (GskbFormat *format,
-                        const GskbCodegenConfig *config,
-                        GskBuffer *output)
-{
-  gsk_buffer_printf (output, "  return %s%s_format;\n",
-                     config->func_prefix, format->any.lc_name);
 }
 
 static struct {
