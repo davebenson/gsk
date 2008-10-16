@@ -60,6 +60,14 @@ G_INLINE_FUNC void  gskb_##lctypename##_pack (maybe_const gskb_##lctypename valu
 GSKB_FOREACH_FUNDAMENTAL_TYPE(GSKB_DECLARE_PACK)
 #undef GSKB_DECLARE_PACK
 
+#define GSKB_IS_LITTLE_ENDIAN       (G_BYTE_ORDER==G_LITTLE_ENDIAN)
+
+#if 1  /* set to 0 to test unoptimized path on little-endian machines */
+# define GSKB_OPTIMIZE_LITTLE_ENDIAN GSKB_IS_LITTLE_ENDIAN
+#else
+# define GSKB_OPTIMIZE_LITTLE_ENDIAN 0
+#endif
+
 /* declare get_packed_size() */
 #define gskb_int8_get_packed_size(value)    1
 #define gskb_int16_get_packed_size(value)   2
@@ -156,8 +164,8 @@ gskb_int8_unpack (const guint8 *data, gskb_int8 *value_out)
 G_INLINE_FUNC void
 gskb_int16_pack (gskb_int16 value, GskbAppendFunc func, gpointer data)
 {
-#if GSKB_IS_LITTLE_ENDIAN
-  func (2, &value, data);
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  func (2, (guint8 *) &value, data);
 #else
   guint8 slab[2] = { (guint8) value, (guint8) (value>>8) };
   func (2, slab, data);
@@ -166,7 +174,7 @@ gskb_int16_pack (gskb_int16 value, GskbAppendFunc func, gpointer data)
 G_INLINE_FUNC guint
 gskb_int16_pack_slab (gskb_int16 value, guint8 *out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (out, &value, 2);
 #else
   out[0] = value;
@@ -177,7 +185,7 @@ gskb_int16_pack_slab (gskb_int16 value, guint8 *out)
 G_INLINE_FUNC guint
 gskb_int16_unpack (const guint8 *data, gskb_int16 *value_out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (value_out, data, 2);
 #else
   *value_out = (gint16)data[0]
@@ -188,8 +196,8 @@ gskb_int16_unpack (const guint8 *data, gskb_int16 *value_out)
 G_INLINE_FUNC void
 gskb_int32_pack (gskb_int32 value, GskbAppendFunc func, gpointer data)
 {
-#if GSKB_IS_LITTLE_ENDIAN
-  func (4, &value, data);
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  func (4, (guint8 *) &value, data);
 #else
   guint8 slab[4] = { (guint8) value, (guint8) (value>>8),
                      (guint8) (value>>16), (guint8) (value>>24) };
@@ -199,7 +207,7 @@ gskb_int32_pack (gskb_int32 value, GskbAppendFunc func, gpointer data)
 G_INLINE_FUNC guint
 gskb_int32_pack_slab (gskb_int32 value, guint8 *out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (out, &value, 4);
 #else
   out[0] = value;
@@ -212,7 +220,7 @@ gskb_int32_pack_slab (gskb_int32 value, guint8 *out)
 G_INLINE_FUNC guint
 gskb_int32_unpack (const guint8 *data, gskb_int32 *value_out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (value_out, data, 4);
 #else
   *value_out = (gint32)data[0]
@@ -225,8 +233,8 @@ gskb_int32_unpack (const guint8 *data, gskb_int32 *value_out)
 G_INLINE_FUNC void
 gskb_int64_pack (gskb_int64 value, GskbAppendFunc func, gpointer data)
 {
-#if GSKB_IS_LITTLE_ENDIAN
-  func (8, &value, data);
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  func (8, (guint8 *) &value, data);
 #else
   guint8 slab[8];
   gskb_int32_pack_slab ((gskb_int32)value, slab);
@@ -237,8 +245,8 @@ gskb_int64_pack (gskb_int64 value, GskbAppendFunc func, gpointer data)
 G_INLINE_FUNC guint
 gskb_int64_pack_slab (gskb_int64 value, guint8 *out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
-  memcpy (out, &value, 8);
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  memcpy (out, (guint8 *) &value, 8);
 #else
   guint32 hi = value >> 32;
   guint32 lo = (guint32) value;
@@ -250,7 +258,7 @@ gskb_int64_pack_slab (gskb_int64 value, guint8 *out)
 G_INLINE_FUNC guint
 gskb_int64_unpack (const guint8 *data, gskb_int64 *value_out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (value_out, data, 8);
 #else
   gint32 lo, hi;
@@ -281,8 +289,8 @@ gskb_uint8_unpack (const guint8 *data, gskb_uint8 *value_out)
 G_INLINE_FUNC void
 gskb_uint16_pack (gskb_uint16 value, GskbAppendFunc func, gpointer data)
 {
-#if GSKB_IS_LITTLE_ENDIAN
-  func (2, &value, data);
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  func (2, (const guint8 *) &value, data);
 #else
   guint8 slab[2] = { (guint8) value, (guint8) (value>>8) };
   func (2, slab, data);
@@ -291,7 +299,7 @@ gskb_uint16_pack (gskb_uint16 value, GskbAppendFunc func, gpointer data)
 G_INLINE_FUNC guint
 gskb_uint16_pack_slab (gskb_uint16 value, guint8 *out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (out, &value, 2);
 #else
   out[0] = value;
@@ -302,7 +310,7 @@ gskb_uint16_pack_slab (gskb_uint16 value, guint8 *out)
 G_INLINE_FUNC guint
 gskb_uint16_unpack (const guint8 *data, gskb_uint16 *value_out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (value_out, data, 2);
 #else
   *value_out = (guint16)data[0]
@@ -313,8 +321,8 @@ gskb_uint16_unpack (const guint8 *data, gskb_uint16 *value_out)
 G_INLINE_FUNC void
 gskb_uint32_pack (gskb_uint32 value, GskbAppendFunc func, gpointer data)
 {
-#if GSKB_IS_LITTLE_ENDIAN
-  func (4, &value, data);
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  func (4, (guint8 *) &value, data);
 #else
   guint8 slab[4] = { (guint8) value, (guint8) (value>>8),
                      (guint8) (value>>16), (guint8) (value>>24) };
@@ -324,7 +332,7 @@ gskb_uint32_pack (gskb_uint32 value, GskbAppendFunc func, gpointer data)
 G_INLINE_FUNC guint
 gskb_uint32_pack_slab (gskb_uint32 value, guint8 *out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (out, &value, 4);
 #else
   out[0] = value;
@@ -337,7 +345,7 @@ gskb_uint32_pack_slab (gskb_uint32 value, guint8 *out)
 G_INLINE_FUNC guint
 gskb_uint32_unpack (const guint8 *data, gskb_uint32 *value_out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (value_out, data, 4);
 #else
   *value_out = (guint32)data[0]
@@ -350,8 +358,8 @@ gskb_uint32_unpack (const guint8 *data, gskb_uint32 *value_out)
 G_INLINE_FUNC void
 gskb_uint64_pack (gskb_uint64 value, GskbAppendFunc func, gpointer data)
 {
-#if GSKB_IS_LITTLE_ENDIAN
-  func (8, &value, data);
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  func (8, (guint8 *) &value, data);
 #else
   guint8 slab[8];
   gskb_uint32_pack_slab ((gskb_uint32)value, slab);
@@ -362,7 +370,7 @@ gskb_uint64_pack (gskb_uint64 value, GskbAppendFunc func, gpointer data)
 G_INLINE_FUNC guint
 gskb_uint64_pack_slab (gskb_uint64 value, guint8 *out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (out, &value, 8);
 #else
   guint32 hi = (guint32) (value >> 32);
@@ -375,7 +383,7 @@ gskb_uint64_pack_slab (gskb_uint64 value, guint8 *out)
 G_INLINE_FUNC guint
 gskb_uint64_unpack (const guint8 *data, gskb_uint64 *value_out)
 {
-#if GSKB_IS_LITTLE_ENDIAN
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
   memcpy (value_out, data, 8);
 #else
   guint32 lo, hi;
@@ -840,6 +848,127 @@ gskb_bit_unpack (const guint8 *data, gskb_bit *value_out)
   *value_out = *data;
   return 1;
 }
+
+/* float */
+G_INLINE_FUNC void
+gskb_float32_pack (gskb_float32 value, GskbAppendFunc func, gpointer data)
+{
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  func (4, (const guint8 *) &value, data);
+#else
+  union {
+    gskb_float32 f;
+    guint32 i;
+    guint8 bytes[4];
+  } u = { value };
+  u.i = GUINT32_TO_LE (u.i);
+  func (4, u.bytes, data);
 #endif
+}
+G_INLINE_FUNC guint
+gskb_float32_pack_slab (gskb_float32 value, guint8 *out)
+{
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  memcpy (out, &value, 4);
+#else
+  union {
+    gskb_float32 f;
+    guint32 i;
+    guint8 bytes[4];
+  } u = { value };
+  u.i = GUINT32_TO_LE (u.i);
+  memcpy (out, u.bytes, 4);
+#endif
+  return 4;
+}
+G_INLINE_FUNC guint
+gskb_float32_unpack (const guint8 *data, gskb_float32 *value_out)
+{
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  memcpy (value_out, data, 4);
+#else
+  union {
+    gskb_float32 f;
+    guint32 i;
+    guint8 bytes[4];
+  } u;
+  memcpy (u.bytes, data, 4);
+  u.i = GUINT32_FROM_LE (u.i);
+  *value_out = u.f;
+#endif
+  return 4;
+}
+
+G_INLINE_FUNC void
+gskb_float64_pack (gskb_float64 value, GskbAppendFunc func, gpointer data)
+{
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  func (8, (const guint8 *) &value, data);
+#else
+  union {
+    gskb_float64 f;
+    guint64 i;
+    guint8 bytes[8];
+  } u = { value };
+  u.i = GUINT64_TO_LE (u.i);
+  func (8, u.bytes, data);
+#endif
+}
+G_INLINE_FUNC guint
+gskb_float64_pack_slab (gskb_float64 value, guint8 *out)
+{
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  memcpy (out, &value, 8);
+#else
+  union {
+    gskb_float64 f;
+    guint64 i;
+    guint8 bytes[8];
+  } u = { value };
+  u.i = GUINT64_TO_LE (u.i);
+  memcpy (out, u.bytes, 8);
+#endif
+  return 8;
+}
+G_INLINE_FUNC guint
+gskb_float64_unpack (const guint8 *data, gskb_float64 *value_out)
+{
+#if GSKB_OPTIMIZE_LITTLE_ENDIAN
+  memcpy (value_out, data, 8);
+#else
+  union {
+    gskb_float64 f;
+    guint64 i;
+    guint8 bytes[8];
+  } u;
+  memcpy (u.bytes, data, 8);
+  u.i = GUINT64_FROM_LE (u.i);
+  *value_out = u.f;
+#endif
+  return 8;
+}
+
+G_INLINE_FUNC void
+gskb_string_pack (gskb_string value, GskbAppendFunc func, gpointer data)
+{
+  func (strlen (value) + 1, (guint8 *) value, data);
+}
+G_INLINE_FUNC guint
+gskb_string_pack_slab (gskb_string value, guint8 *out)
+{
+  return g_stpcpy ((char*) out, value) + 1 - (char *) out;
+}
+G_INLINE_FUNC guint
+gskb_string_unpack (const guint8 *data, gskb_string *value_out)
+{
+  guint len;
+  for (len = 0; data[len] != 0; len++)
+    ;
+  *value_out = g_malloc (len + 1);
+  memcpy (*value_out, data, len + 1);
+  return len + 1;
+}
+
+#endif          /* G_CAN_INLINE */
 
 #undef GSKB_FOREACH_FUNDAMENTAL_TYPE
