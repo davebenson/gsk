@@ -121,15 +121,16 @@ typedef enum
   GSKB_FORMAT_INT_ULONG,        /* var-len unsigned int, max 64 bits   */
   GSKB_FORMAT_INT_BIT           /* byte that may only be set to 0 or 1 */
 } GskbFormatIntType;
-extern GskbFormat *gskb_format_ints_array[];
+#define GSKB_N_FORMAT_INT_TYPES (GSKB_FORMAT_INT_BIT+1)
 #define gskb_format_int_type_name(int_type) \
-  ((const char *)(gskb_format_ints_array[(int_type)]->any.name))
+  ((const char *)(gskb_format_ints_array[(int_type)].base.name))
 
 struct _GskbFormatInt
 {
   GskbFormatAny     base;
   GskbFormatIntType int_type;
 };
+extern GskbFormatInt gskb_format_ints_array[GSKB_N_FORMAT_INT_TYPES];
 
 typedef enum
 {
@@ -194,6 +195,7 @@ struct _GskbFormatUnion
   gboolean is_extensible;
   guint n_cases;
   GskbFormatUnionCase *cases;
+  GskbFormatIntType int_type;
   guint sys_type_offset, sys_info_offset;
   gpointer name_to_index;
   gpointer code_to_index;

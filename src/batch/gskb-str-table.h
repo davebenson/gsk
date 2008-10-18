@@ -10,8 +10,10 @@ struct _GskbStrTable
   /*< private >*/
   guint type;
   guint table_size;
-  guint8 *table_data;
+  gpointer table_data;
   gsize sizeof_entry_data;
+  gsize sizeof_entry;
+  gsize entry_data_offset;
   gboolean is_global;
   char *str_slab;
   guint str_slab_size;
@@ -28,8 +30,9 @@ typedef void (*GskbStrTableEntryOutputFunc) (gconstpointer entry_data,
                                              GskBuffer    *dest);
 
 /* if this returns NULL, it is because of duplicate entries */
-GskbStrTable *gskb_str_table_new    (gsize     sizeof_entry_data,
-                                     guint     n_entries,
+GskbStrTable *gskb_str_table_new    (gsize         sizeof_entry_data,
+                                     gsize         alignof_entry_data,
+                                     guint         n_entries,
 				     const GskbStrTableEntry *entry);
 void          gskb_str_table_print_compilable_deps
                                     (GskbStrTable *table,
@@ -41,6 +44,7 @@ void          gskb_str_table_print_compilable_object
                                     (GskbStrTable *table,
 				     const char   *table_name,
                                      const char   *sizeof_entry_data_str,
+                                     const char   *alignof_entry_data_str,
 				     GskBuffer    *output);
 /* helper function which calls the above to functions to declare the table staticly. */
 void          gskb_str_table_print_static
@@ -49,6 +53,7 @@ void          gskb_str_table_print_static
                                      const char   *entry_type_name,
                                      GskbStrTableEntryOutputFunc output_func,
                                      const char   *sizeof_entry_data_str,
+                                     const char   *alignof_entry_data_str,
 				     GskBuffer    *output);
 const void   *gskb_str_table_lookup (GskbStrTable *table,
                                      const char   *str);

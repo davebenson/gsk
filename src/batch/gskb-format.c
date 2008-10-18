@@ -26,20 +26,27 @@
    assume system-dependent stuff will be the same on the host machine.
  */
 
+
 #include <string.h>
+#include "gskb-alignment.h"
 #include "gskb-format.h"
 #include "gskb-config.h"
 #include "gskb-fundamental-formats.h"
-#include "gskb-utils.h"
+#include "gskb-str-table.h"
+#include "gskb-uint-table.h"
 #include "../gskerror.h"
 #include "../gskghelpers.h"
 
 /* align an offset to 'alignment';
    note that 'alignment' is evaluated twice!
    only works if alignment is a power-of-two. */
-#define ALIGN(unaligned_offset, alignment)          \
-     ( ((unaligned_offset)+((alignment)-1))         \
-                & ~((alignment)-1)          )
+#define ALIGN(unaligned_offset, alignment)    \
+      GSKB_ALIGN(unaligned_offset, alignment)
+#define IS_ALLOWED_ENUM_INT_TYPE(int_type)   \
+   (  ((int_type) == GSKB_FORMAT_INT_UINT8)  \
+   || ((int_type) == GSKB_FORMAT_INT_UINT16) \
+   || ((int_type) == GSKB_FORMAT_INT_UINT32) \
+   || ((int_type) == GSKB_FORMAT_INT_UINT)   )
 
 typedef struct {
   guint32 length;
@@ -110,6 +117,93 @@ lc_to_mixed (const char *str)
   return g_string_free (rv, FALSE);
 }
 
+/* NOTE: must match order in GskbFormatType in gskb-format.h */
+const char *
+gskb_format_type_enum_name (GskbFormatType type)
+{
+  static const char *enum_names[] = {
+    "GSKB_FORMAT_TYPE_INT",
+    "GSKB_FORMAT_TYPE_FLOAT",
+    "GSKB_FORMAT_TYPE_STRING",
+    "GSKB_FORMAT_TYPE_FIXED_ARRAY",
+    "GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY",
+    "GSKB_FORMAT_TYPE_STRUCT",
+    "GSKB_FORMAT_TYPE_UNION",
+    "GSKB_FORMAT_TYPE_BIT_FIELDS",
+    "GSKB_FORMAT_TYPE_ENUM",
+    "GSKB_FORMAT_TYPE_ALIAS"
+  };
+  return enum_names[type];
+}
+/* NOTE: must match order in GskbFormatType in gskb-format.h */
+const char *
+gskb_format_type_name (GskbFormatType type)
+{
+  static const char *names[] = {
+    "int",
+    "float",
+    "string",
+    "fixed_array",
+    "length_prefixed_array",
+    "struct",
+    "union",
+    "bit_fields",
+    "enum",
+    "alias"
+  };
+  return names[type];
+}
+
+/* NOTE: must match order in GskbFormatCType in gskb-format.h */
+const char *
+gskb_format_ctype_enum_name (GskbFormatCType type)
+{
+  static const char *enum_names[] = {
+    "GSKB_FORMAT_CTYPE_INT8",
+    "GSKB_FORMAT_CTYPE_INT16",
+    "GSKB_FORMAT_CTYPE_INT32",
+    "GSKB_FORMAT_CTYPE_INT64",
+    "GSKB_FORMAT_CTYPE_UINT8",
+    "GSKB_FORMAT_CTYPE_UINT16",
+    "GSKB_FORMAT_CTYPE_UINT32",
+    "GSKB_FORMAT_CTYPE_UINT64",
+    "GSKB_FORMAT_CTYPE_FLOAT32",
+    "GSKB_FORMAT_CTYPE_FLOAT64",
+    "GSKB_FORMAT_CTYPE_STRING",
+    "GSKB_FORMAT_CTYPE_COMPOSITE"
+  };
+  return enum_names[type];
+}
+
+/* NOTE: must match order in GskbFormatIntType in gskb-format.h */
+const char *gskb_format_int_type_enum_name (GskbFormatIntType type)
+{
+  static const char *enum_names[] = {
+    "GSKB_FORMAT_INT_INT8",
+    "GSKB_FORMAT_INT_INT16",
+    "GSKB_FORMAT_INT_INT32",
+    "GSKB_FORMAT_INT_INT64",
+    "GSKB_FORMAT_INT_UINT8",
+    "GSKB_FORMAT_INT_UINT16",
+    "GSKB_FORMAT_INT_UINT32",
+    "GSKB_FORMAT_INT_UINT64",
+    "GSKB_FORMAT_INT_INT",
+    "GSKB_FORMAT_INT_UINT",
+    "GSKB_FORMAT_INT_LONG",
+    "GSKB_FORMAT_INT_ULONG",
+    "GSKB_FORMAT_INT_BIT"
+  };
+  return enum_names[type];
+}
+/* NOTE: must match order in GskbFormatFloatType in gskb-format.h */
+const char *gskb_format_float_type_enum_name (GskbFormatFloatType type)
+{
+  static const char *enum_names[] = {
+    "GSKB_FORMAT_FLOAT_FLOAT32",
+    "GSKB_FORMAT_FLOAT_FLOAT64"
+  };
+  return enum_names[type];
+}
 /**
  * gskb_format_fixed_array_new:
  * @length: number of elements if the format.
@@ -365,7 +459,7 @@ gskb_format_struct_new (const char             *name,
         entries[i].entry_data = indices + i;
         indices[i] = i;
       }
-    rv->name_to_index = gskb_str_table_new (sizeof (gint32), n_members, entries);
+    rv->name_to_index = gskb_str_table_new (sizeof (gint32), GSKB_ALIGNOF_UINT32, n_members, entries);
     g_free (indices);
     g_free (entries);
   }
@@ -413,6 +507,15 @@ gskb_format_union_new (const char *name,
       g_set_error (error, GSK_G_ERROR_DOMAIN,
                    GSK_ERROR_INVALID_ARGUMENT,
                    "union must have at least one case (%s)",
+                   name ? name : "anonymous union");
+      return NULL;
+    }
+  if (!IS_ALLOWED_ENUM_INT_TYPE (int_type))
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN,
+                   GSK_ERROR_INVALID_ARGUMENT,
+                   "invalid int-type %s for union (%s)",
+                   gskb_format_int_type_name (int_type),
                    name ? name : "anonymous union");
       return NULL;
     }
@@ -511,6 +614,7 @@ gskb_format_union_new (const char *name,
   rv->base.c_align_of = MAX (GSKB_ALIGNOF_UINT32, info_align);
   rv->base.c_size_of = ALIGN (rv->sys_info_offset + info_size, info_align);
   rv->type_format = type_format;                /* takes ownership */
+  rv->int_type = int_type;
   rv->is_extensible = is_extensible;
 
   if (name != NULL)
@@ -550,10 +654,7 @@ gskb_format_enum_new  (const char *name,
   GskbStrTableEntry *str_table_entries;
   GskbUIntTableEntry *uint_table_entries;
   guint i;
-  if (int_type != GSKB_FORMAT_INT_UINT8
-   && int_type != GSKB_FORMAT_INT_UINT16
-   && int_type != GSKB_FORMAT_INT_UINT32
-   && int_type != GSKB_FORMAT_INT_UINT)
+  if (!IS_ALLOWED_ENUM_INT_TYPE (int_type))
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN,
                    GSK_ERROR_INVALID_ARGUMENT,
@@ -645,8 +746,8 @@ gskb_format_enum_new  (const char *name,
       uint_table_entries[i].value = values[i].code;
       uint_table_entries[i].entry_data = indices + i;
     }
-  rv->name_to_index = gskb_str_table_new (sizeof (gint32), n_values, str_table_entries);
-  rv->value_to_index = gskb_uint_table_new (sizeof (gint32), n_values, uint_table_entries);
+  rv->name_to_index = gskb_str_table_new (sizeof (gint32), GSKB_ALIGNOF_UINT32, n_values, str_table_entries);
+  rv->value_to_index = gskb_uint_table_new (sizeof (gint32), GSKB_ALIGNOF_UINT32, n_values, uint_table_entries);
   g_free (indices);
   g_free (str_table_entries);
   g_free (uint_table_entries);
@@ -712,7 +813,7 @@ gskb_format_bit_fields_new (const char            *name,
       table_entry[i].str = fields[i].name;
       table_entry[i].entry_data = indices + i;
     }
-  table = gskb_str_table_new (sizeof (guint), n_fields, table_entry);
+  table = gskb_str_table_new (sizeof (guint32), GSKB_ALIGNOF_UINT32, n_fields, table_entry);
   if (table == NULL)
     {
       /* duplicate name error */
@@ -1821,21 +1922,56 @@ gskb_format_validate_partial(GskbFormat    *format,
       {
         gskb_enum code;
         GskbFormatUnionCase *c;
-        /* XXX: would be nice to have gskb_format_validate_unpack */
-        guint rv = gskb_format_validate_partial (format->v_union.type_format,
-                                                 len, data, error);
+        guint rv;
+        switch (format->v_union.int_type)
+          {
+          case GSKB_FORMAT_INT_UINT8:
+            {
+              guint8 v=0;
+              rv = gskb_uint8_validate_unpack (len, data, &v, error);
+              code = v;
+              break;
+            }
+          case GSKB_FORMAT_INT_UINT16:
+            {
+              guint16 v=0;
+              rv = gskb_uint16_validate_unpack (len, data, &v, error);
+              code = v;
+              break;
+            }
+          case GSKB_FORMAT_INT_UINT32:
+            {
+              guint32 v=0;
+              rv = gskb_uint32_validate_unpack (len, data, &v, error);
+              code = v;
+              break;
+            }
+          case GSKB_FORMAT_INT_UINT:
+            {
+              guint32 v=0;
+              rv = gskb_uint_validate_unpack (len, data, &v, error);
+              code = v;
+              break;
+            }
+          default:
+            g_assert_not_reached ();
+          }
         if (rv == 0)
           {
             gsk_g_error_add_prefix (error, "validating %s code failed",
                                     format->any.name ? format->any.name : "unnamed union");
             return 0;
           }
-        gskb_format_unpack (format->v_union.type_format, data, &code);
         c = gskb_format_union_find_case_code (format, code);
         if (format->v_union.is_extensible)
           {
             guint32 sub_len;
             guint sub_rv = gskb_uint_validate_unpack (len - rv, data + rv, &sub_len, error);
+            if (sub_rv == 0)
+              {
+                gsk_g_error_add_prefix (error, "validating length of union data");
+                return 0;
+              }
             rv += sub_rv;
             if (rv + sub_len > len)
               {
@@ -2356,3 +2492,191 @@ gskb_format_unpack_value_mempool (GskbFormat    *format,
   ...
 }
 #endif
+
+
+
+GskbFormatInt gskb_format_ints_array[GSKB_N_FORMAT_INT_TYPES] =
+{
+  {                             /* int8 */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "int8", "Int8", "int8",
+      GSKB_FORMAT_CTYPE_INT8,
+      GSKB_ALIGNOF_UINT8, sizeof(gint8),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      1                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_INT8
+  },
+  {                             /* int16 */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "int16", "Int16", "int16",
+      GSKB_FORMAT_CTYPE_INT16,
+      GSKB_ALIGNOF_UINT16, sizeof(gint16),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      2                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_INT16
+  },
+  {                             /* int32 */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "int32", "Int32", "int32",
+      GSKB_FORMAT_CTYPE_INT32,
+      GSKB_ALIGNOF_UINT32, sizeof(gint32),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      4                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_INT32
+  },
+  {                             /* int64 */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "int64", "Int64", "int64",
+      GSKB_FORMAT_CTYPE_INT64,
+      GSKB_ALIGNOF_UINT64, sizeof(gint64),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      8                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_INT64
+  },
+  {                             /* uint8 */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "uint8", "Int8", "uint8",
+      GSKB_FORMAT_CTYPE_UINT8,
+      GSKB_ALIGNOF_UINT8, sizeof(guint8),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      1                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_UINT8
+  },
+  {                             /* uint16 */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "uint16", "UInt16", "uint16",
+      GSKB_FORMAT_CTYPE_UINT16,
+      GSKB_ALIGNOF_UINT16, sizeof(guint16),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      2                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_UINT16
+  },
+  {                             /* uint32 */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "uint32", "UInt32", "uint32",
+      GSKB_FORMAT_CTYPE_UINT32,
+      GSKB_ALIGNOF_UINT32, sizeof(guint32),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      4                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_UINT32
+  },
+  {                             /* uint64 */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "uint64", "UInt64", "uint64",
+      GSKB_FORMAT_CTYPE_UINT64,
+      GSKB_ALIGNOF_UINT64, sizeof(guint64),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      8                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_UINT64
+  },
+  {                             /* int */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "int", "Int", "int",
+      GSKB_FORMAT_CTYPE_INT32,
+      GSKB_ALIGNOF_UINT32, sizeof(guint32),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      0                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_INT
+  },
+  {                             /* uint */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "uint", "UInt", "uint",
+      GSKB_FORMAT_CTYPE_UINT32,
+      GSKB_ALIGNOF_UINT32, sizeof(guint32),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      0                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_UINT
+  },
+  {                             /* long */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "long", "Long", "long",
+      GSKB_FORMAT_CTYPE_INT64,
+      GSKB_ALIGNOF_UINT64, sizeof(guint64),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      0                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_LONG
+  },
+  {                             /* ulong */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "ulong", "ULong", "ulong",
+      GSKB_FORMAT_CTYPE_UINT64,
+      GSKB_ALIGNOF_UINT64, sizeof(guint64),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      0                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_ULONG
+  },
+  {                             /* bit */
+    {
+      GSKB_FORMAT_TYPE_INT,
+      1,                /* ref_count */
+      "bit", "Bit", "bit",
+      GSKB_FORMAT_CTYPE_UINT8,
+      GSKB_ALIGNOF_UINT8, sizeof(guint8),
+      FALSE,            /* always_by_pointer */
+      FALSE,            /* requires_destruct */
+      TRUE,             /* is global */
+      1                 /* fixed_length */
+    },
+    GSKB_FORMAT_INT_BIT
+  },
+};

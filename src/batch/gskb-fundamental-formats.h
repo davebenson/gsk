@@ -100,7 +100,22 @@ GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_PACK_SLAB)
                                        GError       **error);
 GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_VALIDATE_PARTIAL)
 #undef DECLARE_VALIDATE
-guint gskb_uint_validate_unpack (guint len, const guint8 *data, guint32 *value_out, GError **error);
+G_INLINE_FUNC guint gskb_uint8_validate_unpack  (guint len,
+                                                 const guint8 *data,
+                                                 guint8 *value_out,
+                                                 GError **error);
+G_INLINE_FUNC guint gskb_uint16_validate_unpack (guint len,
+                                                 const guint8 *data,
+                                                 guint16 *value_out,
+                                                 GError **error);
+G_INLINE_FUNC guint gskb_uint32_validate_unpack (guint len,
+                                                 const guint8 *data,
+                                                 guint32 *value_out,
+                                                 GError **error);
+G_INLINE_FUNC guint gskb_uint_validate_unpack   (guint len,
+                                                 const guint8 *data,
+                                                 guint32 *value_out,
+                                                 GError **error);
 
 #define DECLARE_UNPACK(name, maybe_const) \
   G_INLINE_FUNC guint gskb_##name##_unpack (const guint8 *data, gskb_##name *value_out);
@@ -108,32 +123,22 @@ GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_UNPACK);
 #undef DECLARE_UNPACK
 
 /* common formats */
-extern GskbFormatInt gskb_int8_format_instance;
-#define gskb_int8_format ((GskbFormat *)&gskb_int8_format_instance)
-extern GskbFormatInt gskb_int16_format_instance;
-#define gskb_int16_format ((GskbFormat *)&gskb_int16_format_instance)
-extern GskbFormatInt gskb_int32_format_instance;
-#define gskb_int32_format ((GskbFormat *)&gskb_int32_format_instance)
-extern GskbFormatInt gskb_int64_format_instance;
-#define gskb_int64_format ((GskbFormat *)&gskb_int64_format_instance)
-extern GskbFormatInt gskb_uint8_format_instance;
-#define gskb_uint8_format ((GskbFormat *)&gskb_uint8_format_instance)
-extern GskbFormatInt gskb_uint16_format_instance;
-#define gskb_uint16_format ((GskbFormat *)&gskb_uint16_format_instance)
-extern GskbFormatInt gskb_uint32_format_instance;
-#define gskb_uint32_format ((GskbFormat *)&gskb_uint32_format_instance)
-extern GskbFormatInt gskb_uint64_format_instance;
-#define gskb_uint64_format ((GskbFormat *)&gskb_uint64_format_instance)
-extern GskbFormatInt gskb_int_format_instance;
-#define gskb_int_format ((GskbFormat *)&gskb_int_format_instance)
-extern GskbFormatInt gskb_uint_format_instance;
-#define gskb_uint_format ((GskbFormat *)&gskb_uint_format_instance)
-extern GskbFormatInt gskb_long_format_instance;
-#define gskb_long_format ((GskbFormat *)&gskb_long_format_instance)
-extern GskbFormatInt gskb_ulong_format_instance;
-#define gskb_ulong_format ((GskbFormat *)&gskb_ulong_format_instance)
-extern GskbFormatInt gskb_bit_format_instance;
-#define gskb_bit_format ((GskbFormat *)&gskb_bit_format_instance)
+#define gskb_int_format_generic(int_type) \
+             (&(gskb_format_ints_array[int_type].base))
+#define gskb_int8_format    gskb_int_format_generic(GSKB_FORMAT_INT_INT8)
+#define gskb_int16_format   gskb_int_format_generic(GSKB_FORMAT_INT_INT16)
+#define gskb_int32_format   gskb_int_format_generic(GSKB_FORMAT_INT_INT32)
+#define gskb_int64_format   gskb_int_format_generic(GSKB_FORMAT_INT_INT64)
+#define gskb_uint8_format   gskb_int_format_generic(GSKB_FORMAT_INT_UINT8)
+#define gskb_uint16_format  gskb_int_format_generic(GSKB_FORMAT_INT_UINT16)
+#define gskb_uint32_format  gskb_int_format_generic(GSKB_FORMAT_INT_UINT32)
+#define gskb_uint64_format  gskb_int_format_generic(GSKB_FORMAT_INT_UINT64)
+#define gskb_int_format     gskb_int_format_generic(GSKB_FORMAT_INT_INT)
+#define gskb_uint_format    gskb_int_format_generic(GSKB_FORMAT_INT_UINT)
+#define gskb_long_format    gskb_int_format_generic(GSKB_FORMAT_INT_LONG)
+#define gskb_ulong_format   gskb_int_format_generic(GSKB_FORMAT_INT_ULONG)
+#define gskb_bit_format     gskb_int_format_generic(GSKB_FORMAT_INT_BIT)
+
 extern GskbFormatFloat gskb_float32_format_instance;
 #define gskb_float32_format ((GskbFormat *)&gskb_float32_format_instance)
 extern GskbFormatFloat gskb_float64_format_instance;
@@ -338,6 +343,17 @@ gskb_uint8_unpack (const guint8 *data, gskb_uint8 *value_out)
   *value_out = *data;
   return 1;
 }
+G_INLINE_FUNC guint
+gskb_uint8_validate_unpack  (guint length,
+                             const guint8 *data,
+                             guint8 *out,
+                             GError **error)
+{
+  if (!gskb_simple_fixed_length_validate_partial ("uint8", length, 1, error))
+    return 0;
+  *out = data[0];
+  return 1;
+}
 G_INLINE_FUNC void
 gskb_uint16_pack (gskb_uint16 value, GskbAppendFunc func, gpointer data)
 {
@@ -376,6 +392,16 @@ gskb_uint16_unpack (const guint8 *data, gskb_uint16 *value_out)
              | ((guint16)data[1] << 8);
 #endif
   return 2;
+}
+G_INLINE_FUNC guint
+gskb_uint16_validate_unpack  (guint length,
+                             const guint8 *data,
+                             guint16 *out,
+                             GError **error)
+{
+  if (!gskb_simple_fixed_length_validate_partial ("uint16", length, 2, error))
+    return 0;
+  return gskb_uint16_unpack (data, out);
 }
 G_INLINE_FUNC void
 gskb_uint32_pack (gskb_uint32 value, GskbAppendFunc func, gpointer data)
@@ -421,6 +447,16 @@ gskb_uint32_unpack (const guint8 *data, gskb_uint32 *value_out)
 #endif
   return 4;
 }
+G_INLINE_FUNC guint
+gskb_uint32_validate_unpack  (guint length,
+                             const guint8 *data,
+                             guint32 *out,
+                             GError **error)
+{
+  if (!gskb_simple_fixed_length_validate_partial ("uint32", length, 4, error))
+    return 0;
+  return gskb_uint32_unpack (data, out);
+}
 G_INLINE_FUNC void
 gskb_uint64_pack (gskb_uint64 value, GskbAppendFunc func, gpointer data)
 {
@@ -465,6 +501,15 @@ gskb_uint64_unpack (const guint8 *data, gskb_uint64 *value_out)
   *value_out = (((gint64)hi) << 32) | (gint64) (guint32)lo;
 #endif
   return 8;
+}
+G_INLINE_FUNC guint
+gskb_int_get_packed_size (gskb_int value)
+{
+  return (-(1<<6) <= value && value < (1<<6)) ? 1
+       : (-(1<<13) <= value && value < (1<<13)) ? 2
+       : (-(1<<20) <= value && value < (1<<20)) ? 3
+       : (-(1<<27) <= value && value < (1<<27)) ? 4
+       : 5;
 }
 G_INLINE_FUNC guint
 gskb_int_pack_slab (gskb_int value, guint8 *out)
@@ -572,6 +617,15 @@ gskb_int_unpack (const guint8 *data, gskb_int *value_out)
     }
 }
 G_INLINE_FUNC guint
+gskb_uint_get_packed_size (gskb_uint value)
+{
+  return (value < (1<<7)) ? 1
+       : (value < (1<<14)) ? 2
+       : (value < (1<<21)) ? 3
+       : (value < (1<<28)) ? 4
+       : 5;
+}
+G_INLINE_FUNC guint
 gskb_uint_pack_slab (gskb_uint value, guint8 *out)
 {
   if (value < (1<<7))
@@ -633,6 +687,40 @@ gskb_uint_validate_partial (guint length,
   return 0;
 }
 G_INLINE_FUNC guint
+gskb_uint_validate_unpack  (guint length,
+                            const guint8 *data,
+                            guint32 *out,
+                            GError **error)
+{
+  /* TODO: verify this returns the shortest encoding possible? */
+  guint i;
+  guint32 o = 0;
+  guint shift = 0;
+  for (i = 0; i < 5; i++)
+    {
+      if (i == length)
+        {
+          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_TOO_SHORT,
+                       "too short parsing uint: input length is %u", length);
+          return 0;
+        }
+      if (data[i] & 0x80)
+        {
+          o |= ((guint32) (data[i] & 0x7f) << shift);
+          shift += 7;
+        }
+      else
+        {
+          *out = o | ((guint32) (data[i]) << shift);
+          return o + 1;
+        }
+    }
+  g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_TOO_SHORT,
+               "invalid uint encoding (too many bytes)");
+  return 0;
+}
+
+G_INLINE_FUNC guint
 gskb_uint_unpack (const guint8 *data, gskb_uint *value_out)
 {
   if ((data[0] & 0x80) == 0)
@@ -670,6 +758,15 @@ gskb_uint_unpack (const guint8 *data, gskb_uint *value_out)
                  | (guint32) (data[4] << 28);
       return 5;
     }
+}
+G_INLINE_FUNC guint
+gskb_long_get_packed_size (gskb_long value)
+{
+  if ((1LL<<31) <= value && value <= ((1LL<<31)-1))
+    return gskb_int_get_packed_size (value);
+  if (-(1LL<<34) <= value && value < (1LL<<34))
+    return 5;
+  return gskb_int_get_packed_size (value>>35) + 5;
 }
 G_INLINE_FUNC guint
 gskb_long_pack_slab (gskb_long value, guint8 *out)
@@ -834,6 +931,29 @@ gskb_long_unpack (const guint8 *data, gskb_long *value_out)
     }
 }
 G_INLINE_FUNC guint
+gskb_long_validate_partial (guint length,
+                           const guint8 *data,
+                           GError **error)
+{
+  /* TODO: verify this returns the shortest encoding possible? */
+  guint i;
+  for (i = 0; i < 10; i++)
+    if ((data[0] & 0x80) == 0)
+      return i + 1;
+  g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+               "validating data of type 'long': too long");
+  return 0;
+}
+G_INLINE_FUNC guint
+gskb_ulong_get_packed_size (gskb_ulong value)
+{
+  if (value <= G_MAXUINT32)
+    return gskb_uint_get_packed_size (value);
+  if (value < (1ULL<<35))
+    return 5;
+  return gskb_uint_get_packed_size (value>>35) + 5;
+}
+G_INLINE_FUNC guint
 gskb_ulong_pack_slab (gskb_ulong value, guint8 *out)
 {
   if (value <= (guint64) G_MAXUINT)
@@ -842,25 +962,25 @@ gskb_ulong_pack_slab (gskb_ulong value, guint8 *out)
   out[1] = (value >> 7) | 0x80;
   out[2] = (value >> 14) | 0x80;
   out[3] = (value >> 21) | 0x80;
-  if (value < (1ULL<<34))
+  if (value < (1ULL<<35))
     {
-      out[4] = (value >> 28) & 0x7f;
+      out[4] = (value >> 28);
       return 5;
     }
-  else if (value < (1ULL<<41))
+  else if (value < (1ULL<<42))
     {
       out[4] = (value >> 28) | 0x80;
       out[5] = (value >> 35) & 0x7f;
       return 6;
     }
-  else if (value < (1ULL<<48))
+  else if (value < (1ULL<<49))
     {
       out[4] = (value >> 28) | 0x80;
       out[5] = (value >> 35) | 0x80;
       out[6] = (value >> 42) & 0x7f;
       return 7;
     }
-  else if (value < (1ULL<<55))
+  else if (value < (1ULL<<56))
     {
       out[4] = (value >> 28) | 0x80;
       out[5] = (value >> 35) | 0x80;
@@ -868,7 +988,7 @@ gskb_ulong_pack_slab (gskb_ulong value, guint8 *out)
       out[7] = (value >> 49) & 0x7f;
       return 8;
     }
-  else if (value < (1ULL<<62))
+  else if (value < (1ULL<<63))
     {
       out[4] = (value >> 28) | 0x80;
       out[5] = (value >> 35) | 0x80;
@@ -932,6 +1052,20 @@ gskb_ulong_unpack (const guint8 *data, gskb_ulong *value_out)
                  | (guint32) (data[4] << 28);
       return 5;
     }
+}
+G_INLINE_FUNC guint
+gskb_ulong_validate_partial (guint length,
+                             const guint8 *data,
+                             GError **error)
+{
+  /* TODO: verify this returns the shortest encoding possible? */
+  guint i;
+  for (i = 0; i < 10; i++)
+    if ((data[0] & 0x80) == 0)
+      return i + 1;
+  g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+               "validating data of type 'ulong': too long");
+  return 0;
 }
 G_INLINE_FUNC void
 gskb_bit_pack (gskb_bit value, GskbAppendFunc func, gpointer data)
@@ -1001,6 +1135,13 @@ gskb_float32_unpack (const guint8 *data, gskb_float32 *value_out)
 #endif
   return 4;
 }
+G_INLINE_FUNC guint
+gskb_float32_validate_partial (guint length,
+                               const guint8 *data,
+                               GError **error)
+{
+  return gskb_simple_fixed_length_validate_partial ("float32", length, 4, error);
+}
 
 G_INLINE_FUNC void
 gskb_float64_pack (gskb_float64 value, GskbAppendFunc func, gpointer data)
@@ -1050,7 +1191,19 @@ gskb_float64_unpack (const guint8 *data, gskb_float64 *value_out)
 #endif
   return 8;
 }
+G_INLINE_FUNC guint
+gskb_float64_validate_partial (guint length,
+                               const guint8 *data,
+                               GError **error)
+{
+  return gskb_simple_fixed_length_validate_partial ("float64", length, 8, error);
+}
 
+G_INLINE_FUNC guint
+gskb_string_get_packed_size (const char *value)
+{
+  return strlen (value) + 1;
+}
 G_INLINE_FUNC void
 gskb_string_pack (gskb_string value, GskbAppendFunc func, gpointer data)
 {
@@ -1070,6 +1223,20 @@ gskb_string_unpack (const guint8 *data, gskb_string *value_out)
   *value_out = g_malloc (len + 1);
   memcpy (*value_out, data, len + 1);
   return len + 1;
+}
+G_INLINE_FUNC guint
+gskb_string_validate_partial (guint length,
+                              const guint8 *data,
+                              GError **error)
+{
+  const guint8 *nul = memchr (data, 0, length);
+  if (nul == NULL)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_TOO_SHORT,
+                   "no NUL to terminate string");
+      return 0;
+    }
+  return (nul - data) + 1;
 }
 
 #endif          /* G_CAN_INLINE */

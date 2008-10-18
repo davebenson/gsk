@@ -12,6 +12,7 @@ struct _GskbStrTableBSearchEntry
   guint32 str_slab_offset;
   /* data follows */
 };
+#define GSKB_STR_TABLE_BSEARCH_ENTRY__ALIGNOF  GSKB_ALIGNOF_UINT32
 
 typedef struct _GskbStrTableHashEntry GskbStrTableHashEntry;
 struct _GskbStrTableHashEntry
@@ -20,3 +21,4 @@ struct _GskbStrTableHashEntry
   guint32 str_slab_offset;
   /* data follows */
 };
+#define GSKB_STR_TABLE_HASH_ENTRY__ALIGNOF  GSKB_ALIGNOF_UINT32

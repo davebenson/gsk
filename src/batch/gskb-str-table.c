@@ -1,10 +1,14 @@
 #include <string.h>
 #include "gskb-str-table.h"
 #include "gskb-str-table-internals.h"
+#include "gskb-config.h"
 #include "../gskqsortmacro.h"
 
 typedef GskbStrTableHashEntry HashEntry;
 typedef GskbStrTableBSearchEntry BSearchEntry;
+
+#define ALIGNOF_BSEARCH_ENTRY GSKB_STR_TABLE_BSEARCH_ENTRY__ALIGNOF
+#define ALIGNOF_HASH_ENTRY    GSKB_STR_TABLE_HASH_ENTRY__ALIGNOF
 
 /* test if p is prime.  assume p odd. */
 static gboolean
@@ -79,8 +83,25 @@ find_perfect_hash_prime (guint          min_size,
   return 0;
 }
 
+static void
+align_data (gsize base_size,
+            gsize base_align,
+            gsize data_size,
+            gsize data_align,
+            gsize *entry_size_out,
+            gsize *entry_offset_out)
+{
+  guint s = base_size;
+  s = GSKB_ALIGN (s, data_align);
+  *entry_offset_out = s;
+  s += data_size;
+  s = GSKB_ALIGN (s, base_align);
+  *entry_size_out = s;
+}
+
 static GskbStrTable *
 make_bsearch_table (gsize     sizeof_entry_data,
+                    gsize     alignof_entry_data,
                     guint     n_entries,
                     const GskbStrTableEntry *entries)
 {
@@ -112,12 +133,15 @@ make_bsearch_table (gsize     sizeof_entry_data,
   table->sizeof_entry_data = sizeof_entry_data;
   table->is_global = FALSE;
   table->str_slab = g_malloc (str_slab_size);
+  align_data (sizeof (BSearchEntry), ALIGNOF_BSEARCH_ENTRY,
+              sizeof_entry_data, alignof_entry_data,
+              &table->sizeof_entry, &table->entry_data_offset);
   str_slab_at = table->str_slab;
   for (i = 0; i < n_entries; i++)
     {
       BSearchEntry *entry = (BSearchEntry *) bs_entries;
-      gpointer user_data = entry + 1;
-      bs_entries = (guint8*) user_data + sizeof_entry_data;
+      gpointer user_data = bs_entries + table->entry_data_offset;
+      bs_entries += table->sizeof_entry;
 
       entry->str_slab_offset = str_slab_at - table->str_slab;
       str_slab_at = g_stpcpy (str_slab_at, entries_sorted[i].str) + 1;
@@ -127,8 +151,10 @@ make_bsearch_table (gsize     sizeof_entry_data,
   table->str_slab_size = str_slab_size;
   return table;
 }
+
 static GskbStrTable *
 make_collision_free_hash_table (gsize     sizeof_entry_data,
+                                gsize     alignof_entry_data,
                                 guint     n_entries,
                                 const GskbStrTableEntry *entries,
                                 GskbStrTableType table_type,
@@ -137,10 +163,14 @@ make_collision_free_hash_table (gsize     sizeof_entry_data,
 {
   GskbStrTable *table;
   table = g_slice_new (GskbStrTable);
-  guint ent_size = sizeof(HashEntry) + sizeof_entry_data;
+  guint ent_size;
   guint8 *ht_entries;
   guint i;
   guint str_slab_size, str_slab_offset;
+  align_data (sizeof (HashEntry), ALIGNOF_HASH_ENTRY,
+              sizeof_entry_data, alignof_entry_data,
+              &table->sizeof_entry, &table->entry_data_offset);
+  ent_size = table->sizeof_entry;
   ht_entries = g_malloc (ent_size * size);
   table->table_size = size;
   table->type = table_type;
@@ -181,7 +211,8 @@ make_collision_free_hash_table (gsize     sizeof_entry_data,
           g_assert (e->str_slab_offset == G_MAXUINT32);
           e->str_slab_offset = str_slab_offset;
           e->hash_code = hashes[i];
-          memcpy (e + 1, entries[i].entry_data, sizeof_entry_data);
+          memcpy ((char*)e + table->entry_data_offset,
+                  entries[i].entry_data, sizeof_entry_data);
           table->str_slab[str_slab_offset++] = len>>8;
           if (len > 3)
             {
@@ -209,7 +240,8 @@ make_collision_free_hash_table (gsize     sizeof_entry_data,
           g_assert (e->str_slab_offset == G_MAXUINT32);
           e->str_slab_offset = str_slab_offset;
           e->hash_code = hashes[i];
-          memcpy (e + 1, entries[i].entry_data, sizeof_entry_data);
+          memcpy ((char*)e + table->entry_data_offset,
+                  entries[i].entry_data, sizeof_entry_data);
           memcpy (table->str_slab + str_slab_offset, entries[i].str,
                   len + 1);
           str_slab_offset += len + 1;
@@ -251,6 +283,7 @@ compute_hash_5003_33 (const char *str)
   return ph;
 }
 GskbStrTable *gskb_str_table_new    (gsize     sizeof_entry_data,
+                                     gsize     alignof_entry_data,
                                      guint     n_entries,
 				     const GskbStrTableEntry *entries)
 {
@@ -266,7 +299,8 @@ GskbStrTable *gskb_str_table_new    (gsize     sizeof_entry_data,
     {
       /* should be rare, and there is unlikely to be
          a collision-free hash for such a large number of entries. */
-      return make_bsearch_table (sizeof_entry_data, n_entries, entries);
+      return make_bsearch_table (sizeof_entry_data, alignof_entry_data,
+                                 n_entries, entries);
     }
 
   hashes_ablz = g_new (guint32, n_entries);
@@ -302,6 +336,7 @@ GskbStrTable *gskb_str_table_new    (gsize     sizeof_entry_data,
    && (size=find_perfect_hash_prime (min_size, max_size, n_entries, hashes_ablz)) != 0)
     {
       table = make_collision_free_hash_table (sizeof_entry_data,
+                                              alignof_entry_data,
                                               n_entries, entries,
                                               GSKB_STR_TABLE_ABLZ,
                                               size, hashes_ablz);
@@ -309,13 +344,15 @@ GskbStrTable *gskb_str_table_new    (gsize     sizeof_entry_data,
   else if ((size=find_perfect_hash_prime (min_size, max_size, n_entries, hashes_5003_33)) != 0)
     {
       table = make_collision_free_hash_table (sizeof_entry_data,
+                                              alignof_entry_data,
                                               n_entries, entries,
                                               GSKB_STR_TABLE_5003_33,
                                               size, hashes_5003_33);
     }
   else
     {
-      table = make_bsearch_table (sizeof_entry_data, n_entries, entries);
+      table = make_bsearch_table (sizeof_entry_data, alignof_entry_data,
+                                  n_entries, entries);
     }
 
   g_free (hashes_ablz);
@@ -410,6 +447,59 @@ gskb_str_table_print_compilable_deps(GskbStrTable *table,
     }
 }
 
+void
+gskb_str_table_print_compilable_object
+                                    (GskbStrTable *table,
+				     const char   *table_name,
+                                     const char   *sizeof_entry_data_str,
+                                     const char   *alignof_entry_data_str,
+				     GskBuffer    *output)
+{
+  const char *type_name;
+  const char *entry_base_type;
+  const char *entry_align = "GSKB_UINT32_ALIGN";
+  switch (table->type)
+    {
+    case GSKB_STR_TABLE_BSEARCH:
+      type_name = "GSKB_STR_TABLE_BSEARCH";
+      entry_base_type = "GskbStrTableBSearchEntry";
+      entry_align = "GSKB_STR_TABLE_BSEARCH_ENTRY__ALIGNOF";
+      break;
+    case GSKB_STR_TABLE_ABLZ:
+      type_name = "GSKB_STR_TABLE_ABLZ";
+      entry_base_type = "GskbStrTableHashEntry";
+      entry_align = "GSKB_STR_TABLE_HASH_ENTRY__ALIGNOF";
+      break;
+    case GSKB_STR_TABLE_5003_33:
+      type_name = "GSKB_STR_TABLE_5003_33";
+      entry_base_type = "GskbStrTableHashEntry";
+      entry_align = "GSKB_STR_TABLE_HASH_ENTRY__ALIGNOF";
+      break;
+    default:
+      g_return_if_reached ();
+    }
+  gsk_buffer_printf (output,
+                     "{\n"
+                     "  %s,\n"
+                     "  %u,\n"
+                     "  %s__table_data,\n"
+                     "  %s,\n"
+                     "  GSKB_ALIGN(GSKB_ALIGN(sizeof(%s),%s)+%s, %s),\n"
+                     "  GSKB_ALIGN(sizeof(%s),%s),\n"
+                     "  TRUE,\n"
+                     "  %s__str_slab,\n"
+                     "  %u\n"
+                     "}",
+                     type_name,
+                     table->table_size,
+                     table_name,
+                     sizeof_entry_data_str,
+                     entry_base_type, alignof_entry_data_str, sizeof_entry_data_str, entry_align,
+                     entry_base_type, alignof_entry_data_str,
+                     table_name,
+                     table->str_slab_size);
+}
+
 const void   *
 gskb_str_table_lookup (GskbStrTable *table,
                        const char   *str)
@@ -418,11 +508,10 @@ gskb_str_table_lookup (GskbStrTable *table,
     {
     case GSKB_STR_TABLE_BSEARCH:
       {
-        guint ent_size;
+        guint ent_size = table->sizeof_entry;
         guint start = 0, n = table->table_size;
         guint8 *td = table->table_data;
         BSearchEntry *e;
-        ent_size = sizeof(BSearchEntry) + table->sizeof_entry_data;
         while (n > 1)
           {
             guint mid = start + n / 2;
@@ -438,14 +527,14 @@ gskb_str_table_lookup (GskbStrTable *table,
               }
             else
               {
-                return e + 1;
+                return (char*)e + table->entry_data_offset;
               }
           }
         if (n == 0)
           return NULL;
         e = (BSearchEntry*)(td + ent_size * start);
         if (strcmp (table->str_slab + e->str_slab_offset, str) == 0)
-          return e + 1;
+          return (char*)e + table->entry_data_offset;
         else
           return NULL;
       }
@@ -454,12 +543,11 @@ gskb_str_table_lookup (GskbStrTable *table,
         guint len;
         guint32 code = compute_hash_ablz (str, &len);
         guint32 index;
-        guint ent_size;
+        guint ent_size = table->sizeof_entry;
         HashEntry *e;
         const guint8 *ss;
         if (len >= (1<<16))
           return NULL;
-        ent_size = sizeof(HashEntry) + table->sizeof_entry_data;
         index = code % table->table_size;
         e = (HashEntry*)(table->table_data + ent_size * index);
         if (e->str_slab_offset == G_MAXUINT32)
@@ -469,22 +557,21 @@ gskb_str_table_lookup (GskbStrTable *table,
           return NULL;
         if (len > 3 && memcmp (ss + 1, str + 2, len - 3) != 0)
           return NULL;
-        return e + 1;
+        return (char*)e + table->entry_data_offset;
       }
     case GSKB_STR_TABLE_5003_33:
       {
         guint32 code = compute_hash_5003_33 (str);
         guint32 index;
-        guint ent_size;
+        guint ent_size = table->sizeof_entry;
         HashEntry *e;
-        ent_size = sizeof(HashEntry) + table->sizeof_entry_data;
         index = code % table->table_size;
         e = (HashEntry *)(table->table_data + ent_size * index);
         if (e->str_slab_offset == G_MAXUINT32)
           return NULL;
         if (strcmp (table->str_slab + e->str_slab_offset, str) != 0)
           return NULL;
-        return e + 1;
+        return (char*)e + table->entry_data_offset;
       }
     default:
       g_return_val_if_reached (NULL);
@@ -504,6 +591,7 @@ gskb_str_table_print_static (GskbStrTable *table,
                              const char   *entry_type_name,
                              GskbStrTableEntryOutputFunc render_func,
                              const char   *sizeof_entry_str,
+                             const char   *alignof_entry_str,
                              GskBuffer    *output)
 {
   gskb_str_table_print_compilable_deps (table,
@@ -516,7 +604,7 @@ gskb_str_table_print_static (GskbStrTable *table,
                      table_name);
   gskb_str_table_print_compilable_object (table,
                                           table_name,
-                                          "sizeof (gint)",
+                                          sizeof_entry_str, alignof_entry_str,
                                           output);
   gsk_buffer_printf (output, ";\n");
 }

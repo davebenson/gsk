@@ -1,7 +1,8 @@
 #include <string.h>
 #include "gskb-format.h"
 #include "gskb-codegen-config.h"
-#include "gskb-utils.h"
+#include "gskb-str-table.h"
+#include "gskb-uint-table.h"
 
 GskbCodegenConfig *
 gskb_codegen_config_new            (const char      *type_prefix,
@@ -360,12 +361,14 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                                             config->func_prefix, format->any.lc_name);
         gskb_str_table_print_compilable_deps (format->v_struct.name_to_index,
                                               table_name,
+                                              "guint32",
                                               render_int,
                                               output);
         gsk_buffer_printf (output, "static GskbStrTable %s = ", table_name);
         gskb_str_table_print_compilable_object (format->v_struct.name_to_index,
                                               table_name,
                                               "sizeof (gint32)",
+                                              "GSKB_ALIGNOF_UINT32",
                                               output);
         gsk_buffer_printf (output, ";\n");
         g_free (table_name);
@@ -419,16 +422,19 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
 
         gskb_str_table_print_static (format->v_union.name_to_index,
                                      by_name_table_name,
+                                     "guint32",
                                      render_int,
-                                     "sizeof (gint32)",
+                                     "sizeof (guint32)",
+                                     "GSKB_ALIGNOF_UINT32",
                                      output);
-
         by_code_table_name = g_strdup_printf ("%s%s__code_to_index",
                                               config->func_prefix, format->any.lc_name);
         gskb_uint_table_print_static (format->v_union.code_to_index,
                                      by_code_table_name,
+                                     "guint32",
                                      render_int,
-                                     "sizeof (gint32)",
+                                     "sizeof (guint32)",
+                                     "GSKB_ALIGNOF_UINT32",
                                      output);
 
         gsk_buffer_printf (output,
@@ -480,8 +486,10 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                                               config->func_prefix, format->any.lc_name);
           gskb_str_table_print_static (format->v_enum.name_to_index,
                                        table_name,
+                                       "guint32",
                                        render_int,
                                        "sizeof (gint32)",
+                                       "GSKB_ALIGNOF_UINT32",
                                        output);
           g_free (table_name);
         }
@@ -490,8 +498,10 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                                               config->func_prefix, format->any.lc_name);
           gskb_uint_table_print_static (format->v_enum.value_to_index,
                                         table_name,
+                                        "guint32",
                                         render_int,
                                         "sizeof (gint32)",
+                                        "GSKB_ALIGNOF_UINT32",
                                         output);
           g_free (table_name);
         }
