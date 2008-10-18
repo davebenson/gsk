@@ -6,6 +6,7 @@
 #define GSKB_ALIGNOF_UINT32_LOG2     2
 #define GSKB_ALIGNOF_UINT16_LOG2     1
 #define GSKB_ALIGNOF_UINT8_LOG2      0
+#define GSKB_ALIGNOF_STRUCT_LOG2     0
 
 #define GSKB_BITFIELD_ENDIANNESS  G_BYTE_ORDER
 
@@ -15,6 +16,11 @@
 #define GSKB_ALIGNOF_UINT32  (1<<GSKB_ALIGNOF_UINT32_LOG2)
 #define GSKB_ALIGNOF_UINT16  (1<<GSKB_ALIGNOF_UINT16_LOG2)
 #define GSKB_ALIGNOF_UINT8   (1<<GSKB_ALIGNOF_UINT8_LOG2)
+#define GSKB_ALIGNOF_STRUCT  (1<<GSKB_ALIGNOF_STRUCT_LOG2)
+
+/* TODO: use compiler builtins where possible */
+#define GSKB_ALIGNOF(type) \
+  offsetof (struct { char a; type b; }, b)
 
 #include "gskb-bitfield-macros.h"
 #include "gskb-alignment.h"

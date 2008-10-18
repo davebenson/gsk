@@ -432,6 +432,7 @@ gskb_format_struct_new (const char             *name,
       else
         is_fixed = FALSE;
     }
+  align_of = MAX (align_of, GSKB_ALIGNOF_STRUCT);
   size += align_of - 1;
   size &= ~(align_of - 1);
   rv->base.c_size_of = size;

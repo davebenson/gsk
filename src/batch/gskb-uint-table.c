@@ -58,6 +58,7 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
       table->type = GSKB_UINT_TABLE_DIRECT;
       table->table_size = n_entries;
       table->table_data = NULL;
+      table->n_entry_data = n_entries;
       table->entry_data = make_entry_data (sizeof_entry_data,
                                            n_entries, entries_sorted);
       table->sizeof_entry_data = sizeof_entry_data;
@@ -69,6 +70,7 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
       /* range-wise optimization */
       GskbUIntTableRange *ranges;
       guint range_index;
+      table->n_entry_data = n_entries;
       table->entry_data = make_entry_data (sizeof_entry_data,
                                            n_entries, entries_sorted);
       ranges = g_new (GskbUIntTableRange, n_ranges);
@@ -110,6 +112,7 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
       table->table_size = n_entries;
       table->entry_data = make_entry_data (sizeof_entry_data,
                                            n_entries, entries_sorted);
+      table->n_entry_data = n_entries;
       for (i = 0; i < n_entries; i++)
         values[i] = entries_sorted[i].value;
       table->table_data = (guint8 *) values;
@@ -122,27 +125,105 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
   return table;
 }
 
-#if 0
 void
 gskb_uint_table_print_compilable_deps (GskbUIntTable *table,
 	         		       const char    *table_name,
                                        const char    *type_name,
-                                       GskbTableEntryOutputFunc output_func,
+                                       GskbUIntTableEntryOutputFunc output_func,
 	         		       GskBuffer     *output)
 {
+  guint i;
+  if (table->entry_data != NULL)
+    {
+      gsk_buffer_printf (output,
+                         "static %s__entry_data[%u] = {\n",
+                         table_name, table->n_entry_data);
+      for (i = 0; i < table->n_entry_data; i++)
+        {
+          gsk_buffer_append (output, "  ", 2);
+          output_func ((char*)table->entry_data + table->sizeof_entry_data * i,
+                       output);
+          gsk_buffer_append (output, ",\n", 2);
+        }
+      gsk_buffer_append (output, "};\n", 3);
+    }
+
   switch (table->type)
     {
-      ...
+    case GSKB_UINT_TABLE_EMPTY:
+      gsk_buffer_printf (output, "#define %s__table_data NULL\n", table_name);
+      break;
+    case GSKB_UINT_TABLE_DIRECT:
+      gsk_buffer_printf (output, "#define %s__table_data NULL\n", table_name);
+      break;
+    case GSKB_UINT_TABLE_BSEARCH:
+      gsk_buffer_printf (output,
+                         "static guint32 %s__table_data = {\n", table_name);
+      for (i = 0; i < table->table_size; i++)
+        {
+          gsk_buffer_printf (output,
+                             "  %u,\n",
+                             ((guint32*)table->table_data)[i]);
+        }
+      gsk_buffer_printf (output, "};\n");
+      break;
+    case GSKB_UINT_TABLE_RANGES:
+      gsk_buffer_printf (output,
+                         "static GskbUIntTableRange %s__table_data = {\n", table_name);
+      for (i = 0; i < table->table_size; i++)
+        {
+          GskbUIntTableRange r = ((GskbUIntTableRange*)table->table_data)[i];
+          gsk_buffer_printf (output, "  { %u, %u, %u },\n",
+                             r.start, r.count, r.entry_data_offset);
+        }
+      gsk_buffer_printf (output, "};\n");
     }
 }
-#endif
 
 void           gskb_uint_table_print_compilable_object
                                      (GskbUIntTable *table,
 	         		      const char   *table_name,
                                       const char   *sizeof_entry_data_str,
                                       const char   *alignof_entry_data_str,
-	         		      GskBuffer    *output);
+	         		      GskBuffer    *output)
+{
+  const char *type_name = NULL;
+  switch (table->type)
+    {
+    case GSKB_UINT_TABLE_EMPTY:
+      type_name = "GSKB_UINT_TABLE_EMPTY";
+      break;
+    case GSKB_UINT_TABLE_DIRECT:
+      type_name = "GSKB_UINT_TABLE_DIRECT";
+      break;
+    case GSKB_UINT_TABLE_BSEARCH:
+      type_name = "GSKB_UINT_TABLE_BSEARCH";
+      break;
+    case GSKB_UINT_TABLE_RANGES:
+      type_name = "GSKB_UINT_TABLE_RANGES";
+      break;
+    }
+
+  gsk_buffer_printf (output,
+                     "{\n"
+                     "  %s,\n"
+                     "  %u,\n"
+                     "  %s__table_data,\n"
+                     "  %u,\n"
+                     "  %s__entry_data,\n"
+                     "  %s,\n"
+                     "  %u,\n"
+                     "  TRUE   /* is_global */\n"
+                     "}",
+                     type_name,
+                     table->table_size,
+                     table_name,
+                     table->n_entry_data,
+                     table_name,
+                     sizeof_entry_data_str,
+                     table->max_value);
+}
+
 void           gskb_uint_table_print_static
                                      (GskbUIntTable *table,
 	         		      const char   *table_name,
@@ -150,7 +231,18 @@ void           gskb_uint_table_print_static
                                       GskbUIntTableEntryOutputFunc output_func,
                                       const char   *sizeof_entry_data_str,
                                       const char   *alignof_entry_data_str,
-	         		      GskBuffer    *output);
+	         		      GskBuffer    *output)
+{
+  gskb_uint_table_print_compilable_deps (table, table_name, type_name,
+                                         output_func, output);
+  gsk_buffer_printf (output, "static GskbUIntTable %s = ", table_name);
+  gskb_uint_table_print_compilable_object (table, table_name,
+                                           sizeof_entry_data_str,
+                                           alignof_entry_data_str,
+                                           output);
+  gsk_buffer_printf (output, ";\n");
+}
+
 const void   * gskb_uint_table_lookup(GskbUIntTable *table,
                                       guint32       value)
 {

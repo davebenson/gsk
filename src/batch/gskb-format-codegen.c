@@ -201,7 +201,7 @@ implement_format_any (GskbFormat *format,
                          "  1,          /* ref_count */\n"
                          "  \"%s\", \"%s\", \"%s\",  /* various names */\n"
                          "  %s,         /* ctype */\n"
-                         "  sizeof(%s%s), alignof(%s%s),\n"
+                         "  sizeof(%s%s), GSKB_ALIGNOF(%s%s),\n"
                          "  %u,       /* always by pointer */\n"
                          "  %u,       /* requires_destruct */\n"
                          "  %u        /* fixed_length */\n"

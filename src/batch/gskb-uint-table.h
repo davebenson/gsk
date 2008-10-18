@@ -12,7 +12,8 @@ struct _GskbUIntTable
   guint type;
   guint table_size;
   void *table_data;
-  void *entry_data;             /* used for ranges, at least */
+  guint n_entry_data;
+  void *entry_data;
   gsize sizeof_entry_data;
   guint32 max_value;            /* must be less than G_MAXUINT32 */
   gboolean is_global;
@@ -32,6 +33,7 @@ GskbUIntTable *gskb_uint_table_new   (gsize          sizeof_entry_data,
 void           gskb_uint_table_print_compilable_deps
                                      (GskbUIntTable *table,
 	         		      const char    *table_name,
+                                      const char    *type_name,
                                       GskbUIntTableEntryOutputFunc output_func,
 	         		      GskBuffer     *output);
 void           gskb_uint_table_print_compilable_object
