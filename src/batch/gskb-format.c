@@ -28,6 +28,7 @@
 
 
 #include <string.h>
+#include <stdlib.h>
 #include "gskb-alignment.h"
 #include "gskb-format.h"
 #include "gskb-config.h"
@@ -222,18 +223,6 @@ gskb_format_fixed_array_new (guint length,
   g_return_val_if_fail (length > 0, NULL);
   rv->base.type = GSKB_FORMAT_TYPE_FIXED_ARRAY;
   rv->base.ref_count = 1;
-  if (element_format->any.name == NULL)
-    {
-      rv->base.name = NULL;
-      rv->base.TypeName = NULL;
-      rv->base.lc_name = NULL;
-    }
-  else
-    {
-      rv->base.name = g_strdup_printf ("%s_Array%u", element_format->any.TypeName, length);
-      rv->base.TypeName = g_strdup (rv->base.name);
-      rv->base.lc_name = g_strdup_printf ("%s_array%u", element_format->any.lc_name, length);
-    }
   rv->base.ctype = GSKB_FORMAT_CTYPE_COMPOSITE;
   rv->base.c_size_of = length * element_format->any.c_size_of;
   rv->base.c_align_of = element_format->any.c_align_of;
@@ -241,15 +230,6 @@ gskb_format_fixed_array_new (guint length,
   rv->base.requires_destruct = element_format->any.requires_destruct;
   rv->base.is_global = 0;
   rv->base.fixed_length = element_format->any.fixed_length * length;
-  //rv->base.n_members = length;
-  //rv->base.members = g_new (GskbFormatCMember, length);
-  //for (i = 0; i < length; i++)
-  //  {
-  //    rv->base.members[i].name = g_strdup_printf ("%u", i);
-  //    rv->base.members[i].ctype = element_format->any.ctype;
-  //    rv->base.members[i].format = gskb_format_ref (element_format);
-  //    rv->base.members[i].c_offset_of = element_format->any.c_size_of * i;
-  //  }
   rv->length = length;
   rv->element_format = gskb_format_ref (element_format);
   return (GskbFormat *) rv;
@@ -271,18 +251,6 @@ gskb_format_length_prefixed_array_new (GskbFormat *element_format)
   GskbFormatLengthPrefixedArray *rv = g_new0 (GskbFormatLengthPrefixedArray, 1);
   rv->base.type = GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY;
   rv->base.ref_count = 1;
-  if (element_format->any.name == NULL)
-    {
-      rv->base.name = NULL;
-      rv->base.TypeName = NULL;
-      rv->base.lc_name = NULL;
-    }
-  else
-    {
-      rv->base.name = g_strdup_printf ("%s_Array", element_format->any.TypeName);
-      rv->base.TypeName = g_strdup (rv->base.name);
-      rv->base.lc_name = g_strdup_printf ("%s_array", element_format->any.lc_name);
-    }
   rv->base.ctype = GSKB_FORMAT_CTYPE_COMPOSITE;
   rv->base.c_size_of = sizeof (GenericLengthPrefixedArray);
   rv->base.c_align_of = MAX (GSKB_ALIGNOF_UINT32, GSKB_ALIGNOF_POINTER);
@@ -357,8 +325,7 @@ gskb_format_length_prefixed_array_new (GskbFormat *element_format)
  * returns: a GskbFormat representing the structure.
  */
 GskbFormat *
-gskb_format_struct_new (const char             *name,
-                        gboolean                is_extensible,
+gskb_format_struct_new (gboolean                is_extensible,
                         guint                   n_members,
                         GskbFormatStructMember *members,
                         GError                **error)
@@ -374,8 +341,7 @@ gskb_format_struct_new (const char             *name,
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN,
                    GSK_ERROR_INVALID_ARGUMENT,
-                   "structure must have at least one member (%s)",
-                   name ? name : "anonymous struct");
+                   "structure must have at least one member");
       return NULL;
     }
   {
@@ -386,8 +352,7 @@ gskb_format_struct_new (const char             *name,
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
-                         "member %u was unnamed -- not allowed (%s)",
-                         i, name ? name : "anonymous struct");
+                         "member %u was unnamed -- not allowed", i);
             g_hash_table_destroy (dup_check);
             return NULL;
           }
@@ -395,8 +360,8 @@ gskb_format_struct_new (const char             *name,
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
-                         "non-unique member name %s -- not allowed (%s)",
-                         members[i].name, name ? name : "anonymous struct");
+                         "non-unique member name %s -- not allowed",
+                         members[i].name);
             g_hash_table_destroy (dup_check);
             return NULL;
           }
@@ -465,8 +430,6 @@ gskb_format_struct_new (const char             *name,
     g_free (entries);
   }
 
-  if (name != NULL)
-    gskb_format_name_anonymous ((GskbFormat*)rv, name);
   return (GskbFormat *) rv;
 }
 
@@ -491,8 +454,7 @@ gskb_format_struct_new (const char             *name,
  * returns: a GskbFormat representing the union.
  */
 GskbFormat *
-gskb_format_union_new (const char *name,
-                       gboolean is_extensible,
+gskb_format_union_new (gboolean is_extensible,
                        GskbFormatIntType int_type,
                        guint n_cases,
                        GskbFormatUnionCase *cases,
@@ -507,17 +469,15 @@ gskb_format_union_new (const char *name,
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN,
                    GSK_ERROR_INVALID_ARGUMENT,
-                   "union must have at least one case (%s)",
-                   name ? name : "anonymous union");
+                   "union must have at least one case");
       return NULL;
     }
   if (!IS_ALLOWED_ENUM_INT_TYPE (int_type))
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN,
                    GSK_ERROR_INVALID_ARGUMENT,
-                   "invalid int-type %s for union (%s)",
-                   gskb_format_int_type_name (int_type),
-                   name ? name : "anonymous union");
+                   "invalid int-type %s for union",
+                   gskb_format_int_type_name (int_type));
       return NULL;
     }
   {
@@ -529,8 +489,7 @@ gskb_format_union_new (const char *name,
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
-                         "case %u was unnamed -- not allowed (%s)",
-                         i, name ? name : "anonymous union");
+                         "case %u was unnamed -- not allowed", i);
             g_hash_table_destroy (dup_name_check);
             g_hash_table_destroy (dup_value_check);
             return NULL;
@@ -539,8 +498,8 @@ gskb_format_union_new (const char *name,
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
-                         "non-unique member name %s -- not allowed (%s)",
-                         cases[i].name, name ? name : "anonymous union");
+                         "non-unique member name %s -- not allowed",
+                         cases[i].name);
             g_hash_table_destroy (dup_name_check);
             g_hash_table_destroy (dup_value_check);
             return NULL;
@@ -559,8 +518,8 @@ gskb_format_union_new (const char *name,
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
-                         "non-unique member value %u -- not allowed (%s)",
-                         cases[i].code, name ? name : "anonymous union");
+                         "non-unique member value %u -- not allowed",
+                         cases[i].code);
             g_hash_table_destroy (dup_name_check);
             g_hash_table_destroy (dup_value_check);
             return NULL;
@@ -587,7 +546,7 @@ gskb_format_union_new (const char *name,
         ev[i].name = "unknown_value";
         ev[i].code = GSKB_FORMAT_UNION_UNKNOWN_VALUE_CODE;
       }
-    type_format = gskb_format_enum_new (NULL, is_extensible, int_type, n_cases, ev, error);
+    type_format = gskb_format_enum_new (is_extensible, int_type, n_cases, ev, error);
     g_assert (type_format != NULL);
     g_free (ev);
   }
@@ -618,9 +577,6 @@ gskb_format_union_new (const char *name,
   rv->int_type = int_type;
   rv->is_extensible = is_extensible;
 
-  if (name != NULL)
-    gskb_format_name_anonymous ((GskbFormat*)rv, name);
-
   return (GskbFormat *) rv;
 }
 
@@ -643,8 +599,7 @@ gskb_format_union_new (const char *name,
  * returns: a GskbFormat representing the enum.
  */
 GskbFormat *
-gskb_format_enum_new  (const char *name,
-                       gboolean    is_extensible,
+gskb_format_enum_new  (gboolean    is_extensible,
                        GskbFormatIntType int_type,
                        guint n_values,
                        GskbFormatEnumValue *values,
@@ -659,9 +614,8 @@ gskb_format_enum_new  (const char *name,
     {
       g_set_error (error, GSK_G_ERROR_DOMAIN,
                    GSK_ERROR_INVALID_ARGUMENT,
-                   "invalid int-type %s for enum (%s)",
-                   gskb_format_int_type_name (int_type),
-                   name ? name : "anonymous enum");
+                   "invalid int-type %s for enum",
+                   gskb_format_int_type_name (int_type));
       return NULL;
     }
   {
@@ -673,8 +627,8 @@ gskb_format_enum_new  (const char *name,
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
-                         "value %u was unnamed -- not allowed (%s)",
-                         i, name ? name : "anonymous enum");
+                         "value %u was unnamed -- not allowed",
+                         i);
             g_hash_table_destroy (dup_name_check);
             g_hash_table_destroy (dup_value_check);
             return NULL;
@@ -683,8 +637,8 @@ gskb_format_enum_new  (const char *name,
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
-                         "non-unique member name %s -- not allowed (%s)",
-                         values[i].name, name ? name : "anonymous enum");
+                         "non-unique member name %s -- not allowed",
+                         values[i].name);
             g_hash_table_destroy (dup_name_check);
             g_hash_table_destroy (dup_value_check);
             return NULL;
@@ -693,8 +647,8 @@ gskb_format_enum_new  (const char *name,
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
-                         "non-unique member value %u -- not allowed (%s)",
-                         values[i].code, name ? name : "anonymous enum");
+                         "non-unique member value %u -- not allowed",
+                         values[i].code);
             g_hash_table_destroy (dup_name_check);
             g_hash_table_destroy (dup_value_check);
             return NULL;
@@ -752,8 +706,6 @@ gskb_format_enum_new  (const char *name,
   g_free (indices);
   g_free (str_table_entries);
   g_free (uint_table_entries);
-  if (name != NULL)
-    gskb_format_name_anonymous ((GskbFormat*)rv, name);
   return (GskbFormat *) rv;
 }
 
@@ -779,8 +731,7 @@ gskb_format_enum_new  (const char *name,
  * returns: a GskbFormat representing the bit-fields.
  */
 GskbFormat *
-gskb_format_bit_fields_new (const char            *name,
-                            guint                  n_fields,
+gskb_format_bit_fields_new (guint                  n_fields,
                             GskbFormatBitField    *fields,
                             GError               **error)
 {
@@ -798,16 +749,16 @@ gskb_format_bit_fields_new (const char            *name,
       if (fields[i].length == 0)
         {
           g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_INVALID_ARGUMENT,
-                       "zero length field not allowed (field name %s, in %s)",
-                       fields[i].name, name ? name : "*unnamed bitfields*");
+                       "zero length field not allowed (field name %s)",
+                       fields[i].name);
           return NULL;
         }
       if (fields[i].length > 8)
         {
           g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_INVALID_ARGUMENT,
-                       "field too many bits (%u) (field name %s, in %s)",
+                       "field too many bits (%u) (field name %s)",
                        fields[i].length,
-                       fields[i].name, name ? name : "*unnamed bitfields*");
+                       fields[i].name);
           return NULL;
         }
       indices[i] = i;
@@ -819,8 +770,7 @@ gskb_format_bit_fields_new (const char            *name,
     {
       /* duplicate name error */
       g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_INVALID_ARGUMENT,
-                   "two fields in %s have the same name",
-                   name ? name : "*unnamed bitfields*");
+                   "two fields have the same name");            /* XXX: which name? */
       return NULL;
     }
 
@@ -957,9 +907,13 @@ gskb_format_unref (GskbFormat *format)
           gskb_format_unref (format->v_alias.format);
           break;
         }
-      g_free (format->any.name);
-      g_free (format->any.TypeName);
-      g_free (format->any.lc_name);
+      if (format->any.ns)
+        {
+          g_free (format->any.name);
+          g_free (format->any.c_func_prefix);
+          g_free (format->any.c_type_name);
+          gskb_namespace_unref (format->any.ns);
+        }
       g_free (format);
     }
 }
@@ -1024,13 +978,9 @@ GskbFormatUnionCase    *gskb_format_union_find_case_code(GskbFormat *format,
 }
 
 /* used internally by union_new and struct_new */
-gboolean    gskb_format_is_anonymous   (GskbFormat *format)
-{
-  return format->any.lc_name == NULL;
-}
-
 static void
 maybe_name_subformat (GskbFormat *format,
+                      GskbNamespace *ns,
                       const char *parent_name,
                       const char *member_name)
 {
@@ -1038,39 +988,49 @@ maybe_name_subformat (GskbFormat *format,
     {
       char *mixed = lc_to_mixed (member_name);
       char *type_name = g_strdup_printf ("%s_%s", parent_name, mixed);
-      gskb_format_name_anonymous (format, type_name);
+      gskb_format_set_name (format, ns, type_name);
       g_free (mixed);
       g_free (type_name);
     }
 }
 
 void
-gskb_format_name_anonymous (GskbFormat *anon_format,
-                            const char *name)
+gskb_format_set_name       (GskbFormat    *format,
+                            GskbNamespace *ns,
+                            const char    *name)
 {
   guint i;
-  g_return_if_fail (anon_format->any.lc_name == NULL);
-  anon_format->any.lc_name = mixed_to_lc (name);
-  anon_format->any.name = g_strdup (name);
-  anon_format->any.TypeName = anon_format->any.name;
+  char *lc_name;
 
-  switch (anon_format->type)
+  g_return_if_fail (format->any.ns == NULL);
+  g_return_if_fail (format->any.name == NULL);
+  g_return_if_fail (ns != NULL);
+  g_return_if_fail (name != NULL);
+  g_return_if_fail (gskb_namespace_lookup_format (ns, name) == NULL);
+  g_return_if_fail (ns->is_writable);
+
+  lc_name = mixed_to_lc (name);
+  format->any.name = g_strdup (name);
+  format->any.c_func_prefix = g_strconcat (ns->c_func_prefix, lc_name, NULL);
+  format->any.c_type_name = g_strconcat (ns->c_type_prefix, name, NULL);
+
+  switch (format->type)
     {
     case GSKB_FORMAT_TYPE_STRUCT:
-      for (i = 0; i < anon_format->v_struct.n_members; i++)
+      for (i = 0; i < format->v_struct.n_members; i++)
         {
-          GskbFormatStructMember *m = anon_format->v_struct.members + i;
-          maybe_name_subformat (m->format, name, m->name);
+          GskbFormatStructMember *m = format->v_struct.members + i;
+          maybe_name_subformat (m->format, ns, name, m->name);
         }
       break;
     case GSKB_FORMAT_TYPE_UNION:
-      for (i = 0; i < anon_format->v_union.n_cases; i++)
+      for (i = 0; i < format->v_union.n_cases; i++)
         {
-          GskbFormatUnionCase *m = anon_format->v_union.cases + i;
+          GskbFormatUnionCase *m = format->v_union.cases + i;
           if (m->format != NULL)
-            maybe_name_subformat (m->format, name, m->name);
+            maybe_name_subformat (m->format, ns, name, m->name);
         }
-      maybe_name_subformat (anon_format->v_union.type_format, name, "type");
+      maybe_name_subformat (format->v_union.type_format, ns, name, "type");
       break;
     default:
       /* no child types to name */
@@ -2498,186 +2458,349 @@ gskb_format_unpack_value_mempool (GskbFormat    *format,
 
 GskbFormatInt gskb_format_ints_array[GSKB_N_FORMAT_INT_TYPES] =
 {
-  {                             /* int8 */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "int8", "Int8", "int8",
-      GSKB_FORMAT_CTYPE_INT8,
-      GSKB_ALIGNOF_UINT8, sizeof(gint8),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      1                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_INT8
-  },
-  {                             /* int16 */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "int16", "Int16", "int16",
-      GSKB_FORMAT_CTYPE_INT16,
-      GSKB_ALIGNOF_UINT16, sizeof(gint16),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      2                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_INT16
-  },
-  {                             /* int32 */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "int32", "Int32", "int32",
-      GSKB_FORMAT_CTYPE_INT32,
-      GSKB_ALIGNOF_UINT32, sizeof(gint32),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      4                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_INT32
-  },
-  {                             /* int64 */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "int64", "Int64", "int64",
-      GSKB_FORMAT_CTYPE_INT64,
-      GSKB_ALIGNOF_UINT64, sizeof(gint64),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      8                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_INT64
-  },
-  {                             /* uint8 */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "uint8", "Int8", "uint8",
-      GSKB_FORMAT_CTYPE_UINT8,
-      GSKB_ALIGNOF_UINT8, sizeof(guint8),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      1                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_UINT8
-  },
-  {                             /* uint16 */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "uint16", "UInt16", "uint16",
-      GSKB_FORMAT_CTYPE_UINT16,
-      GSKB_ALIGNOF_UINT16, sizeof(guint16),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      2                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_UINT16
-  },
-  {                             /* uint32 */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "uint32", "UInt32", "uint32",
-      GSKB_FORMAT_CTYPE_UINT32,
-      GSKB_ALIGNOF_UINT32, sizeof(guint32),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      4                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_UINT32
-  },
-  {                             /* uint64 */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "uint64", "UInt64", "uint64",
-      GSKB_FORMAT_CTYPE_UINT64,
-      GSKB_ALIGNOF_UINT64, sizeof(guint64),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      8                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_UINT64
-  },
-  {                             /* int */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "int", "Int", "int",
-      GSKB_FORMAT_CTYPE_INT32,
-      GSKB_ALIGNOF_UINT32, sizeof(guint32),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      0                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_INT
-  },
-  {                             /* uint */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "uint", "UInt", "uint",
-      GSKB_FORMAT_CTYPE_UINT32,
-      GSKB_ALIGNOF_UINT32, sizeof(guint32),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      0                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_UINT
-  },
-  {                             /* long */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "long", "Long", "long",
-      GSKB_FORMAT_CTYPE_INT64,
-      GSKB_ALIGNOF_UINT64, sizeof(guint64),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      0                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_LONG
-  },
-  {                             /* ulong */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "ulong", "ULong", "ulong",
-      GSKB_FORMAT_CTYPE_UINT64,
-      GSKB_ALIGNOF_UINT64, sizeof(guint64),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      0                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_ULONG
-  },
-  {                             /* bit */
-    {
-      GSKB_FORMAT_TYPE_INT,
-      1,                /* ref_count */
-      "bit", "Bit", "bit",
-      GSKB_FORMAT_CTYPE_UINT8,
-      GSKB_ALIGNOF_UINT8, sizeof(guint8),
-      FALSE,            /* always_by_pointer */
-      FALSE,            /* requires_destruct */
-      TRUE,             /* is global */
-      1                 /* fixed_length */
-    },
-    GSKB_FORMAT_INT_BIT
-  },
+#define WRITE_INT_FORMAT(name, CTYPE, ALIGN_CTYPE, TYPE, type, fixedlen) \
+  {                                             \
+    {                                           \
+      GSKB_FORMAT_TYPE_INT,                     \
+      1,                /* ref_count */         \
+      &gskb_namespace_gskb,                     \
+      name, "gskb_" name, "gskb_" name,         \
+      GSKB_FORMAT_CTYPE_##CTYPE,                \
+      GSKB_ALIGNOF_##ALIGN_CTYPE, sizeof(type), \
+      FALSE,            /* always_by_pointer */ \
+      FALSE,            /* requires_destruct */ \
+      TRUE,             /* is global */         \
+      fixedlen          /* fixed_length */      \
+    },                                          \
+    GSKB_FORMAT_INT_##TYPE                      \
+  }
+  WRITE_INT_FORMAT ("int8",   INT8,   UINT8,  INT8,   gint8,    1),
+  WRITE_INT_FORMAT ("int16",  INT16,  UINT16, INT16,  gint16,   2),
+  WRITE_INT_FORMAT ("int32",  INT32,  UINT16, INT32,  gint32,   4),
+  WRITE_INT_FORMAT ("int64",  INT64,  UINT64, INT64,  gint64,   8),
+  WRITE_INT_FORMAT ("uint8",  UINT8,  UINT8,  UINT8,  guint8,   1),
+  WRITE_INT_FORMAT ("uint16", UINT16, UINT16, UINT16, guint16,  2),
+  WRITE_INT_FORMAT ("uint32", UINT32, UINT16, UINT32, guint32,  4),
+  WRITE_INT_FORMAT ("uint64", UINT64, UINT64, UINT64, guint64,  8),
+  WRITE_INT_FORMAT ("int",    INT32,  UINT32, INT,    gint32,   0),
+  WRITE_INT_FORMAT ("uint",   UINT32, UINT32, UINT,   guint32,  0),
+  WRITE_INT_FORMAT ("long",   INT64,  UINT64, LONG,   gint64,   0),
+  WRITE_INT_FORMAT ("ulong",  UINT64, UINT64, ULONG,  guint64,  0),
+  WRITE_INT_FORMAT ("bit",    UINT8,  UINT8,  BIT,    gskb_bit, 0)
+#undef WRITE_INT_FORMAT
 };
+
+GskbFormatFloat gskb_format_floats_array[GSKB_N_FORMAT_FLOAT_TYPES] =
+{
+#define WRITE_FLOAT_FORMAT(name, CTYPE, ALIGN_CTYPE, TYPE, type, fixedlen) \
+  {                                             \
+    {                                           \
+      GSKB_FORMAT_TYPE_FLOAT,                   \
+      1,                /* ref_count */         \
+      &gskb_namespace_gskb,                     \
+      name, "gskb_" name, "gskb_" name,         \
+      GSKB_FORMAT_CTYPE_##CTYPE,                \
+      GSKB_ALIGNOF_##ALIGN_CTYPE, sizeof(type), \
+      FALSE,            /* always_by_pointer */ \
+      FALSE,            /* requires_destruct */ \
+      TRUE,             /* is global */         \
+      fixedlen          /* fixed_length */      \
+    },                                          \
+    GSKB_FORMAT_FLOAT_##TYPE                    \
+  }
+  WRITE_FLOAT_FORMAT ("float32",  FLOAT,   FLOAT,  FLOAT32, gfloat,  4),
+  WRITE_FLOAT_FORMAT ("float64",  DOUBLE,  DOUBLE, FLOAT64, gdouble, 8),
+#undef WRITE_FLOAT_FORMAT
+};
+GskbFormatString gskb_string_format_instance =
+{
+  {
+    GSKB_FORMAT_TYPE_FLOAT,
+    1,                /* ref_count */
+    &gskb_namespace_gskb,
+    "string", "gskb_string", "gskb_string",
+    GSKB_FORMAT_CTYPE_STRING,
+    GSKB_ALIGNOF_POINTER, sizeof(char*),
+    FALSE,            /* always_by_pointer */
+    TRUE,             /* requires_destruct */
+    TRUE,             /* is global */
+    0                 /* fixed_length */
+  }
+};
+
+#include "gskb-namespace-gskb-generated.inc"
+
+GskbNamespace gskb_namespace_gskb =
+{
+  1,            /* ref_count */
+  &gskb_namespace_gskb__str_table,
+  "gskb", "gskb_", "Gskb_",
+  G_N_ELEMENTS (gskb_namespace_gskb__formats),
+  gskb_namespace_gskb__formats,
+  G_N_ELEMENTS (gskb_namespace_gskb__formats),
+  1,            /* is_global */
+  0             /* !is_writable */
+};
+
+GskbContext *
+gskb_context_new (void)
+{
+  GskbContext *context = g_new (GskbContext, 1);
+  context->ref_count = 1;
+  context->ns_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
+                                               (GDestroyNotify) gskb_namespace_unref);
+  context->implemented_namespaces = g_ptr_array_new ();
+  return context;
+}
+
+GskbContext   *
+gskb_context_ref (GskbContext   *context)
+{
+  g_return_val_if_fail (context->ref_count > 0, context);
+  context->ref_count += 1;
+  return context;
+}
+
+void
+gskb_context_unref          (GskbContext   *context)
+{
+  if (--(context->ref_count) == 0)
+    {
+      g_hash_table_destroy (context->ns_by_name);
+      g_ptr_array_free (context->implemented_namespaces, TRUE);
+      g_free (context);
+    }
+}
+
+void
+gskb_context_add_namespace  (GskbContext   *context,
+                             GskbNamespace *ns)
+{
+  g_return_if_fail (g_hash_table_lookup (context->ns_by_name, ns->name) == NULL);
+  g_hash_table_insert (context->ns_by_name,
+                       ns->name,
+                       gskb_namespace_ref (ns));
+}
+
+/* --- parsing --- */
+#include "gskb-parser-lemon.h"
+#include "gskb-parser-lemon.c"
+#include "parser-symbol-table.inc"
+
+static GskbParseToken *
+tokenize_string (const char *pseudo_filename,
+                 const char *str,
+                 guint      *n_tokens_out,
+                 GError    **error)
+{
+  /* characters:  { } [ ] ;     (aka LBRACE RBRACE LBRACKET RBRACKET SEMICOLON)
+   * nonliterals: INTEGER BAREWORD
+   * keywords:    alias enum bitfields struct union extensible 
+   *              int8  int16  int32  int64  int  long
+   *              uint8 uint16 uint32 uint64 uint ulong bit
+   *              float32 float64 string
+   */
+  const char *at = str;
+  guint line_no = 1;
+  guint column_no = 1;
+  GArray *tokens = g_array_new (FALSE, FALSE, sizeof (GskbParseToken));
+  while (*at)
+    {
+      GskbParseToken token = { pseudo_filename, line_no, 0, NULL, 0 };
+      if (g_ascii_isspace (*at))
+        {
+          if (*at == '\n')
+            {
+              line_no++;
+              column_no = 1;
+              continue;
+            }
+          else
+            {
+              column_no++;
+            }
+          at++;
+          continue;
+        }
+      {
+        /* NOTE: special_chars[] and special_tokens[] must match exactly! */
+        static const char special_chars[] = "[]{};:=";
+        static const guint special_tokens[] = {
+          GSKB_TOKEN_TYPE_LBRACKET,
+          GSKB_TOKEN_TYPE_RBRACKET,
+          GSKB_TOKEN_TYPE_LBRACE,
+          GSKB_TOKEN_TYPE_RBRACE,
+          GSKB_TOKEN_TYPE_SEMICOLON,
+          GSKB_TOKEN_TYPE_COLON,
+          GSKB_TOKEN_TYPE_EQUALS,
+        };
+        const char *sc = strchr (special_chars, *at);
+        if (sc != NULL)
+          {
+            guint offset = sc - special_chars;
+            token.str = g_strndup (at, 1);
+            token.type = special_tokens[offset];
+            g_array_append_val (tokens, token);
+            at++;
+            column_no++;
+            continue;
+          }
+      }
+      if (g_ascii_isdigit (*at))
+        {
+          guint len = 1;
+          char *tmp;
+          while (g_ascii_isdigit (at[len]))
+            len++;
+          if (g_ascii_isalpha (at[len])
+              || at[len] == '_'
+              || at[len] == '.')
+            {
+              g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                           "unexpected character '%c' after integer (%s, line %u, column %u)",
+                           at[len], pseudo_filename, line_no, column_no);
+              goto error;
+            }
+          /* parse integer token */
+          tmp = g_malloc (len + 1);
+          memcpy (tmp, at, len);
+          tmp[len] = 0;
+          token.str = tmp;
+          token.type = GSKB_TOKEN_TYPE_INTEGER;
+          token.i = strtoul (tmp, NULL, 10);
+          g_array_append_val (tokens, token);
+          at += len;
+          continue;
+        }
+      if (g_ascii_isalpha (*at))
+        {
+          /* read string */
+          guint len = 0;
+          const guint32 *tt_ptr;
+          while (g_ascii_isalnum (at[len]) || at[len] == '_')
+            len++;
+          token.str = g_strndup (at, len);
+
+          /* is it a special token? */
+          tt_ptr = gskb_str_table_lookup (&gskb_parser_symbol_table, token.str);
+          if (tt_ptr)
+            token.type = * tt_ptr;
+          else
+            token.type = GSKB_TOKEN_TYPE_BAREWORD;
+          g_array_append_val (tokens, token);
+
+          at += len;
+          continue;
+        }
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                   "unexpected character '%c', %s: line %u, column %u",
+                   *at, pseudo_filename, line_no, column_no);
+      goto error;
+    }
+  if (tokens->len == 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                   "empty file (%s)", pseudo_filename);
+      goto error;
+    }
+  *n_tokens_out = tokens->len;
+  return (GskbParseToken *) g_array_free (tokens, FALSE);
+
+error:
+  {
+    guint i;
+    for (i = 0; i < tokens->len; i++)
+      g_free (g_array_index (tokens, GskbParseToken, i).str);
+    g_array_free (tokens, TRUE);
+  }
+  return NULL;
+}
+
+static gboolean
+parse_tokens (GskbContext *context,
+              guint n_tokens,
+              GskbParseToken *tokens,
+              GError    **error)
+{
+  void *yy = gskb_lemon_parser_Alloc ((void*(*)(size_t))g_malloc);
+  GskbParseContext parse_context;
+  guint i;
+  memset (&parse_context, 0, sizeof (parse_context));
+  parse_context.context = context;
+  parse_context.errors = g_ptr_array_new ();
+
+  for (i = 0; i < n_tokens; i++)
+    {
+      gskb_lemon_parser_(yy, tokens[i].type, &tokens[i], &parse_context);
+      if (parse_context.errors->len != 0)
+        goto got_parse_error;
+    }
+
+  g_ptr_array_free (parse_context.errors, TRUE);
+  gskb_lemon_parser_Free (yy, g_free);
+  return TRUE;
+
+got_parse_error:
+  if (error)
+    *error = g_error_copy (parse_context.errors->pdata[0]);
+  g_ptr_array_foreach (parse_context.errors, (GFunc) g_error_free, NULL);
+  g_ptr_array_free (parse_context.errors, TRUE);
+  gskb_lemon_parser_Free (yy, g_free);
+  return FALSE;
+}
+
+static void
+free_token_array (guint n_tokens,
+                  GskbParseToken *tokens)
+{
+  guint i;
+  for (i = 0; i < n_tokens; i++)
+    g_free (tokens[i].str);
+  g_free (tokens);
+}
+
+gboolean
+gskb_context_parse_string  (GskbContext   *context,
+                            const char    *pseudo_filename,
+                            const char    *str,
+                            GError       **error)
+{
+  guint n_tokens;
+  GskbParseToken *tokens = tokenize_string (pseudo_filename, str, &n_tokens, error);
+  if (tokens == NULL)
+    {
+      return FALSE;
+    }
+  if (!parse_tokens (context, n_tokens, tokens, error))
+    {
+      free_token_array (n_tokens, tokens);
+      return FALSE;
+    }
+  free_token_array (n_tokens, tokens);
+  return TRUE;
+}
+
+gboolean
+gskb_context_parse_file    (GskbContext   *context,
+                            const char    *filename,
+                            GError       **error)
+{
+  char *contents;
+  gsize length;
+  gboolean rv;
+  if (!g_file_get_contents (filename, &contents, &length, error))
+    return FALSE;
+  rv = gskb_context_parse_string (context, filename, contents, error);
+  g_free (contents);
+  return rv;
+}
+
+#if 0
+GskbFormat *
+gskb_context_parse_format  (GskbContext   *context,
+                            const char    *str,
+                            GError       **error)
+{
+  ...
+}
+#endif

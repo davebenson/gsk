@@ -15,6 +15,7 @@ struct _GskbStrTable
   gsize sizeof_entry;
   gsize entry_data_offset;
   gboolean is_global;
+  gboolean is_ptr;
   char *str_slab;
   guint str_slab_size;
 };
@@ -34,6 +35,8 @@ GskbStrTable *gskb_str_table_new    (gsize         sizeof_entry_data,
                                      gsize         alignof_entry_data,
                                      guint         n_entries,
 				     const GskbStrTableEntry *entry);
+GskbStrTable *gskb_str_table_new_ptr(guint         n_entries,
+				     const GskbStrTableEntry *entry);
 void          gskb_str_table_print_compilable_deps
                                     (GskbStrTable *table,
 				     const char   *table_name,
@@ -47,8 +50,8 @@ void          gskb_str_table_print_compilable_object
                                      const char   *alignof_entry_data_str,
 				     GskBuffer    *output);
 /* helper function which calls the above to functions to declare the table staticly. */
-void          gskb_str_table_print_static
-                                    (GskbStrTable *table,
+void          gskb_str_table_print  (GskbStrTable *table,
+                                     gboolean      is_global,
 				     const char   *table_name,
                                      const char   *entry_type_name,
                                      GskbStrTableEntryOutputFunc output_func,

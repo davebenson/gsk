@@ -52,6 +52,35 @@ typedef struct _GskbFormatAlias GskbFormatAlias;
 typedef struct _GskbUnknownValue GskbUnknownValue;
 typedef struct _GskbUnknownValueArray GskbUnknownValueArray;
 typedef struct _GskbFormatCMember GskbFormatCMember;
+typedef struct _GskbNamespace GskbNamespace;
+typedef struct _GskbContext GskbContext;
+
+
+struct _GskbNamespace
+{
+  guint ref_count;
+
+  gpointer name_to_format;
+
+  char *name;
+  char *c_func_prefix;
+  char *c_type_prefix;
+
+  guint n_formats;
+  GskbFormat **formats;
+  guint formats_alloced;
+
+  guint is_global : 1;
+  guint is_writable : 1;
+};
+
+GskbNamespace *gskb_namespace_new          (const char     *name);
+GskbFormat    *gskb_namespace_lookup_format(GskbNamespace  *ns,
+                                            const char     *name);
+GskbNamespace *gskb_namespace_ref          (GskbNamespace  *ns);
+void           gskb_namespace_unref        (GskbNamespace  *ns);
+
+extern GskbNamespace gskb_namespace_gskb;
 
 typedef enum
 {
@@ -80,8 +109,8 @@ typedef enum
   GSKB_FORMAT_CTYPE_UINT16,
   GSKB_FORMAT_CTYPE_UINT32,
   GSKB_FORMAT_CTYPE_UINT64,
-  GSKB_FORMAT_CTYPE_FLOAT32,
-  GSKB_FORMAT_CTYPE_FLOAT64,
+  GSKB_FORMAT_CTYPE_FLOAT,
+  GSKB_FORMAT_CTYPE_DOUBLE,
   GSKB_FORMAT_CTYPE_STRING,
   GSKB_FORMAT_CTYPE_COMPOSITE
 } GskbFormatCType;
@@ -91,7 +120,10 @@ struct _GskbFormatAny
   GskbFormatType type;		/* must be first */
   guint ref_count;
 
-  char *name, *TypeName, *lc_name;
+  GskbNamespace *ns;
+  char *name;
+
+  char *c_type_name, *c_func_prefix;
 
   /* how this maps to C structures */
   GskbFormatCType ctype;
@@ -137,6 +169,7 @@ typedef enum
   GSKB_FORMAT_FLOAT_FLOAT32,
   GSKB_FORMAT_FLOAT_FLOAT64,
 } GskbFormatFloatType;
+#define GSKB_N_FORMAT_FLOAT_TYPES   (GSKB_FORMAT_FLOAT_FLOAT64+1)
 
 struct _GskbFormatFloat
 {
@@ -281,28 +314,25 @@ union _GskbFormat
 GskbFormat *gskb_format_fixed_array_new (guint length,
                                          GskbFormat *element_format);
 GskbFormat *gskb_format_length_prefixed_array_new (GskbFormat *element_format);
-GskbFormat *gskb_format_struct_new (const char *name,
-                                    gboolean is_extensible,
+GskbFormat *gskb_format_struct_new (gboolean is_extensible,
                                     guint n_members,
                                     GskbFormatStructMember *members,
                                     GError       **error);
-GskbFormat *gskb_format_union_new (const char *name,
-                                   gboolean is_extensible,
+GskbFormat *gskb_format_union_new (gboolean is_extensible,
                                    GskbFormatIntType int_type,
                                    guint n_cases,
                                    GskbFormatUnionCase *cases,
                                    GError       **error);
-GskbFormat *gskb_format_enum_new  (const char *name,
-                                   gboolean    is_extensible,
+GskbFormat *gskb_format_enum_new  (gboolean    is_extensible,
                                    GskbFormatIntType int_type,
                                    guint n_values,
                                    GskbFormatEnumValue *values,
                                    GError       **error);
 GskbFormat *gskb_format_bit_fields_new
-                                  (const char            *name,
-                                   guint                  n_fields,
+                                  (guint                  n_fields,
                                    GskbFormatBitField    *fields,
                                    GError               **error);
+GskbFormat *gskb_format_alias_new (GskbFormat            *subformat);
 
 /* ref-count handling */
 GskbFormat *gskb_format_ref (GskbFormat *format);
@@ -326,9 +356,9 @@ GskbFormatBitField     *gskb_format_bit_fields_find_field(GskbFormat *format,
                                                         const char *name);
 
 
-/* used internally by union_new and struct_new */
-gboolean    gskb_format_is_anonymous   (GskbFormat *format);
-void        gskb_format_name_anonymous (GskbFormat *anon_format,
+gboolean    gskb_format_has_name       (GskbFormat *format);
+void        gskb_format_set_name       (GskbFormat *format,
+                                        GskbNamespace *ns,
                                         const char *name);
 
 typedef void (*GskbAppendFunc) (guint len,
@@ -371,4 +401,28 @@ const char *gskb_format_ctype_enum_name (GskbFormatCType type);
 const char *gskb_format_int_type_enum_name (GskbFormatIntType type);
 const char *gskb_format_float_type_enum_name (GskbFormatFloatType type);
 
+
+struct _GskbContext
+{
+  guint ref_count;
+  GHashTable *ns_by_name;
+  GPtrArray *implemented_namespaces;
+};
+
+GskbContext   *gskb_context_new            (void);
+GskbContext   *gskb_context_ref            (GskbContext   *context);
+void           gskb_context_unref          (GskbContext   *context);
+
+void           gskb_context_add_namespace  (GskbContext   *context,
+                                            GskbNamespace *ns);
+gboolean       gskb_context_parse_string   (GskbContext   *context,
+                                            const char    *pseudo_filename,
+                                            const char    *str,
+                                            GError       **error);
+gboolean       gskb_context_parse_file     (GskbContext   *context,
+                                            const char    *filename,
+                                            GError       **error);
+GskbFormat    *gskb_context_parse_format   (GskbContext   *context,
+                                            const char    *str,
+                                            GError       **error);
 #endif

@@ -121,7 +121,7 @@ int main(int argc, char **argv)
   GOptionContext *op_context;
   GError *error = NULL;
   GskbCodegenConfig *config;
-  GskbNamespace *ns;
+  guint ns_index;
 
   op_context = g_option_context_new (NULL);
   g_option_context_set_summary (op_context, "GSKB Code Generator");
@@ -145,53 +145,63 @@ int main(int argc, char **argv)
     gskb_codegen_config_set_all_static (config, TRUE);
 
   /* parse formatted namespace */
-  ns = gskb_namespace_new ();
-  if (!gskb_namespace_parse_file (ns, cmdline_input, &error))
+  GskbContext *context;
+  context = gskb_context_new ();
+  if (!gskb_context_parse_file (context, cmdline_input, &error))
     gsk_fatal_user_error ("error parsing gskb namespace %s: %s",
                           cmdline_input, error->message);
 
   /* generate code */
   GskBuffer decls = GSK_BUFFER_STATIC_INIT, impls = GSK_BUFFER_STATIC_INIT;
-  gsk_buffer_append_string (&decls, do_not_handedit_warning);
-  gsk_buffer_printf (&decls, "\n/* typedefs */\n");
-  ns_section (ns, GSKB_CODEGEN_SECTION_TYPEDEFS, config, &decls);
-  gsk_buffer_printf (&decls, "\n/* structures */\n");
-  ns_section (ns, GSKB_CODEGEN_SECTION_STRUCTURES, config, &decls);
-  gsk_buffer_printf (&decls, "\n/* function prototypes */\n");
-  ns_section (ns, GSKB_CODEGEN_SECTION_FUNCTION_PROTOTYPES, config, &decls);
-  gsk_buffer_printf (&decls, "\n/* format declarations */\n");
-  ns_section (ns, GSKB_CODEGEN_SECTION_FORMAT_DECLS, config, &decls);
-  gsk_buffer_printf (&decls, "\n/* format private declarations */\n");
-  ns_section (ns, GSKB_CODEGEN_SECTION_FORMAT_PRIVATE_DECLS, config, &decls);
   if (!config->all_static)
     {
       gsk_buffer_append_string (&impls, do_not_handedit_warning);
       gsk_buffer_printf (&impls, "#include \"%s.h\"\n\n",
                          cmdline_basename);
     }
-  gsk_buffer_printf (&impls, "\n/* format implementations */\n");
-  ns_section (ns, GSKB_CODEGEN_SECTION_FORMAT_IMPLS, config, &impls);
-  gsk_buffer_printf (&impls, "\n/* function implementations */\n");
-  ns_section (ns, GSKB_CODEGEN_SECTION_FUNCTION_IMPLS, config, &impls);
-  if (config->all_static)
+  gsk_buffer_append_string (&decls, do_not_handedit_warning);
+  for (ns_index = 0;
+       ns_index < context->implemented_namespaces->len;
+       ns_index++)
     {
-      char *fname = g_strdup_printf ("%s.include", cmdline_basename);
-      GskBuffer *buffers[2] = { &decls, &impls };
-      write_buffers_or_die (fname, 2, buffers);
-      g_free (fname);
-    }
-  else
-    {
-      char *fname;
-      GskBuffer *p[1];
-      fname = g_strdup_printf ("%s.h", cmdline_basename);
-      p[0] = &decls;
-      write_buffers_or_die (fname, 1, p);
-      g_free (fname);
-      fname = g_strdup_printf ("%s.c", cmdline_basename);
-      p[0] = &impls;
-      write_buffers_or_die (fname, 1, p);
-      g_free (fname);
+      GskbNamespace *ns = context->implemented_namespaces->pdata[ns_index];
+      gsk_buffer_printf (&decls,
+                         "\n/*\n *\n * Namespace:   %s\n *\n */\n",
+                         ns->name);
+      gsk_buffer_printf (&decls, "\n/* typedefs */\n");
+      ns_section (ns, GSKB_CODEGEN_SECTION_TYPEDEFS, config, &decls);
+      gsk_buffer_printf (&decls, "\n/* structures */\n");
+      ns_section (ns, GSKB_CODEGEN_SECTION_STRUCTURES, config, &decls);
+      gsk_buffer_printf (&decls, "\n/* function prototypes */\n");
+      ns_section (ns, GSKB_CODEGEN_SECTION_FUNCTION_PROTOTYPES, config, &decls);
+      gsk_buffer_printf (&decls, "\n/* format declarations */\n");
+      ns_section (ns, GSKB_CODEGEN_SECTION_FORMAT_DECLS, config, &decls);
+      gsk_buffer_printf (&decls, "\n/* format private declarations */\n");
+      ns_section (ns, GSKB_CODEGEN_SECTION_FORMAT_PRIVATE_DECLS, config, &decls);
+      gsk_buffer_printf (&impls, "\n/* format implementations */\n");
+      ns_section (ns, GSKB_CODEGEN_SECTION_FORMAT_IMPLS, config, &impls);
+      gsk_buffer_printf (&impls, "\n/* function implementations */\n");
+      ns_section (ns, GSKB_CODEGEN_SECTION_FUNCTION_IMPLS, config, &impls);
+      if (config->all_static)
+        {
+          char *fname = g_strdup_printf ("%s.include", cmdline_basename);
+          GskBuffer *buffers[2] = { &decls, &impls };
+          write_buffers_or_die (fname, 2, buffers);
+          g_free (fname);
+        }
+      else
+        {
+          char *fname;
+          GskBuffer *p[1];
+          fname = g_strdup_printf ("%s.h", cmdline_basename);
+          p[0] = &decls;
+          write_buffers_or_die (fname, 1, p);
+          g_free (fname);
+          fname = g_strdup_printf ("%s.c", cmdline_basename);
+          p[0] = &impls;
+          write_buffers_or_die (fname, 1, p);
+          g_free (fname);
+        }
     }
 
   gskb_codegen_config_free (config);

@@ -124,7 +124,7 @@ GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_UNPACK);
 
 /* common formats */
 #define gskb_int_format_generic(int_type) \
-             (&(gskb_format_ints_array[int_type].base))
+             ((GskbFormat *) &(gskb_format_ints_array[int_type].base))
 #define gskb_int8_format    gskb_int_format_generic(GSKB_FORMAT_INT_INT8)
 #define gskb_int16_format   gskb_int_format_generic(GSKB_FORMAT_INT_INT16)
 #define gskb_int32_format   gskb_int_format_generic(GSKB_FORMAT_INT_INT32)
@@ -139,10 +139,12 @@ GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_UNPACK);
 #define gskb_ulong_format   gskb_int_format_generic(GSKB_FORMAT_INT_ULONG)
 #define gskb_bit_format     gskb_int_format_generic(GSKB_FORMAT_INT_BIT)
 
-extern GskbFormatFloat gskb_float32_format_instance;
-#define gskb_float32_format ((GskbFormat *)&gskb_float32_format_instance)
-extern GskbFormatFloat gskb_float64_format_instance;
-#define gskb_float64_format ((GskbFormat *)&gskb_float64_format_instance)
+#define gskb_float_format_generic(float_type) \
+             ((GskbFormat *) &(gskb_format_floats_array[float_type].base))
+extern GskbFormatFloat gskb_format_floats_array[GSKB_N_FORMAT_FLOAT_TYPES];
+#define gskb_float32_format gskb_float_format_generic(GSKB_FORMAT_FLOAT_FLOAT32)
+#define gskb_float64_format gskb_float_format_generic(GSKB_FORMAT_FLOAT_FLOAT64)
+
 extern GskbFormatString gskb_string_format_instance;
 #define gskb_string_format ((GskbFormat *)&gskb_string_format_instance)
 

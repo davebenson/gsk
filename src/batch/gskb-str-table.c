@@ -132,6 +132,7 @@ make_bsearch_table (gsize     sizeof_entry_data,
   table->table_data = bs_entries;
   table->sizeof_entry_data = sizeof_entry_data;
   table->is_global = FALSE;
+  table->is_ptr = FALSE;
   table->str_slab = g_malloc (str_slab_size);
   align_data (sizeof (BSearchEntry), ALIGNOF_BSEARCH_ENTRY,
               sizeof_entry_data, alignof_entry_data,
@@ -177,6 +178,7 @@ make_collision_free_hash_table (gsize     sizeof_entry_data,
   table->table_data = ht_entries;
   table->sizeof_entry_data = sizeof_entry_data;
   table->is_global = FALSE;
+  table->is_ptr = FALSE;
 
   /* mark all entries unfilled. */
   for (i = 0; i < size; i++)
@@ -360,6 +362,25 @@ GskbStrTable *gskb_str_table_new    (gsize     sizeof_entry_data,
 
   return table;
 }
+GskbStrTable *gskb_str_table_new_ptr(guint     n_entries,
+				     const GskbStrTableEntry *entries)
+{
+  GskbStrTableEntry *ptr_entries = g_new (GskbStrTableEntry, n_entries);;
+  guint i;
+  GskbStrTable *rv;
+  for (i = 0; i < n_entries; i++)
+    {
+      if (entries[i].entry_data == NULL)
+        g_warning ("NULL table in ptr table (at '%s')", entries[i].str);
+
+      ptr_entries[i].str = entries[i].str;
+      ptr_entries[i].entry_data = (gpointer) &entries[i].entry_data;
+    }
+  rv = gskb_str_table_new (sizeof (gpointer), GSKB_ALIGNOF_POINTER, n_entries, ptr_entries);
+  g_free (ptr_entries);
+  rv->is_ptr = TRUE;
+  return rv;
+}
 
 void
 gskb_str_table_print_compilable_deps(GskbStrTable *table,
@@ -434,16 +455,21 @@ gskb_str_table_print_compilable_deps(GskbStrTable *table,
                          entry_type_name, table_name, table->table_size);
       for (i = 0; i < table->table_size; i++)
         {
+          gpointer value_ptr;
           gsk_buffer_printf (output, "  { { %u, ", at->hash_code);
           if (at->str_slab_offset == G_MAXUINT32)
             gsk_buffer_append_string (output, "G_MAXUINT32");
           else
             gsk_buffer_printf (output, "%u", at->str_slab_offset);
           gsk_buffer_append_string (output, " }, ");
-          render_func (at+1, output);
+          value_ptr = ((char*)at + table->entry_data_offset);
+          if (table->is_ptr)
+            value_ptr = * (gpointer *) value_ptr;
+          render_func (value_ptr, output);
           gsk_buffer_append_string (output, " },\n");
           at = (gpointer)((char*)at + ent_size);
         }
+      gsk_buffer_printf (output, "};\n");
     }
 }
 
@@ -486,7 +512,8 @@ gskb_str_table_print_compilable_object
                      "  %s,\n"
                      "  GSKB_ALIGN(GSKB_ALIGN(sizeof(%s),%s)+%s, %s),\n"
                      "  GSKB_ALIGN(sizeof(%s),%s),\n"
-                     "  TRUE,\n"
+                     "  TRUE,        /* is_global */\n"
+                     "  %s,          /* is_ptr */\n"
                      "  %s__str_slab,\n"
                      "  %u\n"
                      "}",
@@ -496,6 +523,7 @@ gskb_str_table_print_compilable_object
                      sizeof_entry_data_str,
                      entry_base_type, alignof_entry_data_str, sizeof_entry_data_str, entry_align,
                      entry_base_type, alignof_entry_data_str,
+                     table->is_ptr ? "TRUE" : "FALSE",
                      table_name,
                      table->str_slab_size);
 }
@@ -534,7 +562,12 @@ gskb_str_table_lookup (GskbStrTable *table,
           return NULL;
         e = (BSearchEntry*)(td + ent_size * start);
         if (strcmp (table->str_slab + e->str_slab_offset, str) == 0)
-          return (char*)e + table->entry_data_offset;
+          {
+            gpointer rv_ptr = (char*)e + table->entry_data_offset;
+            if (table->is_ptr)
+              rv_ptr = * (gpointer *) rv_ptr;
+            return rv_ptr;
+          }
         else
           return NULL;
       }
@@ -557,7 +590,12 @@ gskb_str_table_lookup (GskbStrTable *table,
           return NULL;
         if (len > 3 && memcmp (ss + 1, str + 2, len - 3) != 0)
           return NULL;
-        return (char*)e + table->entry_data_offset;
+        {
+          gpointer rv_ptr = (char*)e + table->entry_data_offset;
+          if (table->is_ptr)
+            rv_ptr = * (gpointer *) rv_ptr;
+          return rv_ptr;
+        }
       }
     case GSKB_STR_TABLE_5003_33:
       {
@@ -571,7 +609,12 @@ gskb_str_table_lookup (GskbStrTable *table,
           return NULL;
         if (strcmp (table->str_slab + e->str_slab_offset, str) != 0)
           return NULL;
-        return (char*)e + table->entry_data_offset;
+        {
+          gpointer rv_ptr = (char*)e + table->entry_data_offset;
+          if (table->is_ptr)
+            rv_ptr = * (gpointer *) rv_ptr;
+          return rv_ptr;
+        }
       }
     default:
       g_return_val_if_reached (NULL);
@@ -586,13 +629,14 @@ void          gskb_str_table_free   (GskbStrTable *table)
 }
 
 void
-gskb_str_table_print_static (GskbStrTable *table,
-                             const char   *table_name,
-                             const char   *entry_type_name,
-                             GskbStrTableEntryOutputFunc render_func,
-                             const char   *sizeof_entry_str,
-                             const char   *alignof_entry_str,
-                             GskBuffer    *output)
+gskb_str_table_print(GskbStrTable *table,
+                     gboolean      is_global,
+                     const char   *table_name,
+                     const char   *entry_type_name,
+                     GskbStrTableEntryOutputFunc render_func,
+                     const char   *sizeof_entry_str,
+                     const char   *alignof_entry_str,
+                     GskBuffer    *output)
 {
   gskb_str_table_print_compilable_deps (table,
                                         table_name,
@@ -600,8 +644,8 @@ gskb_str_table_print_static (GskbStrTable *table,
                                         render_func,
                                         output);
   gsk_buffer_printf (output,
-                     "static GskbStrTable %s = ",
-                     table_name);
+                     "%sGskbStrTable %s = ",
+                     is_global ? "" : "static ", table_name);
   gskb_str_table_print_compilable_object (table,
                                           table_name,
                                           sizeof_entry_str, alignof_entry_str,

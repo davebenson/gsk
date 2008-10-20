@@ -35,30 +35,32 @@ gskb_format_codegen__emit_typedefs     (GskbFormat *format,
   switch (format->type)
     {
     case GSKB_FORMAT_TYPE_INT:
-      gsk_buffer_printf (output,
-                         "typedef gskb_%s %s%s;\n",
-                         gskb_format_int_type_name (format->v_int.int_type),
-                         config->type_prefix, format->any.TypeName);
-      break;
+      g_assert_not_reached ();
+      //gsk_buffer_printf (output,
+      //                   "typedef gskb_%s %s%s;\n",
+      //                   gskb_format_int_type_name (format->v_int.int_type),
+      //                   config->type_prefix, format->any.TypeName);
+      //break;
     case GSKB_FORMAT_TYPE_FLOAT:
+      g_assert_not_reached ();
       {
-        static struct {
-          GskbFormatFloatType float_type;
-          const char *c_type;
-        } float_c_types[] = {             /* NOTE: must match order of enum */
-          { GSKB_FORMAT_FLOAT_FLOAT32,       "gfloat" },
-          { GSKB_FORMAT_FLOAT_FLOAT64,       "gdouble" },
-        };
-        
-        /* validate that the table is ok.  (sigh) */
-        g_assert (format->v_float.float_type < G_N_ELEMENTS (float_c_types));
-        g_assert (float_c_types[format->v_float.float_type].float_type
-                  == format->v_float.float_type);
+        //static struct {
+        //  GskbFormatFloatType float_type;
+        //  const char *c_type;
+        //} float_c_types[] = {             /* NOTE: must match order of enum */
+        //  { GSKB_FORMAT_FLOAT_FLOAT32,       "gfloat" },
+        //  { GSKB_FORMAT_FLOAT_FLOAT64,       "gdouble" },
+        //};
+        //
+        ///* validate that the table is ok.  (sigh) */
+        //g_assert (format->v_float.float_type < G_N_ELEMENTS (float_c_types));
+        //g_assert (float_c_types[format->v_float.float_type].float_type
+        //          == format->v_float.float_type);
 
-        gsk_buffer_printf (output,
-                           "typedef %s %s%s;\n",
-                           float_c_types[format->v_float.float_type].c_type,
-                           config->type_prefix, format->any.TypeName);
+        //gsk_buffer_printf (output,
+        //                   "typedef %s %s%s;\n",
+        //                   float_c_types[format->v_float.float_type].c_type,
+        //                   config->type_prefix, format->any.TypeName);
       }
       break;
     case GSKB_FORMAT_TYPE_ENUM:
@@ -66,15 +68,15 @@ gskb_format_codegen__emit_typedefs     (GskbFormat *format,
       break;
     case GSKB_FORMAT_TYPE_ALIAS:
       gsk_buffer_printf (output,
-                         "typedef %s%s %s%s;\n",
-                         config->type_prefix, format->v_alias.format->any.TypeName,
-                         config->type_prefix, format->any.TypeName);
+                         "typedef %s %s;\n",
+                         format->v_alias.format->any.c_type_name,
+                         format->any.c_type_name);
 
     default:
       gsk_buffer_printf (output,
-                         "typedef struct _%s%s %s%s;\n",
-                         config->type_prefix, format->any.TypeName,
-                         config->type_prefix, format->any.TypeName);
+                         "typedef struct _%s %s;\n",
+                         format->any.c_type_name,
+                         format->any.c_type_name);
       break;
     }
 }
@@ -96,7 +98,7 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
       {
         char *uc_name;
         guint expected = 0;
-        uc_name = g_ascii_strup (format->any.lc_name, -1);
+        uc_name = g_ascii_strup (format->any.c_func_prefix, -1);
         gsk_buffer_append_string (output, "typedef enum {\n");
         for (i = 0; i < format->v_enum.n_values; i++)
           {
@@ -113,37 +115,36 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
             expected = format->v_enum.values[i].code + 1;
             g_free (enum_uc_name);
           }
-        gsk_buffer_printf (output, "} %s%s;\n\n",
-                           config->type_prefix,
-                           format->any.TypeName);
+        gsk_buffer_printf (output, "} %s;\n\n",
+                           format->any.c_type_name);
         g_free (uc_name);
       }
       break;
     case GSKB_FORMAT_TYPE_FIXED_ARRAY:
       gsk_buffer_printf (output,
-                         "struct _%s%s\n"
+                         "struct _%s\n"
                          "{\n"
-                         "  %s%s data[%u];\n"
+                         "  %s data[%u];\n"
                          "};\n\n",
-                         config->type_prefix, format->any.TypeName,
-                         config->type_prefix, format->v_fixed_array.element_format->any.TypeName,
+                         format->any.c_type_name,
+                         format->v_fixed_array.element_format->any.c_type_name,
                          format->v_fixed_array.length);
       break;
     case GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY:
       gsk_buffer_printf (output,
-                         "struct _%s%s\n"
+                         "struct _%s\n"
                          "{\n"
                          "  guint32 length;\n"
-                         "  %s%s *data;\n"
+                         "  %s *data;\n"
                          "};\n\n",
-                         config->type_prefix, format->any.TypeName,
-                         config->type_prefix, format->any.TypeName);
+                         format->any.c_type_name,
+                         format->v_length_prefixed_array.element_format->any.c_type_name);
       break;
     case GSKB_FORMAT_TYPE_STRUCT:
       gsk_buffer_printf (output,
-                         "struct _%s%s\n"
+                         "struct _%s\n"
                          "{\n",
-                         config->type_prefix, format->any.TypeName);
+                         format->any.c_type_name);
       if (format->v_struct.is_extensible)
         {
           gsk_buffer_printf (output,
@@ -156,26 +157,26 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
         {
           GskbFormatStructMember *member = format->v_struct.members + i;
           gsk_buffer_printf (output,
-                             "  %s%s %s;\n",
-                             config->type_prefix, member->format->any.TypeName,
+                             "  %s %s;\n",
+                             member->format->any.c_type_name,
                              member->name);
         }
       gsk_buffer_printf (output, "};\n\n");
       break;
     case GSKB_FORMAT_TYPE_UNION:
       gsk_buffer_printf (output,
-                         "struct _%s%s\n"
+                         "struct _%s\n"
                          "{\n"
-                         "  %s%s_Type type;\n"
+                         "  %s_Type type;\n"
                          "  struct {\n" ,
-                         config->type_prefix, format->any.TypeName,
-                         config->type_prefix, format->any.TypeName);
+                         format->any.c_type_name,
+                         format->any.c_type_name);
       for (i = 0; i < format->v_union.n_cases; i++)
         {
           GskbFormatUnionCase *c = format->v_union.cases + i;
           gsk_buffer_printf (output,
-                             "    %s%s %s;\n",
-                             config->type_prefix, c->format->any.TypeName,
+                             "    %s %s;\n",
+                             format->any.c_type_name,
                              c->name);
         }
       if (format->v_union.is_extensible)
@@ -201,18 +202,18 @@ implement_format_any (GskbFormat *format,
                          "  1,          /* ref_count */\n"
                          "  \"%s\", \"%s\", \"%s\",  /* various names */\n"
                          "  %s,         /* ctype */\n"
-                         "  sizeof(%s%s), GSKB_ALIGNOF(%s%s),\n"
+                         "  sizeof(%s), GSKB_ALIGNOF(%s),\n"
                          "  %u,       /* always by pointer */\n"
                          "  %u,       /* requires_destruct */\n"
                          "  %u        /* fixed_length */\n"
                          "},\n",
                          gskb_format_type_enum_name (format->type),
                          format->any.name,
-                         format->any.TypeName,
-                         format->any.lc_name,
+                         format->any.c_type_name,
+                         format->any.c_func_prefix,
                          gskb_format_ctype_enum_name (format->any.ctype),
-                         config->type_prefix, format->any.TypeName,
-                         config->type_prefix, format->any.TypeName,
+                         format->any.c_type_name,
+                         format->any.c_type_name,
                          format->any.always_by_pointer,
                          format->any.requires_destruct,
                          format->any.fixed_length);
@@ -224,9 +225,9 @@ gskb_format_codegen__emit_format_decls (GskbFormat *format,
                                         GskBuffer *output)
 {
   gsk_buffer_printf (output,
-                 "#define %s%s_format  ((GskbFormat *)(&%s%s_format_instance))\n",
-                 config->func_prefix, format->any.lc_name,
-                 config->func_prefix, format->any.lc_name);
+                 "#define %s_format  ((GskbFormat *)(&%s_format_instance))\n",
+                 format->any.c_func_prefix,
+                 format->any.c_func_prefix);
 }
 static void
 gskb_format_codegen__emit_format_private_decls (GskbFormat *format,
@@ -245,9 +246,9 @@ gskb_format_codegen__emit_format_private_decls (GskbFormat *format,
     "GskbFormatAlias"
   };
   gsk_buffer_printf (output,
-                     "extern %s %s%s_format_instance;\n",
+                     "extern %s %s_format_instance;\n",
                      format_type_names[format->type],
-                     config->func_prefix, format->any.lc_name);
+                     format->any.c_func_prefix);
 }
 
 static void
@@ -262,9 +263,9 @@ define_format_from_instance (GskbFormat *format,
                              GskBuffer *output)
 {
   gsk_buffer_printf (output,
-                     "#define %s%s_format    ((GskbFormat*)(&%s%s_format_instance))\n",
-                     config->func_prefix, format->any.lc_name,
-                     config->func_prefix, format->any.lc_name);
+                     "#define %s_format    ((GskbFormat*)(&%s_format_instance))\n",
+                     format->any.c_func_prefix,
+                     format->any.c_func_prefix);
 }
 
 static void
@@ -278,27 +279,28 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
     case GSKB_FORMAT_TYPE_FLOAT:
     case GSKB_FORMAT_TYPE_STRING:
       {
-        gsk_buffer_printf (output,
-                           "#define %s%s_format_instance   gskb_%s_format_instance\n"
-                           "#define %s%s_format   gskb_%s_format\n",
-                           config->func_prefix, format->any.name, format->any.name,
-                           config->func_prefix, format->any.name, format->any.name);
+        g_assert_not_reached ();
+        //gsk_buffer_printf (output,
+        //                   "#define %s%s_format_instance   gskb_%s_format_instance\n"
+        //                   "#define %s%s_format   gskb_%s_format\n",
+        //                   config->func_prefix, format->any.name, format->any.name,
+        //                   config->func_prefix, format->any.name, format->any.name);
         return;
       }
     case GSKB_FORMAT_TYPE_FIXED_ARRAY:
       {
       gsk_buffer_printf (output,
-                         "%sstatic GskbFormatFixedArray %s%s_format_instance =\n"
+                         "%sGskbFormatFixedArray %s_format_instance =\n"
                          "{\n",
                          config->all_static ? "static " : "",
-                         config->func_prefix, format->any.lc_name);
+                         format->any.c_func_prefix);
       implement_format_any (format, config, output);
       gsk_buffer_printf (output,
                          "  %u,\n"
-                         "  %s%s_format\n"
+                         "  %s_format\n"
                          "};\n",
                          format->v_fixed_array.length,
-                         config->func_prefix, format->v_fixed_array.element_format->any.lc_name);
+                         format->v_fixed_array.element_format->any.c_func_prefix);
       define_format_from_instance (format, config, output);
       return;
       }
@@ -306,19 +308,19 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
     case GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY:
       {
         gsk_buffer_printf (output,
-                           "%sGskbFormatLengthPrefixedArray %s%s_format_instance =\n"
+                           "%sGskbFormatLengthPrefixedArray %s_format_instance =\n"
                            "{\n",
                            config->all_static ? "static " : "",
-                           config->func_prefix, format->any.lc_name);
+                           config->func_prefix);
         implement_format_any (format, config, output);
         gsk_buffer_printf (output,
-                           "  %s%s_format,\n"
-                           "  G_STRUCT_OFFSET (%s%s, length),\n"
-                           "  G_STRUCT_OFFSET (%s%s, data)\n"
+                           "  %s_format,\n"
+                           "  G_STRUCT_OFFSET (%s, length),\n"
+                           "  G_STRUCT_OFFSET (%s, data)\n"
                            "};\n",
-                           config->func_prefix, format->v_length_prefixed_array.element_format->any.lc_name,
-                           config->type_prefix, format->any.TypeName,
-                           config->type_prefix, format->any.TypeName);
+                           format->v_length_prefixed_array.element_format->any.c_func_prefix,
+                           format->any.c_type_name,
+                           format->any.c_type_name);
         define_format_from_instance (format, config, output);
         return;
       }
@@ -327,14 +329,15 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
       {
         guint i;
         gsk_buffer_printf (output,
-                           "static guint %s%s__member_offsets[%u] = {\n",
-                           config->func_prefix, format->any.lc_name, format->v_struct.n_members);
+                           "static guint %s__member_offsets[%u] = {\n",
+                           format->any.c_func_prefix,
+                           format->v_struct.n_members);
         for (i = 0; i < format->v_struct.n_members; i++)
           {
             const char *mname = format->v_struct.members[i].name;
             gsk_buffer_printf (output,
-                               "  G_STRUCT_OFFSET (%s%s, %s)%s\n",
-                               config->type_prefix, format->any.TypeName, 
+                               "  G_STRUCT_OFFSET (%s, %s)%s\n",
+                               format->any.c_type_name, 
                                mname,
                                (i + 1 == format->v_struct.n_members) ? "" : ",");
           }
@@ -342,23 +345,24 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            "};\n");
 
         gsk_buffer_printf (output,
-                           "static GskbFormatStructMember %s%s__members[%u] = {\n",
-                           config->func_prefix, format->any.lc_name, format->v_struct.n_members);
+                           "static GskbFormatStructMember %s__members[%u] = {\n",
+                           format->any.c_func_prefix,
+                           format->v_struct.n_members);
 
         for (i = 0; i < format->v_struct.n_members; i++)
           {
             GskbFormat *mformat = format->v_struct.members[i].format;
             const char *mname = format->v_struct.members[i].name;
             gsk_buffer_printf (output,
-                               "  { \"%s\", %s%s_format }%s\n",
+                               "  { \"%s\", %s_format }%s\n",
                                mname,
-                               config->func_prefix, mformat->any.lc_name,
+                               mformat->any.c_func_prefix,
                                (i + 1 == format->v_struct.n_members) ? "" : ",");
           }
         gsk_buffer_printf (output,
                            "};\n");
-        char *table_name = g_strdup_printf ("%s%s__name_to_member_index",
-                                            config->func_prefix, format->any.lc_name);
+        char *table_name = g_strdup_printf ("%s__name_to_member_index",
+                                            format->any.c_func_prefix);
         gskb_str_table_print_compilable_deps (format->v_struct.name_to_index,
                                               table_name,
                                               "guint32",
@@ -374,22 +378,22 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
         g_free (table_name);
 
         gsk_buffer_printf (output,
-                           "%sGskbFormatStruct %s%s_format_instance =\n"
+                           "%sGskbFormatStruct %s_format_instance =\n"
                            "{\n",
                            config->all_static ? "static " : "",
-                           config->func_prefix, format->any.lc_name);
+                           format->any.c_func_prefix);
         implement_format_any (format, config, output);
         gsk_buffer_printf (output,
-                           "  %u, %s%s__members,\n"
-                           "  %s%s__member_offsets,\n"
-                           "  &%s%s__name_to_member_index,\n",
+                           "  %u, %s__members,\n"
+                           "  %s__member_offsets,\n"
+                           "  &%s__name_to_member_index,\n",
                            format->v_struct.n_members,
-                           config->func_prefix, format->any.lc_name,
-                           config->func_prefix, format->any.lc_name,
-                           config->func_prefix, format->any.lc_name);
+                           format->any.c_func_prefix,
+                           format->any.c_func_prefix,
+                           format->any.c_func_prefix);
         if (format->v_struct.is_extensible)
-          gsk_buffer_printf (output, "  &%s%s__code_to_member_index\n",
-                             config->func_prefix, format->any.lc_name);
+          gsk_buffer_printf (output, "  &%s__code_to_member_index\n",
+                             format->any.c_func_prefix);
         else
           gsk_buffer_printf (output, "  NULL\n");
         gsk_buffer_printf (output, "};\n");
@@ -401,34 +405,35 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
         guint i;
 
         gsk_buffer_printf (output,
-                           "static GskbFormatUnionCase %s%s__cases =\n"
+                           "static GskbFormatUnionCase %s__cases =\n"
                            "{\n",
-                           config->func_prefix, format->any.lc_name);
+                           format->any.c_func_prefix);
         for (i = 0; i < format->v_union.n_cases; i++)
           {
             GskbFormatUnionCase *c = format->v_union.cases + i;
             gsk_buffer_printf (output,
-                               "  { \"%s\", %u, %s%s_format }%s\n",
+                               "  { \"%s\", %u, %s_format }%s\n",
                                c->name, c->code,
-                               config->func_prefix, c->format->any.lc_name,
+                               c->format->any.c_func_prefix,
                                (i+1==format->v_union.n_cases) ? "" : ",");
           }
         gsk_buffer_printf (output,
                            "};\n");
 
         char *by_name_table_name, *by_code_table_name;
-        by_name_table_name = g_strdup_printf ("%s%s__name_to_index",
-                                              config->func_prefix, format->any.lc_name);
+        by_name_table_name = g_strdup_printf ("%s__name_to_index",
+                                              format->any.c_func_prefix);
 
-        gskb_str_table_print_static (format->v_union.name_to_index,
-                                     by_name_table_name,
-                                     "guint32",
-                                     render_int,
-                                     "sizeof (guint32)",
-                                     "GSKB_ALIGNOF_UINT32",
-                                     output);
-        by_code_table_name = g_strdup_printf ("%s%s__code_to_index",
-                                              config->func_prefix, format->any.lc_name);
+        gskb_str_table_print (format->v_union.name_to_index,
+                              FALSE,
+                              by_name_table_name,
+                              "guint32",
+                              render_int,
+                              "sizeof (guint32)",
+                              "GSKB_ALIGNOF_UINT32",
+                              output);
+        by_code_table_name = g_strdup_printf ("%s__code_to_index",
+                                              format->any.c_func_prefix);
         gskb_uint_table_print_static (format->v_union.code_to_index,
                                      by_code_table_name,
                                      "guint32",
@@ -438,27 +443,27 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                                      output);
 
         gsk_buffer_printf (output,
-                           "%sGskbFormatUnion %s%s_format_instance =\n"
+                           "%sGskbFormatUnion %s_format_instance =\n"
                            "{\n",
                            config->all_static ? "static " : "",
-                           config->func_prefix, format->any.lc_name);
+                           format->any.c_func_prefix);
         implement_format_any (format, config, output);
         gsk_buffer_printf (output,
                            "  %u,           /* n_cases */\n"
-                           "  %s%s__cases,\n"
-                           "  G_STRUCT_OFFSET (%s%s, type),\n"
-                           "  G_STRUCT_OFFSET (%s%s, info),\n"
+                           "  %s__cases,\n"
+                           "  G_STRUCT_OFFSET (%s, type),\n"
+                           "  G_STRUCT_OFFSET (%s, info),\n"
                            "  &%s,\n"
                            "  &%s,\n"
-                           "  %s%s_type_format\n"
+                           "  %s_type_format\n"
                            "};\n",
                            format->v_union.n_cases,
-                           config->func_prefix, format->any.lc_name,
-                           config->type_prefix, format->any.TypeName, 
-                           config->type_prefix, format->any.TypeName, 
+                           format->any.c_func_prefix,
+                           format->any.c_type_name, 
+                           format->any.c_type_name, 
                            by_name_table_name,
                            by_code_table_name,
-                           config->func_prefix, format->any.lc_name);
+                           format->any.c_func_prefix);
         define_format_from_instance (format, config, output);
         g_free (by_name_table_name);
         g_free (by_code_table_name);
@@ -469,9 +474,9 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
       {
         guint i;
         gsk_buffer_printf (output,
-                           "static GskbFormatEnumValue %s%s__enum_values[] =\n"
+                           "static GskbFormatEnumValue %s__enum_values[] =\n"
                            "{\n",
-                           config->func_prefix, format->any.lc_name);
+                           format->any.c_func_prefix);
         for (i = 0; i < format->v_enum.n_values; i++)
           {
             gsk_buffer_printf (output, "  { \"%s\", %u },\n",
@@ -482,20 +487,21 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            "};\n");
 
         {
-          char *table_name = g_strdup_printf ("%s%s__name_to_index",
-                                              config->func_prefix, format->any.lc_name);
-          gskb_str_table_print_static (format->v_enum.name_to_index,
-                                       table_name,
-                                       "guint32",
-                                       render_int,
-                                       "sizeof (gint32)",
-                                       "GSKB_ALIGNOF_UINT32",
-                                       output);
+          char *table_name = g_strdup_printf ("%s__name_to_index",
+                                              format->any.c_func_prefix);
+          gskb_str_table_print (format->v_enum.name_to_index,
+                                FALSE,
+                                table_name,
+                                "guint32",
+                                render_int,
+                                "sizeof (gint32)",
+                                "GSKB_ALIGNOF_UINT32",
+                                output);
           g_free (table_name);
         }
         {
-          char *table_name = g_strdup_printf ("%s%s__value_to_index",
-                                              config->func_prefix, format->any.lc_name);
+          char *table_name = g_strdup_printf ("%s__value_to_index",
+                                              format->any.c_func_prefix);
           gskb_uint_table_print_static (format->v_enum.value_to_index,
                                         table_name,
                                         "guint32",
@@ -507,37 +513,37 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
         }
 
         gsk_buffer_printf (output,
-                           "%sGskbFormatEnum %s%s_format_instance =\n"
+                           "%sGskbFormatEnum %s_format_instance =\n"
                            "{\n",
                            config->all_static ? "static " : "",
-                           config->func_prefix, format->any.lc_name);
+                           format->any.c_func_prefix);
         implement_format_any (format, config, output);
         gsk_buffer_printf (output,
                            "  %s,\n"
                            "  %u,\n"
-                           "  %s%s__enum_values,\n"
-                           "  %s%s__name_to_index,\n"
-                           "  %s%s__value_to_index,\n"
+                           "  %s__enum_values,\n"
+                           "  %s__name_to_index,\n"
+                           "  %s__value_to_index,\n"
                            "};\n",
                            gskb_format_int_type_enum_name (format->v_enum.int_type),
                            format->v_enum.n_values,
-                           config->func_prefix, format->any.lc_name,
-                           config->func_prefix, format->any.lc_name,
-                           config->func_prefix, format->any.lc_name);
+                           format->any.c_func_prefix,
+                           format->any.c_func_prefix,
+                           format->any.c_func_prefix);
       }
       break;
 
     case GSKB_FORMAT_TYPE_ALIAS:
       gsk_buffer_printf (output,
-                         "%sGskbFormatAlias %s%s_format_instance =\n"
+                         "%sGskbFormatAlias %s_format_instance =\n"
                          "{\n",
                          config->all_static ? "static " : "",
-                         config->func_prefix, format->any.lc_name);
+                         format->any.c_func_prefix);
       implement_format_any (format, config, output);
       gsk_buffer_printf (output,
-                         "  %s%s_format\n"
+                         "  %s_format\n"
                          "};\n",
-                         config->func_prefix, format->v_alias.format->any.lc_name);
+                         format->v_alias.format->any.c_func_prefix);
       break;
 
     default:
@@ -591,8 +597,8 @@ implement__pack(GskbFormat *format,
           {
             for (i = 0; i < format->v_fixed_array.length; i++)
               gsk_buffer_printf (output,
-             "  %s%s_pack (%svalue->data[%u], append_func, append_func_data);\n",
-                                 config->func_prefix, sub->any.lc_name,
+             "  %s_pack (%svalue->data[%u], append_func, append_func_data);\n",
+                                 sub->any.c_func_prefix,
                                  sub->any.always_by_pointer ? "&" : "", i);
           }
         else
@@ -601,10 +607,10 @@ implement__pack(GskbFormat *format,
                                "  guint i;\n"
                                "  for (i = 0; i < %u; i++)\n"
                                "    {\n"
-                               "      %s%s_pack (%svalue->data[i], append_func, append_func_data);\n"
+                               "      %s_pack (%svalue->data[i], append_func, append_func_data);\n"
                                "    }\n",
                                format->v_fixed_array.length,
-                               config->func_prefix, sub->any.lc_name,
+                               sub->any.c_func_prefix,
                                sub->any.always_by_pointer ? "&" : "");
           }
         break;
@@ -616,8 +622,8 @@ implement__pack(GskbFormat *format,
                            "  guint i;\n"
                            "  gskb_uint_pack (value->length, append_func, append_func_data);\n"
                            "  for (i = 0; i < value->length; i++)\n"
-                           "    %s%s_pack (%svalue->data[i], append_func, append_func_data);\n",
-                               config->func_prefix, sub->any.lc_name,
+                           "    %s_pack (%svalue->data[i], append_func, append_func_data);\n",
+                               sub->any.c_func_prefix,
                                sub->any.always_by_pointer ? "&" : "");
 
         break;
@@ -652,21 +658,21 @@ implement__pack(GskbFormat *format,
                                    "  if (value->has.%s)\n"
                                    "    {\n"
                                    "      gskb_uint_pack (%u, append_func, append_func_data);\n"
-                                   "      gskb_uint_pack (%s%s_get_packed_size (%svalue->%s), append_func, append_func_data);\n"
-                                   "      %s%s_pack (%svalue->%s, append_func, append_func_data);\n"
+                                   "      gskb_uint_pack (%s_get_packed_size (%svalue->%s), append_func, append_func_data);\n"
+                                   "      %s_pack (%svalue->%s, append_func, append_func_data);\n"
                                    "    }\n",
                                member->name,
                                member->code,
-                               config->func_prefix, member->format->any.lc_name, member->format->any.always_by_pointer?"&":"", member->name,
-                               config->func_prefix, member->format->any.lc_name, member->format->any.always_by_pointer?"&":"", member->name);
+                               member->format->any.c_func_prefix, member->format->any.always_by_pointer?"&":"", member->name,
+                               member->format->any.c_func_prefix, member->format->any.always_by_pointer?"&":"", member->name);
                 last_code = member->code;
               }
             else
               {
                 gsk_buffer_printf (output,
-                                   "%s  %s%s_pack (%svalue->%s, append_func, append_func_data);\n",
+                                   "%s  %s_pack (%svalue->%s, append_func, append_func_data);\n",
                                    ext ? "    " : "",
-                                   config->func_prefix, member->format->any.lc_name,
+                                   member->format->any.c_func_prefix,
                                    member->format->any.always_by_pointer?"&":"",
                                    member->name);
               }
@@ -675,7 +681,7 @@ implement__pack(GskbFormat *format,
       break;
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.lc_name, -1);
+        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
         gsk_buffer_printf (output,
                            "  guint32 code = value->type;\n");
         if (format->v_union.is_extensible)
@@ -699,13 +705,13 @@ implement__pack(GskbFormat *format,
                                ucname, uccasename);
             if (format->v_union.is_extensible)
               gsk_buffer_printf (output,
-                                 "      gskb_uint_pack (%s%s_get_packed_size (%svalue->info.%s), append_func, append_func_data);\n",
-                                 config->func_prefix, c->format->any.lc_name,
+                                 "      gskb_uint_pack (%s_get_packed_size (%svalue->info.%s), append_func, append_func_data);\n",
+                                 c->format->any.c_func_prefix,
                                  c->format->any.always_by_pointer?"&":"", c->name);
             gsk_buffer_printf (output,
-                               "      %s%s_pack (%svalue->info.%s, append_func, append_func_data);\n"
+                               "      %s_pack (%svalue->info.%s, append_func, append_func_data);\n"
                                "      break;\n",
-                               config->func_prefix, c->format->any.lc_name,
+                               c->format->any.c_func_prefix,
                                c->format->any.always_by_pointer?"&":"", c->name);
             g_free (uccasename);
           }
@@ -736,10 +742,10 @@ implement__pack(GskbFormat *format,
         gsk_buffer_printf (output,
                            "  const guint8 *unpacked = (const guint8 *) value;\n"
                            "  guint8 packed[%u];\n"
-                           "  %s%s_pack_slab (value, packed);\n"
+                           "  %s_pack_slab (value, packed);\n"
                            "  append_func (sizeof (packed), packed, append_func_data);\n",
                            format->any.fixed_length,
-                           config->func_prefix, format->any.lc_name);
+                           format->any.c_func_prefix);
         break;
       }
     }
@@ -767,8 +773,8 @@ implement__get_packed_size(GskbFormat *format,
             gsk_buffer_printf (output, "  guint rv = 0;\n");
             for (i = 0; i < format->v_fixed_array.length; i++)
               gsk_buffer_printf (output,
-                                 "  rv += %s%s_get_packed_size (%svalue->data[%u]);\n",
-                                 config->func_prefix, sub->any.lc_name,
+                                 "  rv += %s_get_packed_size (%svalue->data[%u]);\n",
+                                 sub->any.c_func_prefix,
                                  sub->any.always_by_pointer ? "&" : "", i);
           }
         else
@@ -776,9 +782,9 @@ implement__get_packed_size(GskbFormat *format,
             gsk_buffer_printf (output,
                                "  guint i, rv = 0;\n"
                                "  for (i = 0; i < %u; i++)\n"
-                               "    rv += %s%s_get_packed_size (%svalue->data[i]);\n",
+                               "    rv += %s_get_packed_size (%svalue->data[i]);\n",
                                  format->v_fixed_array.length,
-                                 config->func_prefix, sub->any.lc_name,
+                                 sub->any.c_func_prefix,
                                  sub->any.always_by_pointer ? "&" : "");
           }
         gsk_buffer_printf (output, "  return rv;\n");
@@ -796,9 +802,9 @@ implement__get_packed_size(GskbFormat *format,
             gsk_buffer_printf (output,
                                "  guint i;\n"
                                "  for (i = 0; i < %u; i++)\n"
-                               "    rv += %s%s_get_packed_size (%svalue->data[i]);\n",
+                               "    rv += %s_get_packed_size (%svalue->data[i]);\n",
                                  format->v_fixed_array.length,
-                                 config->func_prefix, sub->any.lc_name,
+                                 sub->any.c_func_prefix,
                                  sub->any.always_by_pointer ? "&" : "");
           }
         gsk_buffer_printf (output, "  return rv;\n");
@@ -820,8 +826,8 @@ implement__get_packed_size(GskbFormat *format,
           {
             GskbFormatStructMember *member = format->v_struct.members + i;
             gsk_buffer_printf (output,
-                               "  rv += %s%s_get_packed_size (%svalue->%s);\n",
-                               config->func_prefix, member->format->any.lc_name,
+                               "  rv += %s_get_packed_size (%svalue->%s);\n",
+                               member->format->any.c_func_prefix,
                                member->format->any.always_by_pointer?"&":"", member->name);
           }
         if (format->v_struct.is_extensible)
@@ -831,7 +837,7 @@ implement__get_packed_size(GskbFormat *format,
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.lc_name, -1);
+        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
         gsk_buffer_printf (output, "  switch (value->type)\n    {\n");
         for (i = 0; i < format->v_union.n_cases; i++)
           {
@@ -845,9 +851,9 @@ implement__get_packed_size(GskbFormat *format,
                   gsk_buffer_printf (output, "      return gskb_uint_get_packed_size (%s__%s);\n",
                                      ucname, uccasename);
                 else
-                  gsk_buffer_printf (output, "      return gskb_uint_get_packed_size (%s__%s) + %s%s_get_packed_size (%svalue->info.%s);\n",
+                  gsk_buffer_printf (output, "      return gskb_uint_get_packed_size (%s__%s) + %s_get_packed_size (%svalue->info.%s);\n",
                                      ucname, uccasename,
-                                     config->func_prefix, c->format->any.lc_name, c->format->any.always_by_pointer?"&":"", c->name);
+                                     c->format->any.c_func_prefix, c->format->any.always_by_pointer?"&":"", c->name);
               }
             else
               {
@@ -857,12 +863,12 @@ implement__get_packed_size(GskbFormat *format,
                 else
                   gsk_buffer_printf (output,
                                      "      {\n"
-                                     "        guint subsize = %s%s_get_packed_size (%svalue->info.%s);\n"
+                                     "        guint subsize = %s_get_packed_size (%svalue->info.%s);\n"
                                      "        return gskb_uint_get_packed_size (%s__%s)\n"
                                      "             + gskb_uint_get_packed_size (subsize)\n"
                                      "             + subsize;\n"
                                      "      }\n",
-                                     config->func_prefix, c->format->any.lc_name, c->format->any.always_by_pointer?"&":"", c->name,
+                                     c->format->any.c_func_prefix, c->format->any.always_by_pointer?"&":"", c->name,
                                      ucname, uccasename);
               }
             g_free (uccasename);
@@ -913,8 +919,8 @@ implement__pack_slab      (GskbFormat *format,
             gsk_buffer_printf (output, "  guint rv = 0;\n");
             for (i = 0; i < format->v_fixed_array.length; i++)
               gsk_buffer_printf (output,
-                                 "  rv += %s%s_pack_slab (%svalue->data[%u], out + rv);\n",
-                                 config->func_prefix, sub->any.lc_name,
+                                 "  rv += %s_pack_slab (%svalue->data[%u], out + rv);\n",
+                                 sub->any.c_func_prefix,
                                  sub->any.always_by_pointer ? "&" : "", i);
           }
         else
@@ -922,9 +928,9 @@ implement__pack_slab      (GskbFormat *format,
             gsk_buffer_printf (output,
                                "  guint i, rv = 0;\n"
                                "  for (i = 0; i < %u; i++)\n"
-                               "    rv += %s%s_pack_slab (%svalue->data[i], out + rv);\n",
+                               "    rv += %s_pack_slab (%svalue->data[i], out + rv);\n",
                                  format->v_fixed_array.length,
-                                 config->func_prefix, sub->any.lc_name,
+                                 sub->any.c_func_prefix,
                                  sub->any.always_by_pointer ? "&" : "");
           }
         gsk_buffer_printf (output, "  return rv;\n");
@@ -939,9 +945,9 @@ implement__pack_slab      (GskbFormat *format,
         gsk_buffer_printf (output,
                            "  guint i;\n"
                            "  for (i = 0; i < %u; i++)\n"
-                           "    rv += %s%s_pack_slab (%svalue->data[i], out + rv);\n",
+                           "    rv += %s_pack_slab (%svalue->data[i], out + rv);\n",
                              format->v_fixed_array.length,
-                             config->func_prefix, sub->any.lc_name,
+                             sub->any.c_func_prefix,
                              sub->any.always_by_pointer ? "&" : "");
       }
         gsk_buffer_printf (output, "  return rv;\n");
@@ -954,8 +960,8 @@ implement__pack_slab      (GskbFormat *format,
           {
             GskbFormatStructMember *member = format->v_struct.members + i;
             gsk_buffer_printf (output,
-                               "  rv += %s%s_pack_slab (%svalue->%s, out + rv);\n",
-                               config->func_prefix, member->format->any.lc_name,
+                               "  rv += %s_pack_slab (%svalue->%s, out + rv);\n",
+                               member->format->any.c_func_prefix,
                                member->format->any.always_by_pointer?"&":"", member->name);
           }
         gsk_buffer_printf (output, "  return rv;\n");
@@ -963,7 +969,7 @@ implement__pack_slab      (GskbFormat *format,
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.lc_name, -1);
+        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
         gsk_buffer_printf (output, "  switch (value->type)\n    {\n");
         for (i = 0; i < format->v_union.n_cases; i++)
           {
@@ -977,10 +983,10 @@ implement__pack_slab      (GskbFormat *format,
             else
               gsk_buffer_printf (output, "      {\n"
                                          "         guint size1 = gskb_uint_pack_slab (%s__%s, out);\n"
-                                         "         return size1 + %s%s_pack_slab (%svalue->info.%s, out + size1);\n"
+                                         "         return size1 + %s_pack_slab (%svalue->info.%s, out + size1);\n"
                                          "      }\n",
                                          ucname, uccasename,
-                                         config->func_prefix, c->format->any.lc_name, c->format->any.always_by_pointer?"&":"", c->name);
+                                         c->format->any.c_func_prefix, c->format->any.always_by_pointer?"&":"", c->name);
             g_free (uccasename);
           }
         g_free (ucname);
@@ -1066,13 +1072,13 @@ implement__validate_partial  (GskbFormat *format,
           {
             for (i = 0; i < format->v_fixed_array.length; i++)
               gsk_buffer_printf (output,
-                                 "  if ((sub_used = %s%s_validate_partial (len - rv, data + rv, error)) == 0)\n"
+                                 "  if ((sub_used = %s_validate_partial (len - rv, data + rv, error)) == 0)\n"
                                  "    {\n"
                                  "      gsk_g_error_add_prefix (error, \"validating element #%%u of %%u\", %u, %u);\n"
                                  "      return 0;\n"
                                  "    }\n"
                                  "  rv += sub_used;\n",
-                                 config->func_prefix, sub->any.lc_name,
+                                 sub->any.c_func_prefix,
                                  i, format->v_fixed_array.length);
           }
         else
@@ -1080,14 +1086,14 @@ implement__validate_partial  (GskbFormat *format,
             gsk_buffer_printf (output,
                                "  guint i, rv = 0;\n"
                                "  for (i = 0; i < %u; i++)\n"
-                               "    if ((sub_used = %s%s_validate_partial (len - rv, out + rv, error)) == 0)\n"
+                               "    if ((sub_used = %s_validate_partial (len - rv, out + rv, error)) == 0)\n"
                                "      {\n"
                                  "      gsk_g_error_add_prefix (error, \"validating element #%%u of %%u\", i, %u);\n"
                                  "      return 0;\n"
                                  "    }\n"
                                  "  rv += sub_used;\n",
                                  format->v_fixed_array.length,
-                                 config->func_prefix, sub->any.lc_name,
+                                 sub->any.c_func_prefix,
                                  format->v_fixed_array.length);
           }
         gsk_buffer_printf (output, "  return rv;\n");
@@ -1108,14 +1114,14 @@ implement__validate_partial  (GskbFormat *format,
         gsk_buffer_printf (output,
                            "  for (i = 0; i < n; i++)\n"
                            "    {\n"
-                           "      if (!%s%s_validate_partial (len - rv, out + rv, &sub_used, error))\n"
+                           "      if (!%s_validate_partial (len - rv, out + rv, &sub_used, error))\n"
                            "        {\n"
                            "          gsk_g_error_add_prefix (error, \"validating element #%%u of %%u\", i, n);\n"
                            "          return 0;\n"
                            "        }\n"
                            "      rv += sub_used;\n"
                            "    }\n",
-                             config->func_prefix, sub->any.lc_name);
+                             sub->any.c_func_prefix);
         gsk_buffer_printf (output, "  return rv;\n");
         break;
       }
@@ -1159,7 +1165,7 @@ implement__validate_partial  (GskbFormat *format,
                 GskbFormat *sub = member->format;
                 gsk_buffer_printf (output,
                                    "        case %u:\n"
-                                   "          sub_used = %s%s_validate_partial (len - rv, out + rv, error);\n"
+                                   "          sub_used = %s_validate_partial (len - rv, out + rv, error);\n"
                                    "          if (G_UNLIKELY (sub_used == 0))\n"
                                    "            {\n"
                                    "              gsk_g_error_add_prefix (error, \"error parsing member %%s of %%s\", \"%s\", \"%s\");\n"
@@ -1175,7 +1181,7 @@ implement__validate_partial  (GskbFormat *format,
                                    "          rv += sub_used;\n"
                                    "          break;\n",
                                    member->code,
-                                   config->func_prefix, sub->any.lc_name,
+                                   sub->any.c_func_prefix,
                                    member->name, format->any.name,
                                    member->name, format->any.name);
               }
@@ -1193,13 +1199,13 @@ implement__validate_partial  (GskbFormat *format,
               {
                 GskbFormatStructMember *member = format->v_struct.members + i;
                 gsk_buffer_printf (output,
-                                   "  if ((sub_used = %s%s_validate_partial (len - rv, out + rv, error)) == 0)\n"
+                                   "  if ((sub_used = %s_validate_partial (len - rv, out + rv, error)) == 0)\n"
                                    "    {\n"
                                    "      gsk_g_error_add_prefix (error, \"validating member '%%s' of %%s\", \"%s\", \"%s\");\n"
                                    "      return 0;\n"
                                    "    }\n"
                                    "  rv += sub_used;\n",
-                                   config->func_prefix, member->format->any.lc_name,
+                                   member->format->any.c_func_prefix,
                                    member->name, format->any.name);
               }
             gsk_buffer_printf (output, "  return rv;\n");
@@ -1208,7 +1214,7 @@ implement__validate_partial  (GskbFormat *format,
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.lc_name, -1);
+        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
         
         if (format->v_union.is_extensible)
           {
@@ -1260,12 +1266,12 @@ implement__validate_partial  (GskbFormat *format,
             else
               {
                 gsk_buffer_printf (output, "      rv = sub_used;\n"
-                                           "      if ((sub_used = %s%s_validate_partial (len - rv, data + rv, error)) == 0)\n"
+                                           "      if ((sub_used = %s_validate_partial (len - rv, data + rv, error)) == 0)\n"
                                            "        {\n"
                                            "           gsk_g_error_add_prefix (error, \"validating case '%%s' of '%%s'\", \"%s\", \"%s\");\n"
                                            "           return FALSE;\n"
                                            "        }\n",
-                                           ucname, uccasename, c->name, format->any.name);
+                                           c->format->any.c_func_prefix, c->name, format->any.name);
                 if (format->v_union.is_extensible)
                   gsk_buffer_printf (output,
                                      "      if (sub_used != len)\n"
@@ -1305,7 +1311,7 @@ implement__validate_partial  (GskbFormat *format,
       }
     case GSKB_FORMAT_TYPE_ENUM:
       {
-        char *ucname = g_ascii_strup (format->any.lc_name, -1);
+        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
         if (format->v_enum.is_extensible)
           {
             gsk_buffer_printf (output,
@@ -1405,17 +1411,17 @@ implement_unpack_functions         (GskbFormat *format,
           {
             for (i = 0; i < format->v_fixed_array.length; i++)
               gsk_buffer_printf (output,
-                                 "  rv += %s%s_unpack%s (in + rv, &value_out->data[%u]%s);\n",
-                                 config->func_prefix, sub->any.lc_name, mempool_suffix, i, mempool_last_arg);
+                                 "  rv += %s_unpack%s (in + rv, &value_out->data[%u]%s);\n",
+                                 sub->any.c_func_prefix, mempool_suffix, i, mempool_last_arg);
           }
         else
           {
             gsk_buffer_printf (output,
                                "  guint i;\n"
                                "  for (i = 0; i < %u; i++)\n"
-                               "    rv += %s%s_unpack%s (in + rv, &value_out->data[i]%s);\n",
+                               "    rv += %s_unpack%s (in + rv, &value_out->data[i]%s);\n",
                                format->v_fixed_array.length,
-                               config->func_prefix, sub->any.lc_name, mempool_suffix, mempool_last_arg);
+                               sub->any.c_func_prefix, mempool_suffix, mempool_last_arg);
           }
         gsk_buffer_printf (output, "  return rv;\n");
         break;
@@ -1428,12 +1434,12 @@ implement_unpack_functions         (GskbFormat *format,
                            "  guint32 n;\n"
                            "  rv = gskb_uint_unpack (in, &n);\n"
                            "  value_out->length = n;\n"
-                           "  value_out->data = g_new (%s%s, n);\n",
-                           config->type_prefix, sub->any.TypeName);
+                           "  value_out->data = g_new (%s, n);\n",
+                           sub->any.c_type_name);
         gsk_buffer_printf (output,
                            "  for (i = 0; i < n; i++)\n"
-                           "    rv += %s%s_unpack%s (in + rv, value_out->data[i]%s);\n",
-                           config->func_prefix, sub->any.lc_name, mempool_suffix, mempool_last_arg);
+                           "    rv += %s_unpack%s (in + rv, value_out->data[i]%s);\n",
+                           sub->any.c_func_prefix, mempool_suffix, mempool_last_arg);
         gsk_buffer_printf (output, "  return rv;\n");
         break;
       }
@@ -1446,7 +1452,7 @@ implement_unpack_functions         (GskbFormat *format,
                                "  GArray *unknown_members = NULL;\n"
                                "  guint sub_used;\n"
                                "  guint32 code;\n"
-                               "  memset (&value_out->has, 0, sizeof (%s%s_Contents));\n"
+                               "  memset (&value_out->has, 0, sizeof (%s_Contents));\n"
                                "  for (;;)\n"
                                "    {\n"
                                "      rv += gskb_uint_unpack (data + rv, &code);\n"
@@ -1461,7 +1467,7 @@ implement_unpack_functions         (GskbFormat *format,
                                "            {\n"
                                "              gsize size = unknown_members->len * sizeof (GskbUnknownValue);\n"
                                "              value_out->unknown_values.length = unknown_members->len;\n",
-                               config->type_prefix, format->any.TypeName);
+                               format->any.c_type_name);
             if (with_mempool)
               {
                 gsk_buffer_printf (output,
@@ -1490,12 +1496,12 @@ implement_unpack_functions         (GskbFormat *format,
                                "        case %u:\n"
                                "          g_assert (!value_out->has.%s);\n"
                                "          value_out->has.%s = 1;\n"
-                               "          rv += %s%s_unpack%s (in + rv, &value_out->%s%s);\n"
+                               "          rv += %s_unpack%s (in + rv, &value_out->%s%s);\n"
                                "          break;\n",
                                    member->code,
                                    member->name,
                                    member->name,
-                                   config->func_prefix, member->format->any.lc_name,
+                                   member->format->any.c_func_prefix,
                                    mempool_suffix, member->name, mempool_last_arg);
               }
             gsk_buffer_printf (output,
@@ -1519,8 +1525,8 @@ implement_unpack_functions         (GskbFormat *format,
               {
                 GskbFormatStructMember *member = format->v_struct.members + i;
                 gsk_buffer_printf (output,
-                                   "  rv += %s%s_unpack%s (in + rv, &value_out->%s%s);\n",
-                                   config->func_prefix, member->format->any.lc_name, mempool_suffix,
+                                   "  rv += %s_unpack%s (in + rv, &value_out->%s%s);\n",
+                                   member->format->any.c_func_prefix, mempool_suffix,
                                    member->name, mempool_last_arg);
               }
             gsk_buffer_printf (output, "  return rv;\n");
@@ -1529,7 +1535,7 @@ implement_unpack_functions         (GskbFormat *format,
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.lc_name, -1);
+        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
         gsk_buffer_printf (output,
                            "  guint rv;\n"
                            "  guint32 type;\n"
@@ -1545,8 +1551,8 @@ implement_unpack_functions         (GskbFormat *format,
             if (c->format == NULL)
               gsk_buffer_printf (output, "      return rv;\n");
             else
-              gsk_buffer_printf (output, "      return rv + %s%s_unpack%s (in + rv, &value_out->info.%s%s);\n",
-                                         config->func_prefix, c->format->any.lc_name, mempool_suffix, c->name, mempool_last_arg);
+              gsk_buffer_printf (output, "      return rv + %s_unpack%s (in + rv, &value_out->info.%s%s);\n",
+                                         c->format->any.c_func_prefix, mempool_suffix, c->name, mempool_last_arg);
 
             g_free (uccasename);
           }
@@ -1657,17 +1663,17 @@ implement__destruct (GskbFormat *format,
           {
             for (i = 0; i < format->v_fixed_array.length; i++)
               gsk_buffer_printf (output,
-                                 "  rv += %s%s_destruct (&value->data[%u]);\n",
-                                 config->func_prefix, sub->any.lc_name, i);
+                                 "  rv += %s_destruct (&value->data[%u]);\n",
+                                 sub->any.c_func_prefix, i);
           }
         else
           {
             gsk_buffer_printf (output,
                                "  guint i;\n"
                                "  for (i = 0; i < %u; i++)\n"
-                               "    rv += %s%s_destruct (&value->data[i]);\n",
+                               "    rv += %s_destruct (&value->data[i]);\n",
                                format->v_fixed_array.length,
-                               config->func_prefix, sub->any.lc_name);
+                               sub->any.c_func_prefix);
           }
         gsk_buffer_printf (output, "  return rv;\n");
         break;
@@ -1679,8 +1685,8 @@ implement__destruct (GskbFormat *format,
           gsk_buffer_printf (output,
                              "  guint i;\n"
                              "  for (i = 0; i < value->length; i++)\n"
-                             "    %s%s_destruct (value->data[i]);\n",
-                             config->func_prefix, sub->any.lc_name);
+                             "    %s_destruct (value->data[i]);\n",
+                             sub->any.c_func_prefix);
         gsk_buffer_printf (output, "  g_free (value->data);\n");
         break;
       }
@@ -1690,15 +1696,15 @@ implement__destruct (GskbFormat *format,
           {
             GskbFormatStructMember *member = format->v_struct.members + i;
             gsk_buffer_printf (output,
-                               "  %s%s_destruct (&value->%s);\n",
-                               config->func_prefix, member->format->any.lc_name,
+                               "  %s_destruct (&value->%s);\n",
+                               member->format->any.c_func_prefix,
                                member->name);
           }
         break;
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.lc_name, -1);
+        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
         gsk_buffer_printf (output, "  switch (value->type)\n    {\n");
         for (i = 0; i < format->v_union.n_cases; i++)
           {
@@ -1709,9 +1715,9 @@ implement__destruct (GskbFormat *format,
             if (c->format == NULL)
               gsk_buffer_printf (output, "      break;\n");
             else
-              gsk_buffer_printf (output, "      %s%s_destruct (&value->info.%s);\n"
+              gsk_buffer_printf (output, "      %s_destruct (&value->info.%s);\n"
                                          "      break;\n",
-                                         config->func_prefix, c->format->any.lc_name, c->name);
+                                         c->format->any.c_func_prefix, c->name);
 
             g_free (uccasename);
           }
@@ -1817,9 +1823,8 @@ start_function (const char *qualifiers,
                 GskbCodegenOutputFunction function,
                 GskBuffer *buffer)
 {
-  char *func_name = g_strdup_printf ("%s%s_%s",
-                                     config->func_prefix,
-                                     format->any.lc_name,
+  char *func_name = g_strdup_printf ("%s_%s",
+                                     format->any.c_func_prefix,
                                      output_function_info[function].name);
   const char *const*raw_args = output_function_info[function].type_name_pairs_templates;
   char **substituted_names;
@@ -1850,8 +1855,7 @@ start_function (const char *qualifiers,
                 }
               else if (len == strlen ("type_name") && strncmp ("type_name", at, len) == 0)
                 {
-                  g_string_append (str, config->type_prefix);
-                  g_string_append (str, format->any.TypeName);
+                  g_string_append (str, format->any.c_type_name);
                 }
               else
                 {
@@ -1904,20 +1908,21 @@ gskb_format_codegen_emit_function      (GskbFormat *format,
   g_assert (output_function_info[function].output_function == function);
   if (is_fundamental (format))
     {
-      if (emit_implementation)
-        return;
-      gsk_buffer_printf (output,
-                         "#define %s%s_%s gskb_%s_%s\n",
-                         config->func_prefix, format->any.lc_name, name,
-                         format->any.lc_name, name);
+      g_assert_not_reached ();
+      //if (emit_implementation)
+      //  return;
+      //gsk_buffer_printf (output,
+      //                   "#define %s%s_%s gskb_%s_%s\n",
+      //                   config->func_prefix, format->any.lc_name, name,
+      //                   format->any.lc_name, name);
       return;
     }
   if (format->type == GSKB_FORMAT_TYPE_ALIAS)
     {
       gsk_buffer_printf (output,
-                         "#define %s%s_%s %s%s_%s\n",
-                         config->func_prefix, format->any.lc_name, name,
-                         config->func_prefix, format->v_alias.format->any.lc_name, name);
+                         "#define %s_%s %s_%s\n",
+                         format->any.c_func_prefix, name,
+                         format->v_alias.format->any.c_func_prefix, name);
       return;
     }
 
@@ -1928,16 +1933,16 @@ gskb_format_codegen_emit_function      (GskbFormat *format,
       if (format->any.fixed_length > 0)
         {
           gsk_buffer_printf (output,
-                             "#define %s%s_get_packed_size(value) %u\n",
-                             config->func_prefix, format->any.lc_name,
+                             "#define %s_get_packed_size(value) %u\n",
+                             format->any.c_func_prefix,
                              format->any.fixed_length);
           return;
         }
       if (format->type == GSKB_FORMAT_TYPE_ENUM)
         {
           gsk_buffer_printf (output,
-                             "#define %s%s_get_packed_size(value) gskb_uint_get_packed_size(value)\n",
-                             config->func_prefix, format->any.lc_name);
+                             "#define %s_get_packed_size(value) gskb_uint_get_packed_size(value)\n",
+                             format->any.c_func_prefix);
           return;
         }
       break;
