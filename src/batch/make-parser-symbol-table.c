@@ -41,6 +41,7 @@ static const char *symbols[] = {
 "long",
 "uint",
 "ulong",
+"bit",
 "float32",
 "float64",
 "string",

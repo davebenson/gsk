@@ -417,6 +417,10 @@ gskb_str_table_print_compilable_deps(GskbStrTable *table,
   /* emit string slab */
   guint bytes_per_line = 10;
   guint byte_at;
+  g_return_if_fail (table != NULL);
+  g_return_if_fail (table_name != NULL);
+  g_return_if_fail (entry_type_name != NULL);
+  g_return_if_fail (render_func != NULL);
   gsk_buffer_printf (output,
                      "static char %s__str_slab[%u] = \n",
                      table_name, table->str_slab_size);
@@ -489,8 +493,15 @@ gskb_str_table_print_compilable_deps(GskbStrTable *table,
           gsk_buffer_append_string (output, " }, ");
           value_ptr = ((char*)at + table->entry_data_offset);
           if (table->is_ptr)
-            value_ptr = * (gpointer *) value_ptr;
-          render_func (value_ptr, output);
+            {
+              value_ptr = * (gpointer *) value_ptr;
+              if (value_ptr == NULL)
+                gsk_buffer_append_string (output, "NULL");
+              else
+                render_func (value_ptr, output);
+            }
+          else
+            render_func (value_ptr, output);
           gsk_buffer_append_string (output, " },\n");
           at = (gpointer)((char*)at + ent_size);
         }
@@ -608,6 +619,8 @@ gskb_str_table_lookup (GskbStrTable *table,
           return NULL;
         index = code % table->table_size;
         e = (HashEntry*)(table->table_data + ent_size * index);
+        if (e->hash_code != code)
+          return NULL;
         if (e->str_slab_offset == G_MAXUINT32)
           return NULL;
         ss = (const guint8 *) table->str_slab + e->str_slab_offset;

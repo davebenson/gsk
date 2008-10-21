@@ -46,10 +46,7 @@ static const char *builtin_format_info[] =
 
 static void output_format_name (gconstpointer entry_data, GskBuffer *output)
 {
-  if (entry_data == NULL)
-    gsk_buffer_printf (output, "NULL");
-  else
-    gsk_buffer_printf (output, "gskb_%s_format", (const char*) entry_data);
+  gsk_buffer_printf (output, "gskb_%s_format", (const char*) entry_data);
 }
 
 int main ()

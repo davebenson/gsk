@@ -108,6 +108,14 @@ typedef struct
 %start_symbol toplevel
 %name gskb_lemon_parser_
 
+%parse_failure {
+   ADD_ERROR("parse failed");
+}
+%syntax_error {
+   ADD_ERROR("syntax error at file %s, line %u: %s",
+             TOKEN->filename, TOKEN->line_no, TOKEN->str);
+}
+
 format(RV) ::= INT8.
 	{ RV = gskb_format_ref (gskb_int8_format); }
 format(RV) ::= INT16.
@@ -132,6 +140,8 @@ format(RV) ::= UINT.
 	{ RV = gskb_format_ref (gskb_uint_format); }
 format(RV) ::= ULONG.
 	{ RV = gskb_format_ref (gskb_ulong_format); }
+format(RV) ::= BIT.
+	{ RV = gskb_format_ref (gskb_bit_format); }
 format(RV) ::= FLOAT32.
 	{ RV = gskb_format_ref (gskb_float32_format); }
 format(RV) ::= FLOAT64.
@@ -166,9 +176,10 @@ format(RV) ::= format(ELT) LBRACKET RBRACKET.
 	  gskb_format_unref (ELT); }
 
 /* Structures */
-member(RV) ::= format(TYPE) BAREWORD(NAME) SEMICOLON.
+member(RV) ::= format(TYPE) BAREWORD(NAME) opt_value(OV) SEMICOLON.
 	{ RV.format = TYPE;
-	  RV.name = g_strdup (NAME->str); }
+	  RV.name = g_strdup (NAME->str);
+	  RV.code = OV.has_value ? OV.value : 0; }
 member_list(RV) ::= member(A).
 	{ RV = g_array_new (FALSE, FALSE, sizeof (GskbFormatStructMember));
 	  g_array_append_val (RV, A); }
@@ -185,7 +196,10 @@ named_format(RV) ::= opt_extensible(EXT) STRUCT BAREWORD(NAME) LBRACE member_lis
 	{ GError *error = NULL;
 	  RV.format = gskb_format_struct_new (EXT, MEMBERS->len, (GskbFormatStructMember *) MEMBERS->data, &error);
 	  if (RV.format == NULL)
-	    ADD_G_ERROR (error);
+	    {
+	      gsk_g_error_add_prefix (&error, "in struct named '%s'", NAME->str);
+	      ADD_G_ERROR (error);
+	    }
 	  else
 	    RV.name = g_strdup (NAME->str);
 	  g_array_free (MEMBERS, TRUE); }
@@ -197,13 +211,14 @@ case_list(RV) ::= case_list(A) opt_format(TYPE) BAREWORD(NAME) opt_value(V) SEMI
 	{ GskbFormatUnionCase uc;
 	  RV = A;
 	  uc.format = TYPE;
-	  uc.name = NAME->str;
+	  uc.name = g_strdup (NAME->str);
 	  if (V.has_value)
 	    uc.code = V.value;
 	  else if (RV->len == 0)
 	    uc.code = 0;
 	  else
-	    uc.code = g_array_index (RV, GskbFormatUnionCase, RV->len - 1).code + 1; }
+	    uc.code = g_array_index (RV, GskbFormatUnionCase, RV->len - 1).code + 1;
+	  g_array_append_val (RV, uc); }
 format(RV) ::= opt_extensible(EXT) UNION opt_int_type(IT) LBRACE case_list(CASES) RBRACE.
   	{ GError *error = NULL;
 	  RV = gskb_format_union_new (EXT, IT, CASES->len, (GskbFormatUnionCase*)(CASES->data), &error);
@@ -215,7 +230,10 @@ named_format(RV) ::= opt_extensible(EXT) UNION opt_int_type(IT) BAREWORD(NAME) L
 	  RV.format = gskb_format_union_new (EXT, IT, CASES->len, (GskbFormatUnionCase*)(CASES->data), &error);
 	  free_case_list (CASES);
 	  if (RV.format == NULL)
-	    ADD_G_ERROR (error);
+	    {
+	      gsk_g_error_add_prefix (&error, "in union named '%s'", NAME->str);
+	      ADD_G_ERROR (error);
+	    }
 	  else
 	    RV.name = g_strdup (NAME->str);
 	}
@@ -242,7 +260,10 @@ named_format(RV) ::= BITFIELDS BAREWORD(NAME) LBRACE bitfield_list(LIST) RBRACE 
 					  (GskbFormatBitField *) LIST->data,
 					  &error);
 	  if (RV.format == NULL)
-	    ADD_G_ERROR (error);
+	    {
+	      gsk_g_error_add_prefix (&error, "in bitfields named '%s'", NAME->str);
+	      ADD_G_ERROR (error);
+	    }
 	  else
 	    RV.name = g_strdup (NAME->str);
 	  free_bitfield_list (LIST); }
@@ -291,7 +312,10 @@ named_format(RV) ::= opt_extensible(EXT) ENUM opt_int_type(IT) BAREWORD(NAME) LB
         { GError *error = NULL;
 	  RV.format = gskb_format_enum_new (EXT, IT, IN->len, (GskbFormatEnumValue*)(IN->data), &error);
 	  if (RV.format == NULL)
-	    ADD_G_ERROR (error);
+	    {
+	      gsk_g_error_add_prefix (&error, "in enum named '%s'", NAME->str);
+	      ADD_G_ERROR (error);
+	    }
 	  else
 	   RV.name = g_strdup (NAME->str);
 	  free_value_list (IN); }
@@ -304,7 +328,8 @@ named_format(RV) ::= ALIAS format(IN) BAREWORD(NAME).
 /* Toplevel parsing */
 toplevel_directives ::= .
 toplevel_directives ::= toplevel_directives named_format(NF) SEMICOLON.
-	{ if (parse_context->cur_namespace == NULL)
+	{ g_message ("got named_format: %s", NF.name);
+	  if (parse_context->cur_namespace == NULL)
 	    {
 	      ADD_ERROR ("no 'namespace' directive before format");
 	    }
@@ -316,7 +341,7 @@ toplevel_directives ::= toplevel_directives named_format(NF) SEMICOLON.
 	  gskb_format_unref (NF.format);
 	}
 
-namespace_decl(NS) ::= NAMESPACE BAREWORD(ns).
+namespace_decl(NS) ::= NAMESPACE BAREWORD(ns) SEMICOLON.
 	{ NS = g_strdup (ns->str); }
 
 toplevel_directives ::= toplevel_directives namespace_decl(NS).

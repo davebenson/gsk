@@ -79,6 +79,7 @@ GskbFormat    *gskb_namespace_lookup_format(GskbNamespace  *ns,
                                             const char     *name);
 GskbNamespace *gskb_namespace_ref          (GskbNamespace  *ns);
 void           gskb_namespace_unref        (GskbNamespace  *ns);
+void           gskb_namespace_make_nonwritable (GskbNamespace *ns);
 
 extern GskbNamespace gskb_namespace_gskb;
 

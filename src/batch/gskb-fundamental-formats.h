@@ -57,6 +57,8 @@ typedef gdouble gskb_float64;
 typedef char * gskb_string;
 typedef guint32 gskb_enum;              /* all enums map to this type in the c binding */
 
+#include <string.h>
+
 #define GSKB_FOREACH_FUNDAMENTAL_TYPE(macro) \
  macro(int8, ) \
  macro(int16, ) \

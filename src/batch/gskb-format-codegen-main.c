@@ -29,6 +29,7 @@
 #include <sys/stat.h>
 #include "gskb-codegen-config.h"
 #include "../gskutils.h"
+#include "../gskinit.h"
 
 static const char *cmdline_input = NULL;
 
@@ -73,23 +74,14 @@ static GOptionEntry op_entries[] =
   { NULL, '\0', 0, 0, NULL, NULL, NULL }
 };
 
-static void
-ns_section (GskbNamespace *ns,
-            GskbCodegenSection section,
-            GskbCodegenConfig *config,
-            GskBuffer *output)
-{
-  guint i;
-  for (i = 0; i < ns->n_formats; i++)
-    gskb_format_codegen (ns->formats[i], section, config, output);
-}
-
 int main(int argc, char **argv)
 {
   GOptionContext *op_context;
   GError *error = NULL;
   GskbCodegenConfig *config;
   guint ns_index;
+
+  gsk_init_without_threads (&argc, &argv);
 
   op_context = g_option_context_new (NULL);
   g_option_context_set_summary (op_context, "GSKB Code Generator");
@@ -124,28 +116,41 @@ int main(int argc, char **argv)
                          cmdline_basename);
     }
   gsk_buffer_append_string (&decls, do_not_handedit_warning);
+  gsk_buffer_printf (&decls, "#include \"gskb-format.h\"\n"
+                             "#include \"gskb-str-table.h\"\n"
+                             "#include \"gskb-uint-table.h\"\n"
+                             "#include \"gskb-str-table-internals.h\"\n"
+                             "#include \"gskb-uint-table-internals.h\"\n"
+                             "#include \"gskb-fundamental-formats.h\"\n"
+                             "#include \"gskb-config.h\"\n");
+
   for (ns_index = 0;
        ns_index < context->implemented_namespaces->len;
        ns_index++)
     {
       GskbNamespace *ns = context->implemented_namespaces->pdata[ns_index];
+      static const GskbCodegenSection decls_section_order[] = {
+        GSKB_CODEGEN_SECTION_TYPEDEFS,
+        GSKB_CODEGEN_SECTION_STRUCTURES,
+        GSKB_CODEGEN_SECTION_FUNCTION_PROTOTYPES,
+        GSKB_CODEGEN_SECTION_FORMAT_DECLS,
+        GSKB_CODEGEN_SECTION_FORMAT_PRIVATE_DECLS,
+        GSKB_CODEGEN_SECTION_NAMESPACE_DECL
+      };
+      static const GskbCodegenSection impls_section_order[] = {
+        GSKB_CODEGEN_SECTION_FORMAT_IMPLS,
+        GSKB_CODEGEN_SECTION_FUNCTION_IMPLS,
+        GSKB_CODEGEN_SECTION_NAMESPACE_IMPL
+      };
+      guint i;
+      gskb_namespace_make_nonwritable (ns);
       gsk_buffer_printf (&decls,
                          "\n/*\n *\n * Namespace:   %s\n *\n */\n",
                          ns->name);
-      gsk_buffer_printf (&decls, "\n/* typedefs */\n");
-      ns_section (ns, GSKB_CODEGEN_SECTION_TYPEDEFS, config, &decls);
-      gsk_buffer_printf (&decls, "\n/* structures */\n");
-      ns_section (ns, GSKB_CODEGEN_SECTION_STRUCTURES, config, &decls);
-      gsk_buffer_printf (&decls, "\n/* function prototypes */\n");
-      ns_section (ns, GSKB_CODEGEN_SECTION_FUNCTION_PROTOTYPES, config, &decls);
-      gsk_buffer_printf (&decls, "\n/* format declarations */\n");
-      ns_section (ns, GSKB_CODEGEN_SECTION_FORMAT_DECLS, config, &decls);
-      gsk_buffer_printf (&decls, "\n/* format private declarations */\n");
-      ns_section (ns, GSKB_CODEGEN_SECTION_FORMAT_PRIVATE_DECLS, config, &decls);
-      gsk_buffer_printf (&impls, "\n/* format implementations */\n");
-      ns_section (ns, GSKB_CODEGEN_SECTION_FORMAT_IMPLS, config, &impls);
-      gsk_buffer_printf (&impls, "\n/* function implementations */\n");
-      ns_section (ns, GSKB_CODEGEN_SECTION_FUNCTION_IMPLS, config, &impls);
+      for (i = 0; i < G_N_ELEMENTS (decls_section_order); i++)
+        gskb_namespace_codegen (ns, decls_section_order[i], config, &decls);
+      for (i = 0; i < G_N_ELEMENTS (impls_section_order); i++)
+        gskb_namespace_codegen (ns, impls_section_order[i], config, &impls);
     }
 
   if (config->all_static)

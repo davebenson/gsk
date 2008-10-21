@@ -76,6 +76,7 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
       if (entries_sorted[i].value + 1 != entries_sorted[i+1].value)
         n_ranges++;
     }
+  g_message ("gskb_uint_table_new: n_entries=%u, n_ranges=%u", n_entries, n_ranges);
   if (n_ranges == 1 && entries_sorted[i].value == 0)
     {
       /* direct map */
@@ -95,11 +96,13 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
       /* range-wise optimization */
       GskbUIntTableRange *ranges;
       guint range_index;
+      table = g_slice_new (GskbUIntTable);
+      table->type = GSKB_UINT_TABLE_RANGES;
       table->n_entry_data = n_entries;
       table->entry_data = make_entry_data (sizeof_entry_data,
                                            n_entries, entries_sorted);
       ranges = g_new (GskbUIntTableRange, n_ranges);
-      ranges[0].start = entries_sorted[i].value;
+      ranges[0].start = entries_sorted[0].value;
       ranges[0].count = 0;
       ranges[0].entry_data_offset = 0;
       range_index = 0;
@@ -112,6 +115,7 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
             }
           else
             {
+              g_message ("range %u had %u elements (starting at value %u)", range_index, ranges[range_index].count, ranges[range_index].start);
               range_index++;
               ranges[range_index].start = entries_sorted[i].value;
               ranges[range_index].count = 1;
@@ -120,7 +124,10 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
                     + ranges[range_index-1].count;
             }
         }
-      g_assert (range_index == n_ranges - 1);
+      table->sizeof_entry_data = sizeof_entry_data;
+      table->table_data = ranges;
+      table->table_size = n_ranges;
+      table->max_value = entries_sorted[n_entries-1].value;
     }
 #if 0                   /* might be useful for some apps somewhere? */
   else if (n_entries > 5 && entries_sorted[n_entries-1].value < G_MAXUINT32)
@@ -133,6 +140,7 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
     {
       /* fall back on bsearch-style */
       guint32 *values = g_new (guint32, n_entries);
+      table = g_slice_new (GskbUIntTable);
       table->type = GSKB_UINT_TABLE_BSEARCH;
       table->table_size = n_entries;
       table->entry_data = make_entry_data (sizeof_entry_data,
@@ -161,8 +169,8 @@ gskb_uint_table_print_compilable_deps (GskbUIntTable *table,
   if (table->entry_data != NULL)
     {
       gsk_buffer_printf (output,
-                         "static %s__entry_data[%u] = {\n",
-                         table_name, table->n_entry_data);
+                         "static %s %s__entry_data[%u] = {\n",
+                         type_name, table_name, table->n_entry_data);
       for (i = 0; i < table->n_entry_data; i++)
         {
           gsk_buffer_append (output, "  ", 2);
@@ -183,7 +191,7 @@ gskb_uint_table_print_compilable_deps (GskbUIntTable *table,
       break;
     case GSKB_UINT_TABLE_BSEARCH:
       gsk_buffer_printf (output,
-                         "static guint32 %s__table_data = {\n", table_name);
+                         "static guint32 %s__table_data[] = {\n", table_name);
       for (i = 0; i < table->table_size; i++)
         {
           gsk_buffer_printf (output,
@@ -194,7 +202,7 @@ gskb_uint_table_print_compilable_deps (GskbUIntTable *table,
       break;
     case GSKB_UINT_TABLE_RANGES:
       gsk_buffer_printf (output,
-                         "static GskbUIntTableRange %s__table_data = {\n", table_name);
+                         "static GskbUIntTableRange %s__table_data[] = {\n", table_name);
       for (i = 0; i < table->table_size; i++)
         {
           GskbUIntTableRange r = ((GskbUIntTableRange*)table->table_data)[i];
@@ -228,6 +236,12 @@ void           gskb_uint_table_print_compilable_object
       type_name = "GSKB_UINT_TABLE_RANGES";
       break;
     }
+
+  g_message ("gskb_uint_table_print_compilable_object: type_name=%s [type=%u]", type_name, table->type);
+  g_message ("    table_name=%s", table_name);
+  g_message ("    table_size=%u", table->table_size);
+  g_message ("    n_entry_data=%u", table->n_entry_data);
+  g_message ("    max_value=%u", table->max_value);
 
   gsk_buffer_printf (output,
                      "{\n"

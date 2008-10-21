@@ -39,7 +39,9 @@ typedef enum
   GSKB_CODEGEN_SECTION_FORMAT_PRIVATE_DECLS,
   GSKB_CODEGEN_SECTION_FORMAT_IMPLS,
   GSKB_CODEGEN_SECTION_FUNCTION_PROTOTYPES,
-  GSKB_CODEGEN_SECTION_FUNCTION_IMPLS
+  GSKB_CODEGEN_SECTION_FUNCTION_IMPLS,
+  GSKB_CODEGEN_SECTION_NAMESPACE_DECL,
+  GSKB_CODEGEN_SECTION_NAMESPACE_IMPL
 } GskbCodegenSection;
 
 #define GSKB_N_CODEGEN_SECTIONS (GSKB_CODEGEN_SECTION_FUNCTION_IMPLS+1)
@@ -118,6 +120,10 @@ void gskb_codegen_config_free           (GskbCodegenConfig *config);
 /* internal */
 #include "../gskbuffer.h"
 void        gskb_format_codegen        (GskbFormat *format,
+                                        GskbCodegenSection section,
+                                        const GskbCodegenConfig *config,
+                                        GskBuffer *output);
+void        gskb_namespace_codegen     (GskbNamespace *ns,
                                         GskbCodegenSection section,
                                         const GskbCodegenConfig *config,
                                         GskBuffer *output);

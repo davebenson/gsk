@@ -346,6 +346,9 @@ gskb_format_struct_new (gboolean                is_extensible,
     }
   {
     GHashTable *dup_check = g_hash_table_new (g_str_hash, g_str_equal);
+    GHashTable *dup_code_check = NULL;
+    if (is_extensible)
+      dup_code_check = g_hash_table_new (NULL, NULL);
     for (i = 0; i < n_members; i++)
       {
         if (members[i].name == NULL)
@@ -354,6 +357,8 @@ gskb_format_struct_new (gboolean                is_extensible,
                          GSK_ERROR_INVALID_ARGUMENT,
                          "member %u was unnamed -- not allowed", i);
             g_hash_table_destroy (dup_check);
+            if (dup_code_check)
+              g_hash_table_destroy (dup_code_check);
             return NULL;
           }
         if (g_hash_table_lookup (dup_check, members[i].name) != NULL)
@@ -363,9 +368,38 @@ gskb_format_struct_new (gboolean                is_extensible,
                          "non-unique member name %s -- not allowed",
                          members[i].name);
             g_hash_table_destroy (dup_check);
+            if (dup_code_check)
+              g_hash_table_destroy (dup_code_check);
             return NULL;
           }
         g_hash_table_insert (dup_check, (gpointer) members[i].name, members + i);
+
+        if (dup_code_check != NULL)
+          {
+            if (g_hash_table_lookup_extended (dup_code_check,
+                                              GUINT_TO_POINTER (members[i].code),
+                                              NULL, NULL))
+              {
+                g_set_error (error, GSK_G_ERROR_DOMAIN,
+                             GSK_ERROR_INVALID_ARGUMENT,
+                             "got duplicate code %u for member %s in extensible struct",
+                             members[i].code, members[i].name);
+                g_hash_table_destroy (dup_check);
+                g_hash_table_destroy (dup_code_check);
+                return NULL;
+              }
+            g_hash_table_insert (dup_code_check,
+                                 GUINT_TO_POINTER (members[i].code),
+                                 GUINT_TO_POINTER (i));
+          }
+        else if (members[i].code != 0)
+          {
+            g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_INVALID_ARGUMENT,
+                         "in non-extensible struct, member %s had nonzero code",
+                         members[i].name);
+            g_hash_table_destroy (dup_check);
+            return NULL;
+          }
       }
     g_hash_table_destroy (dup_check);
   }
@@ -411,6 +445,7 @@ gskb_format_struct_new (gboolean                is_extensible,
   rv->is_extensible = is_extensible;
   for (i = 0; i < n_members; i++)
     {
+      rv->members[i].code = members[i].code;
       rv->members[i].name = g_strdup (members[i].name);
       rv->members[i].format = gskb_format_ref (members[i].format);
     }
@@ -464,6 +499,8 @@ gskb_format_union_new (gboolean is_extensible,
   guint info_align, info_size;
   guint i;
   GskbFormat *type_format;
+  GskbStrTable *n2i_table;
+  GskbUIntTable *c2i_table;
 
   if (n_cases == 0)
     {
@@ -504,7 +541,8 @@ gskb_format_union_new (gboolean is_extensible,
             g_hash_table_destroy (dup_value_check);
             return NULL;
           }
-        if (cases[i].code == GSKB_FORMAT_UNION_UNKNOWN_VALUE_CODE)
+        if (is_extensible
+         && cases[i].code == GSKB_FORMAT_UNION_UNKNOWN_VALUE_CODE)
           {
             g_set_error (error, GSK_G_ERROR_DOMAIN,
                          GSK_ERROR_INVALID_ARGUMENT,
@@ -531,6 +569,28 @@ gskb_format_union_new (gboolean is_extensible,
     g_hash_table_destroy (dup_value_check);
   }
 
+  /* initialize name_to_index, code_to_index */
+  {
+    guint32 *indices = g_new (guint32, n_cases);
+    GskbStrTableEntry *name2index_entries = g_new (GskbStrTableEntry, n_cases);
+    GskbUIntTableEntry *code2index_entries = g_new (GskbUIntTableEntry, n_cases);
+    for (i = 0; i < n_cases; i++)
+      {
+        name2index_entries[i].str = cases[i].name;
+        name2index_entries[i].entry_data = indices + i;
+        code2index_entries[i].value = cases[i].code;
+        code2index_entries[i].entry_data = indices + i;
+      }
+    n2i_table = gskb_str_table_new (sizeof (guint32), GSKB_ALIGNOF_UINT32,
+                                    n_cases, name2index_entries);
+    c2i_table = gskb_uint_table_new (sizeof (guint32), GSKB_ALIGNOF_UINT32,
+                                    n_cases, code2index_entries);
+    g_free (indices);
+    g_free (name2index_entries);
+    g_free (code2index_entries);
+  }
+
+
   /* XXX: if !is_extensible, this goes through very similar attempts at perfect hashing.
      combine the work.  perhaps using a private api. */
   {
@@ -555,6 +615,15 @@ gskb_format_union_new (gboolean is_extensible,
   rv->base.type = GSKB_FORMAT_TYPE_UNION;
   rv->base.ref_count = 1;
   rv->base.ctype = GSKB_FORMAT_CTYPE_COMPOSITE;
+  rv->n_cases = n_cases;
+  rv->cases = g_new (GskbFormatUnionCase, n_cases);
+  for (i = 0; i < n_cases; i++)
+    {
+      rv->cases[i].code = cases[i].code;
+      rv->cases[i].name = g_strdup (cases[i].name);
+      rv->cases[i].format = cases[i].format ? gskb_format_ref (cases[i].format)
+                                            : NULL;
+    }
 
   rv->sys_type_offset = 0;
 
@@ -576,6 +645,8 @@ gskb_format_union_new (gboolean is_extensible,
   rv->type_format = type_format;                /* takes ownership */
   rv->int_type = int_type;
   rv->is_extensible = is_extensible;
+  rv->code_to_index = c2i_table;
+  rv->name_to_index = n2i_table;
 
   return (GskbFormat *) rv;
 }
@@ -684,6 +755,8 @@ gskb_format_enum_new  (gboolean    is_extensible,
   rv->base.ctype = GSKB_FORMAT_CTYPE_UINT32;
   rv->base.c_size_of = 4;
   rv->base.c_align_of = GSKB_ALIGNOF_UINT32;
+  rv->base.requires_destruct = 0;
+  rv->base.is_global = 0;
   rv->int_type = int_type;
   rv->n_values = n_values;
   rv->values = g_new (GskbFormatEnumValue, n_values);
@@ -1039,6 +1112,8 @@ gskb_format_set_name       (GskbFormat    *format,
 {
   guint i;
   char *lc_name;
+
+  g_message ("gskb_format_set_name: ns=%s, name=%s", ns->name,name);
 
   g_return_if_fail (format->any.ns == NULL);
   g_return_if_fail (format->any.name == NULL);
@@ -2686,6 +2761,48 @@ tokenize_string (const char *pseudo_filename,
           at++;
           continue;
         }
+
+      /* handle slash-slash (c++-style) comments. */
+      if (at[0] == '/' && at[1] == '/')
+        {
+          const char *nl = strchr (at, '\n');
+          if (nl == NULL)
+            {
+              /* quietly ignore c++ comments before end-of-file, i guess */
+              column_no += strlen (at);
+              at = strchr (at, 0);
+            }
+          else
+            {
+              column_no = 1;
+              line_no++;
+              at = nl + 1;
+            }
+          continue;
+        }
+      /* handle slash-star (c-style) comments. */
+      if (at[0] == '/' && at[1] == '*')
+        {
+          const char *end_star = strstr (at + 2, "*/");
+          if (end_star == NULL)
+            {
+              g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,
+                           "unterminated /* comment, %s, line %u, column %u",
+                           pseudo_filename, line_no, column_no);
+              goto error;
+            }
+          else
+            {
+              /* update line_no and column_no until we reach the end-of-comment */
+              while (at < end_star + 2)
+                if (*at++ == '\n')
+                  column_no = 1, line_no++;
+                else
+                  column_no++;
+            }
+          continue;
+        }
+
       {
         /* NOTE: special_chars[] and special_tokens[] must match exactly! */
         static const char special_chars[] = "[]{};:=";
@@ -2748,7 +2865,10 @@ tokenize_string (const char *pseudo_filename,
           /* is it a special token? */
           tt_ptr = gskb_str_table_lookup (&gskb_parser_symbol_table, token.str);
           if (tt_ptr)
-            token.type = * tt_ptr;
+            {
+              token.type = * tt_ptr;
+              g_message ("got special token %u for %s", token.type, token.str);
+            }
           else
             token.type = GSKB_TOKEN_TYPE_BAREWORD;
           g_array_append_val (tokens, token);
@@ -2797,11 +2917,14 @@ parse_tokens (GskbContext    *context,
 
   for (i = 0; i < n_tokens; i++)
     {
+      g_message ("adding token %u: %s [line %u]", tokens[i].type, tokens[i].str, tokens[i].line_no);
       gskb_lemon_parser_(yy, tokens[i].type, &tokens[i], &parse_context);
       if (parse_context.errors->len != 0)
         goto got_parse_error;
     }
   gskb_lemon_parser_ (yy, 0, NULL, &parse_context);
+  if (parse_context.errors->len != 0)
+    goto got_parse_error;
 
   g_ptr_array_free (parse_context.errors, TRUE);
   gskb_lemon_parser_Free (yy, g_free);
@@ -2969,4 +3092,28 @@ gskb_namespace_lookup_format (GskbNamespace *ns,
     return g_hash_table_lookup (ns->name_to_format, name);
   else
     return (gpointer) gskb_str_table_lookup (ns->name_to_format, name);
+}
+
+void
+gskb_namespace_make_nonwritable (GskbNamespace *ns)
+{
+  guint i;
+  GskbStrTableEntry *entries;
+  GskbStrTable *str_table;
+  if (!ns->is_writable)
+    return;
+
+  /* build GskbStrTable; destruct GHashTable */
+  entries = g_new (GskbStrTableEntry, ns->n_formats);
+  for (i = 0; i < ns->n_formats; i++)
+    {
+      entries[i].str = ns->formats[i]->any.name;
+      entries[i].entry_data = ns->formats[i];
+    }
+  str_table = gskb_str_table_new_ptr (ns->n_formats, entries);
+  g_assert (str_table);
+  g_free (entries);
+  g_hash_table_destroy (ns->name_to_format);
+  ns->name_to_format = str_table;
+  ns->is_writable = 0;
 }
