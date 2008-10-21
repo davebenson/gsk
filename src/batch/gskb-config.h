@@ -26,3 +26,4 @@
 
 #include "gskb-bitfield-macros.h"
 #include "gskb-alignment.h"
+#include "../gskghelpers.h"

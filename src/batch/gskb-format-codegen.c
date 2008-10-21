@@ -65,6 +65,7 @@ gskb_format_codegen__emit_typedefs     (GskbFormat *format,
                          "typedef %s %s;\n",
                          format->v_alias.format->any.c_type_name,
                          format->any.c_type_name);
+      break;
 
     default:
       gsk_buffer_printf (output,
@@ -87,32 +88,6 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
     case GSKB_FORMAT_TYPE_INT:
     case GSKB_FORMAT_TYPE_FLOAT:
     case GSKB_FORMAT_TYPE_STRING:
-      break;
-    case GSKB_FORMAT_TYPE_ENUM:
-      {
-        char *uc_name;
-        guint expected = 0;
-        uc_name = g_ascii_strup (format->any.c_func_prefix, -1);
-        gsk_buffer_append_string (output, "typedef enum {\n");
-        for (i = 0; i < format->v_enum.n_values; i++)
-          {
-            char *enum_uc_name = g_ascii_strup (format->v_enum.values[i].name, -1);
-            if (i > 0)
-              gsk_buffer_append_string (output, ",\n");
-            if (format->v_enum.values[i].code == expected)
-              gsk_buffer_printf (output,
-                                 "  %s__%s", uc_name, enum_uc_name);
-            else
-              gsk_buffer_printf (output,
-                                 "  %s__%s = %u", uc_name, enum_uc_name,
-                                 format->v_enum.values[i].code);
-            expected = format->v_enum.values[i].code + 1;
-            g_free (enum_uc_name);
-          }
-        gsk_buffer_printf (output, "} %s;\n\n",
-                           format->any.c_type_name);
-        g_free (uc_name);
-      }
       break;
     case GSKB_FORMAT_TYPE_FIXED_ARRAY:
       gsk_buffer_printf (output,
@@ -142,10 +117,9 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
       if (format->v_struct.is_extensible)
         {
           gsk_buffer_printf (output,
-                             "  GskbUnknownValueArray unknown_members;\n");
-          for (i = 0; i < format->v_struct.n_members; i++)
-            gsk_buffer_printf (output, "  guint8 has_%s : 1;\n",
-                               format->v_struct.members[i].name);
+                             "  GskbUnknownValueArray unknown_members;\n"
+                             "  %s_Contents has;\n",
+                             format->any.c_type_name);
         }
       for (i = 0; i < format->v_struct.n_members; i++)
         {
@@ -179,6 +153,71 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
       gsk_buffer_printf (output, "  } info;\n"
                                  "};\n\n");
 
+      break;
+    case GSKB_FORMAT_TYPE_BIT_FIELDS:
+      gsk_buffer_printf (output,
+                         "struct _%s\n"
+                         "{\n",
+                         format->any.c_type_name);
+      i = 0;
+      while (i < format->v_bit_fields.n_fields)
+        {
+          guint fields_in_byte = 0;
+          guint bits_used = 0;
+          guint j;
+          GskbFormatBitField *fields = format->v_bit_fields.fields + i;
+          gboolean need_padding;
+          while (i + fields_in_byte < format->v_bit_fields.n_fields
+              && bits_used + fields[fields_in_byte].length <= 8)
+            {
+              bits_used += fields[fields_in_byte].length;
+              fields_in_byte++;
+            }
+          need_padding = (bits_used < 8);
+          gsk_buffer_printf (output,
+                             "  GSKB_LE_BITFIELDS_DECLARE%u(",
+                             fields_in_byte+need_padding);
+          for (j = 0; j < fields_in_byte; j++)
+            {
+              gsk_buffer_printf (output,
+                                 "%s : %u%s",
+                                 fields[j].name, fields[j].length,
+                                 (j+1==fields_in_byte? "" : ","));
+            }
+          if (need_padding)
+            gsk_buffer_printf (output, ",  : %u",
+                               8-bits_used);
+          gsk_buffer_printf (output, ")\n");
+          i += fields_in_byte;
+        }
+      gsk_buffer_printf (output, "};\n\n");
+      break;
+
+    case GSKB_FORMAT_TYPE_ENUM:
+      {
+        char *uc_name;
+        guint expected = 0;
+        uc_name = g_ascii_strup (format->any.c_func_prefix, -1);
+        gsk_buffer_append_string (output, "typedef enum {\n");
+        for (i = 0; i < format->v_enum.n_values; i++)
+          {
+            char *enum_uc_name = g_ascii_strup (format->v_enum.values[i].name, -1);
+            if (i > 0)
+              gsk_buffer_append_string (output, ",\n");
+            if (format->v_enum.values[i].code == expected)
+              gsk_buffer_printf (output,
+                                 "  %s__%s", uc_name, enum_uc_name);
+            else
+              gsk_buffer_printf (output,
+                                 "  %s__%s = %u", uc_name, enum_uc_name,
+                                 format->v_enum.values[i].code);
+            expected = format->v_enum.values[i].code + 1;
+            g_free (enum_uc_name);
+          }
+        gsk_buffer_printf (output, "} %s;\n\n",
+                           format->any.c_type_name);
+        g_free (uc_name);
+      }
       break;
     default:
       g_assert_not_reached ();
@@ -370,23 +409,34 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            "};\n");
         char *table_name = g_strdup_printf ("%s__name_to_member_index",
                                             format->any.c_func_prefix);
-        gskb_str_table_print_compilable_deps (format->v_struct.name_to_index,
-                                              table_name,
-                                              "guint32",
-                                              render_int,
-                                              output);
-        gsk_buffer_printf (output, "static GskbStrTable %s = ", table_name);
-        gskb_str_table_print_compilable_object (format->v_struct.name_to_index,
-                                              table_name,
-                                              "sizeof (gint32)",
-                                              "GSKB_ALIGNOF_UINT32",
-                                              output);
-        gsk_buffer_printf (output, ";\n");
+        gskb_str_table_print (format->v_struct.name_to_index,
+                              FALSE,
+                              table_name,
+                              "guint32",
+                              render_int,
+                              "sizeof (gint32)",
+                              "GSKB_ALIGNOF_UINT32",
+                              output);
         g_free (table_name);
+
+        if (format->v_struct.is_extensible)
+          {
+            char *table_name = g_strdup_printf ("%s__code_to_member_index",
+                                                format->any.c_func_prefix);
+            gskb_uint_table_print (format->v_struct.code_to_index,
+                                  FALSE,
+                                  table_name,
+                                  "guint32",
+                                  render_int,
+                                  "sizeof (gint32)",
+                                  "GSKB_ALIGNOF_UINT32",
+                                  output);
+            g_free (table_name);
+          }
 
         char *contents_format;
         if (format->v_struct.is_extensible)
-          contents_format = g_strdup_printf ("%s_contents_format",
+          contents_format = g_strdup_printf ("%s__contents_format",
                                              format->any.c_func_prefix);
         else
           contents_format = g_strdup ("NULL");
@@ -456,13 +506,14 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                               output);
         by_code_table_name = g_strdup_printf ("%s__code_to_index",
                                               format->any.c_func_prefix);
-        gskb_uint_table_print_static (format->v_union.code_to_index,
-                                     by_code_table_name,
-                                     "guint32",
-                                     render_int,
-                                     "sizeof (guint32)",
-                                     "GSKB_ALIGNOF_UINT32",
-                                     output);
+        gskb_uint_table_print (format->v_union.code_to_index,
+                               FALSE,
+                               by_code_table_name,
+                               "guint32",
+                               render_int,
+                               "sizeof (guint32)",
+                               "GSKB_ALIGNOF_UINT32",
+                               output);
 
         gsk_buffer_printf (output,
                            "%sGskbFormatUnion %s_format_instance =\n"
@@ -474,27 +525,84 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            "  %u,           /* is_extensible */\n"
                            "  %u,           /* n_cases */\n"
                            "  %s__cases,\n"
-                           "  %s,\n"
+                           "  %s,\n"        /* int_type */
+                           "  %s__type_format,\n"
                            "  G_STRUCT_OFFSET (%s, type),\n"
                            "  G_STRUCT_OFFSET (%s, info),\n"
-                           "  &%s,\n"
-                           "  &%s,\n"
-                           "  %s_type_format\n"
+                           "  &%s,\n"       /* name_to_index */
+                           "  &%s\n"        /* code_to_index */
                            "};\n",
                            format->v_union.is_extensible,
                            format->v_union.n_cases,
                            format->any.c_func_prefix,
                            gskb_format_int_type_enum_name (format->v_union.int_type),
+                           format->any.c_func_prefix,
                            format->any.c_type_name, 
                            format->any.c_type_name, 
                            by_name_table_name,
-                           by_code_table_name,
-                           format->any.c_func_prefix);
+                           by_code_table_name);
         g_free (by_name_table_name);
         g_free (by_code_table_name);
         break;
       }
 
+    case GSKB_FORMAT_TYPE_BIT_FIELDS:
+      {
+        guint i;
+        gsk_buffer_printf (output,
+                           "static GskbFormatBitField %s__fields[] =\n"
+                           "{\n",
+                           format->any.c_func_prefix);
+        for (i = 0; i < format->v_bit_fields.n_fields; i++)
+          {
+            gsk_buffer_printf (output,
+                               "  { \"%s\", %u },\n",
+                               format->v_bit_fields.fields[i].name,
+                               format->v_bit_fields.fields[i].length);
+          }
+        gsk_buffer_printf (output, "};\n");
+        gsk_buffer_printf (output, "static guint8 %s__bits_per_unpacked_byte[] = {",
+                           format->any.c_func_prefix);
+        for (i = 0; i < format->any.c_size_of; i++)
+          gsk_buffer_printf (output, "%s%u,",
+                             i%10==0 ? "\n  " : " ",
+                             format->v_bit_fields.bits_per_unpacked_byte[i]);
+        gsk_buffer_printf (output, "};\n");
+        
+        char *table_name = g_strdup_printf ("%s__name_to_index",
+                                            format->any.c_func_prefix);
+        gskb_str_table_print (format->v_bit_fields.name_to_index,
+                              FALSE,
+                              table_name,
+                              "guint32",
+                              render_int,
+                              "sizeof (guint32)",
+                              "GSKB_ALIGNOF_UINT32",
+                              output);
+        g_free (table_name);
+
+        gsk_buffer_printf (output,
+                           "%sGskbFormatBitFields %s_format_instance =\n"
+                           "{\n",
+                           config->all_static ? "static " : "",
+                           format->any.c_func_prefix);
+        implement_format_any (format, config, output);
+        gsk_buffer_printf (output,
+                           "  %u,   /* n_fields */\n"
+                           "  %s__fields,\n"
+                           "  %u,   /* has_holes */\n"
+                           "  %s__bits_per_unpacked_byte,\n"
+                           "  %u,   /* total bits */\n"
+                           "  &%s__name_to_index\n"
+                           "};\n"
+                           , format->v_bit_fields.n_fields,
+                           format->any.c_func_prefix,
+                           format->v_bit_fields.has_holes,
+                           format->any.c_func_prefix,
+                           format->v_bit_fields.total_bits,
+                           format->any.c_func_prefix);
+        break;
+      }
     case GSKB_FORMAT_TYPE_ENUM:
       {
         guint i;
@@ -527,13 +635,14 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
         {
           char *table_name = g_strdup_printf ("%s__code_to_index",
                                               format->any.c_func_prefix);
-          gskb_uint_table_print_static (format->v_enum.code_to_index,
-                                        table_name,
-                                        "guint32",
-                                        render_int,
-                                        "sizeof (gint32)",
-                                        "GSKB_ALIGNOF_UINT32",
-                                        output);
+          gskb_uint_table_print (format->v_enum.code_to_index,
+                                 FALSE,
+                                 table_name,
+                                 "guint32",
+                                 render_int,
+                                 "sizeof (gint32)",
+                                 "GSKB_ALIGNOF_UINT32",
+                                 output);
           g_free (table_name);
         }
 
@@ -1118,7 +1227,7 @@ implement__validate_partial  (GskbFormat *format,
           {
             for (i = 0; i < format->v_fixed_array.length; i++)
               gsk_buffer_printf (output,
-                                 "  if ((sub_used = %s_validate_partial (len - rv, data + rv, error)) == 0)\n"
+                                 "  if ((sub_used = %s_validate_partial (length - rv, data + rv, error)) == 0)\n"
                                  "    {\n"
                                  "      gsk_g_error_add_prefix (error, \"validating element #%%u of %%u\", %u, %u);\n"
                                  "      return 0;\n"
@@ -1132,7 +1241,7 @@ implement__validate_partial  (GskbFormat *format,
             gsk_buffer_printf (output,
                                "  guint i, rv = 0;\n"
                                "  for (i = 0; i < %u; i++)\n"
-                               "    if ((sub_used = %s_validate_partial (len - rv, out + rv, error)) == 0)\n"
+                               "    if ((sub_used = %s_validate_partial (length - rv, out + rv, error)) == 0)\n"
                                "      {\n"
                                  "      gsk_g_error_add_prefix (error, \"validating element #%%u of %%u\", i, %u);\n"
                                  "      return 0;\n"
@@ -1151,7 +1260,7 @@ implement__validate_partial  (GskbFormat *format,
         gsk_buffer_printf (output,
                            "  guint rv, sub_used, i;\n"
                            "  guint32 n;\n"
-                           "  if ((sub_used=gskb_uint_validate_unpack (len, data, &n, error)) == 0)\n"
+                           "  if ((sub_used=gskb_uint_validate_unpack (length, data, &n, error)) == 0)\n"
                            "    {\n"
                            "      gsk_g_error_add_prefix (error, \"parsing length-prefix\");\n"
                            "      return 0;\n"
@@ -1160,7 +1269,7 @@ implement__validate_partial  (GskbFormat *format,
         gsk_buffer_printf (output,
                            "  for (i = 0; i < n; i++)\n"
                            "    {\n"
-                           "      if (!%s_validate_partial (len - rv, out + rv, &sub_used, error))\n"
+                           "      if (!%s_validate_partial (length - rv, out + rv, &sub_used, error))\n"
                            "        {\n"
                            "          gsk_g_error_add_prefix (error, \"validating element #%%u of %%u\", i, n);\n"
                            "          return 0;\n"
@@ -1173,15 +1282,15 @@ implement__validate_partial  (GskbFormat *format,
       }
     case GSKB_FORMAT_TYPE_STRUCT:
       {
-        gsk_buffer_printf (output, "  guint rv = 0;\n");
+        gsk_buffer_printf (output, "  guint rv = 0;\n"
+                                   "  guint sub_used;\n");
         if (format->v_struct.is_extensible)
           {
             gsk_buffer_printf (output,
-                               "  guint sub_used;\n"
                                "  guint32 code, last_code = 0, sub_len;\n"
                                "  for (;;)\n"
                                "    {\n"
-                               "      if ((sub_used=gskb_uint_validate_unpack (len - rv, out + rv, &code, error)) == 0)\n"
+                               "      if ((sub_used=gskb_uint_validate_unpack (length - rv, data + rv, &code, error)) == 0)\n"
                                "        {\n"
                                "          gsk_g_error_add_prefix (error, \"error parsing member code in %%s\", \"%s\");\n"
                                "          return 0;\n"
@@ -1195,7 +1304,7 @@ implement__validate_partial  (GskbFormat *format,
                                "                              last_code, code);\n"
                                "          return 0;\n"
                                "        }\n"
-                               "      if ((sub_used=gskb_uint_validate_unpack (len - rv, out + rv, &sub_len, error)) == 0)\n"
+                               "      if ((sub_used=gskb_uint_validate_unpack (length - rv, data + rv, &sub_len, error)) == 0)\n"
                                "        {\n"
                                "          gsk_g_error_add_prefix (error, \"error parsing length of member in %%s\", \"%s\");\n"
                                "          return 0;\n"
@@ -1211,7 +1320,7 @@ implement__validate_partial  (GskbFormat *format,
                 GskbFormat *sub = member->format;
                 gsk_buffer_printf (output,
                                    "        case %u:\n"
-                                   "          sub_used = %s_validate_partial (len - rv, out + rv, error);\n"
+                                   "          sub_used = %s_validate_partial (length - rv, data + rv, error);\n"
                                    "          if (G_UNLIKELY (sub_used == 0))\n"
                                    "            {\n"
                                    "              gsk_g_error_add_prefix (error, \"error parsing member %%s of %%s\", \"%s\", \"%s\");\n"
@@ -1245,7 +1354,7 @@ implement__validate_partial  (GskbFormat *format,
               {
                 GskbFormatStructMember *member = format->v_struct.members + i;
                 gsk_buffer_printf (output,
-                                   "  if ((sub_used = %s_validate_partial (len - rv, out + rv, error)) == 0)\n"
+                                   "  if ((sub_used = %s_validate_partial (length - rv, data + rv, error)) == 0)\n"
                                    "    {\n"
                                    "      gsk_g_error_add_prefix (error, \"validating member '%%s' of %%s\", \"%s\", \"%s\");\n"
                                    "      return 0;\n"
@@ -1266,22 +1375,24 @@ implement__validate_partial  (GskbFormat *format,
           {
             gsk_buffer_printf (output,
                                "  guint sub_used2;\n"
-                               "  guint32 len;\n"
+                               "  guint32 prefixed_len;\n"
                                "  guint32 last_code = 0;\n");
           }
         gsk_buffer_printf (output,
                            "  guint rv;\n"
-                           "  guint32 type;\n"
+                           "  gskb_%s type;\n"
                            "  guint sub_used;\n"
-                           "  if ((sub_used=gskb_uint_validate_unpack (len, data, &type, error)) == 0)\n"
+                           "  if ((sub_used=gskb_%s_validate_unpack (length, data, &type, error)) == 0)\n"
                            "    {\n"
                            "      gsk_g_error_add_prefix (error, \"error parsing union code\");\n"
                            "      return FALSE;\n"
-                           "    }\n");
+                           "    }\n",
+                           gskb_format_int_type_name (format->v_union.int_type),
+                           gskb_format_int_type_name (format->v_union.int_type));
         if (format->v_union.is_extensible)
           {
             gsk_buffer_printf (output,
-                               "  if ((sub_used2=gskb_uint_validate_unpack (len - sub_used, data + sub_used, &len, error)) == 0)\n"
+                               "  if ((sub_used2=gskb_uint_validate_unpack (length - sub_used, data + sub_used, &prefixed_len, error)) == 0)\n"
                                "    {\n"
                                "      gsk_g_error_add_prefix (error, \"error parsing union code\");\n"
                                "      return FALSE;\n"
@@ -1320,7 +1431,7 @@ implement__validate_partial  (GskbFormat *format,
                                            c->format->any.c_func_prefix, c->name, format->any.name);
                 if (format->v_union.is_extensible)
                   gsk_buffer_printf (output,
-                                     "      if (sub_used != len)\n"
+                                     "      if (sub_used != prefixed_len)\n"
                                      "        {\n"
                                      "          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,\n"
          "                  \"validated length for case %%s of union %%s had length mismatch (header said %%u, got %%u)\",\n"

@@ -263,14 +263,14 @@ void           gskb_uint_table_print_compilable_object
                      table->max_value);
 }
 
-void           gskb_uint_table_print_static
-                                     (GskbUIntTable *table,
-	         		      const char   *table_name,
-                                      const char   *type_name,
+void           gskb_uint_table_print (GskbUIntTable *table,
+                                      gboolean       is_global,
+	         		      const char    *table_name,
+                                      const char    *type_name,
                                       GskbUIntTableEntryOutputFunc output_func,
-                                      const char   *sizeof_entry_data_str,
-                                      const char   *alignof_entry_data_str,
-	         		      GskBuffer    *output)
+                                      const char    *sizeof_entry_data_str,
+                                      const char    *alignof_entry_data_str,
+	         		      GskBuffer     *output)
 {
   gskb_uint_table_print_compilable_deps (table, table_name, type_name,
                                          output_func, output);

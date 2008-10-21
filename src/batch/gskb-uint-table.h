@@ -67,8 +67,8 @@ void           gskb_uint_table_print_compilable_object
                                       const char    *sizeof_entry_data_str,
                                       const char    *alignof_entry_data_str,
 	         		      GskBuffer     *output);
-void           gskb_uint_table_print_static
-                                     (GskbUIntTable *table,
+void           gskb_uint_table_print (GskbUIntTable *table,
+                                      gboolean       is_global,
 	         		      const char    *table_name,
                                       const char    *type_name,
                                       GskbUIntTableEntryOutputFunc output_func,

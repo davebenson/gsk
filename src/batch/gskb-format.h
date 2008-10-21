@@ -212,6 +212,7 @@ struct _GskbFormatStruct
   guint n_members;
   GskbFormatStructMember *members;
   GskbFormat *contents_format;
+
   guint *sys_member_offsets;
   gpointer name_to_index;
   gpointer code_to_index;
@@ -230,10 +231,11 @@ struct _GskbFormatUnion
   guint n_cases;
   GskbFormatUnionCase *cases;
   GskbFormatIntType int_type;
+  GskbFormat *type_format;
+
   guint sys_type_offset, sys_info_offset;
   gpointer name_to_index;
   gpointer code_to_index;
-  GskbFormat *type_format;
 };
 
 struct _GskbFormatBitField

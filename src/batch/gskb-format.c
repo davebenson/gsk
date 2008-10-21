@@ -403,19 +403,41 @@ gskb_format_struct_new (gboolean                is_extensible,
       }
     g_hash_table_destroy (dup_check);
   }
-
   rv = g_new0 (GskbFormatStruct, 1);
   rv->base.type = GSKB_FORMAT_TYPE_STRUCT;
   rv->base.ref_count = 1;
   rv->base.ctype = GSKB_FORMAT_CTYPE_COMPOSITE;
 
+  if (is_extensible)
+    {
+      GskbFormatBitField *contents_fields = g_new (GskbFormatBitField, n_members);
+      for (i = 0; i < n_members; i++)
+        {
+          contents_fields[i].name = members[i].name;
+          contents_fields[i].length = 1;
+        }
+      rv->contents_format = gskb_format_bit_fields_new (n_members, contents_fields, error);
+      g_assert (rv->contents_format != NULL);
+
+      size = sizeof (GskbUnknownValueArray);
+      align_of = GSKB_ALIGNOF(GskbUnknownValueArray);
+      size += (n_members + 7) / 8;
+      size = ALIGN (size, GSKB_ALIGNOF_STRUCT);
+      requires_destruct = TRUE;
+      is_fixed = FALSE;
+    }
+  else
+    {
+      size = 0;
+      align_of = GSKB_ALIGNOF_STRUCT;
+      requires_destruct = FALSE;
+      is_fixed = TRUE;
+    }
+
+
   /* PORTABILITY:  in order for this to work,
      the ABI of your compilers must be pretty sane wrt to
      structure packing. */
-  size = 0;
-  align_of = 1;
-  requires_destruct = FALSE;
-  is_fixed = TRUE;
   fixed_length = 0;
   rv->sys_member_offsets = g_new (guint, n_members);
   for (i = 0; i < n_members; i++)
@@ -464,6 +486,22 @@ gskb_format_struct_new (gboolean                is_extensible,
     g_free (indices);
     g_free (entries);
   }
+
+  /* generate code => index map */
+  if (is_extensible)
+    {
+      gint32 *indices = g_new (gint32, n_members);
+      GskbUIntTableEntry *entries = g_new (GskbUIntTableEntry, n_members);
+      for (i = 0; i < n_members; i++)
+        {
+          entries[i].value = members[i].code;
+          entries[i].entry_data = indices + i;
+          indices[i] = i;
+        }
+      rv->code_to_index = gskb_uint_table_new (sizeof (gint32), GSKB_ALIGNOF_UINT32, n_members, entries);
+      g_free (indices);
+      g_free (entries);
+    }
 
   return (GskbFormat *) rv;
 }
@@ -1135,6 +1173,9 @@ gskb_format_set_name       (GskbFormat    *format,
           GskbFormatStructMember *m = format->v_struct.members + i;
           maybe_name_subformat (m->format, ns, name, m->name);
         }
+      if (format->v_struct.contents_format)
+        maybe_name_subformat (format->v_struct.contents_format,
+                              ns, name, "contents");
       break;
     case GSKB_FORMAT_TYPE_UNION:
       for (i = 0; i < format->v_union.n_cases; i++)
