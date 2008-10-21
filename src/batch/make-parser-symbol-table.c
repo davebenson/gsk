@@ -50,6 +50,7 @@ static const char *symbols[] = {
 "bitfields",
 "enum",
 "alias",
+"namespace"
 };
 
 static void

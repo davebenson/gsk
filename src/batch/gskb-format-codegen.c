@@ -28,12 +28,9 @@
 #include "gskb-uint-table.h"
 
 GskbCodegenConfig *
-gskb_codegen_config_new            (const char      *type_prefix,
-                                           const char      *func_prefix)
+gskb_codegen_config_new            (void)
 {
   GskbCodegenConfig *config = g_slice_new0 (GskbCodegenConfig);
-  config->type_prefix = g_strdup (type_prefix);
-  config->func_prefix = g_strdup (func_prefix);
   return config;
 }
 void
@@ -45,8 +42,6 @@ gskb_codegen_config_set_all_static (GskbCodegenConfig *config,
 void
 gskb_codegen_config_free (GskbCodegenConfig *config)
 {
-  g_free (config->type_prefix);
-  g_free (config->func_prefix);
   g_slice_free (GskbCodegenConfig, config);
 }
 
@@ -220,16 +215,16 @@ implement_format_any (GskbFormat *format,
 {
 
   gsk_buffer_printf (output,
-                         "{\n"
-                         "  %s,         /* type */\n"
-                         "  1,          /* ref_count */\n"
-                         "  \"%s\", \"%s\", \"%s\",  /* various names */\n"
-                         "  %s,         /* ctype */\n"
-                         "  sizeof(%s), GSKB_ALIGNOF(%s),\n"
-                         "  %u,       /* always by pointer */\n"
-                         "  %u,       /* requires_destruct */\n"
-                         "  %u        /* fixed_length */\n"
-                         "},\n",
+                         "  {\n"
+                         "    %s,         /* type */\n"
+                         "    1,          /* ref_count */\n"
+                         "    \"%s\", \"%s\", \"%s\",  /* various names */\n"
+                         "    %s,         /* ctype */\n"
+                         "    sizeof(%s), GSKB_ALIGNOF(%s),\n"
+                         "    %u,       /* always by pointer */\n"
+                         "    %u,       /* requires_destruct */\n"
+                         "    %u        /* fixed_length */\n"
+                         "  },\n",
                          gskb_format_type_enum_name (format->type),
                          format->any.name,
                          format->any.c_type_name,
@@ -334,7 +329,7 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            "%sGskbFormatLengthPrefixedArray %s_format_instance =\n"
                            "{\n",
                            config->all_static ? "static " : "",
-                           config->func_prefix);
+                           format->any.c_func_prefix);
         implement_format_any (format, config, output);
         gsk_buffer_printf (output,
                            "  %s_format,\n"
@@ -523,9 +518,9 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
           g_free (table_name);
         }
         {
-          char *table_name = g_strdup_printf ("%s__value_to_index",
+          char *table_name = g_strdup_printf ("%s__code_to_index",
                                               format->any.c_func_prefix);
-          gskb_uint_table_print_static (format->v_enum.value_to_index,
+          gskb_uint_table_print_static (format->v_enum.code_to_index,
                                         table_name,
                                         "guint32",
                                         render_int,
@@ -546,7 +541,7 @@ gskb_format_codegen__emit_format_impls (GskbFormat *format,
                            "  %u,\n"
                            "  %s__enum_values,\n"
                            "  %s__name_to_index,\n"
-                           "  %s__value_to_index,\n"
+                           "  %s__code_to_index,\n"
                            "};\n",
                            gskb_format_int_type_enum_name (format->v_enum.int_type),
                            format->v_enum.n_values,
@@ -583,6 +578,7 @@ typedef void (*OutputFunctionImplementor)   (GskbFormat *format,
 
 /* helper functions, used by implementor functions */
 static void start_function (const char *qualifiers,
+                            gboolean    include_semicolon,
                             GskbFormat *format,
                             const GskbCodegenConfig *config,
                             GskbCodegenOutputFunction function,
@@ -1397,7 +1393,7 @@ implement__validate_partial  (GskbFormat *format,
 #define return_value__unpack       "guint"
 static const char *type_name_pairs__unpack[] = {
   "const guint8 *", "in",
-  "{type_name} *", "value_out",
+  "$type_name *", "value_out",
   NULL
 };
 static void
@@ -1653,7 +1649,7 @@ implement__unpack (GskbFormat *format,
 #define return_value__unpack_mempool       "guint"
 static const char *type_name_pairs__unpack_mempool[] = {
   "const guint8 *", "in",
-  "{type_name} *", "value_out",
+  "$type_name *", "value_out",
   "GskMemPool *", "mem_pool",
   NULL
 };
@@ -1668,7 +1664,7 @@ implement__unpack_mempool (GskbFormat *format,
 /* destruct */
 #define return_value__destruct       "void"
 static const char *type_name_pairs__destruct[] = {
-  "{type_name} *", "value",
+  "$type_name *", "value",
   NULL
 };
 static void
@@ -1799,6 +1795,7 @@ generic_start_function (GskBuffer *buffer,
                         const char *qualifiers,
                         const char *ret_value,
                         const char *func_name,
+                        gboolean    include_semicolon,
                         guint n_args,
                         char **args_type_name_pairs)
 {
@@ -1810,17 +1807,20 @@ generic_start_function (GskBuffer *buffer,
       guint stl, s;
       dissect_type_str (args_type_name_pairs[2*i], &stl, &s);
       max_stripped_type_len = MAX (max_stripped_type_len, stl);
-      max_stars = MAX (max_stripped_type_len, max_stars);
+      max_stars = MAX (max_stars, s);
     }
 
-  gsk_buffer_printf (buffer, "%s %s", qualifiers, ret_value);
+  if (qualifiers[0])
+    gsk_buffer_printf (buffer, "%s %s\n", qualifiers, ret_value);
+  else
+    gsk_buffer_printf (buffer, "%s\n", ret_value);
   if (n_args == 0)
     {
       gsk_buffer_printf (buffer, "%s (void);\n", func_name);
     }
   else
     {
-      gsk_buffer_printf (buffer, "%s(", func_name);
+      gsk_buffer_printf (buffer, "%s (", func_name);
       for (i = 0; i < n_args; i++)
         {
           guint stl, s;
@@ -1830,17 +1830,19 @@ generic_start_function (GskBuffer *buffer,
           gsk_buffer_append_repeated_char (buffer, '*', s);
           gsk_buffer_append_string (buffer, args_type_name_pairs[2*i+1]);
           if (i + 1 == n_args)
-            gsk_buffer_append_string (buffer, ");\n");
+            gsk_buffer_printf (buffer, ")%s\n",
+                               include_semicolon ? ";" : "");
           else
             {
               gsk_buffer_append_string (buffer, ",\n");
-              gsk_buffer_append_repeated_char (buffer, ' ', func_name_len);
+              gsk_buffer_append_repeated_char (buffer, ' ', func_name_len + 2);
             }
         }
     }
 }
 static void
 start_function (const char *qualifiers,
+                gboolean    include_semicolon,
                 GskbFormat *format,
                 const GskbCodegenConfig *config,
                 GskbCodegenOutputFunction function,
@@ -1905,6 +1907,7 @@ start_function (const char *qualifiers,
   generic_start_function (buffer, qualifiers,
                           output_function_info[function].ret_value,
                           func_name,
+                          include_semicolon,
                           n_args,
                           substituted_names);
   g_free (func_name);
@@ -1973,10 +1976,14 @@ gskb_format_codegen_emit_function      (GskbFormat *format,
       break;
     }
 
-  start_function (qualifiers, format, config, function, output);
-  gsk_buffer_append_string (output, "\n{\n");
-  output_function_info[function].implementor (format, config, output);
-  gsk_buffer_append_string (output, "}\n\n");
+  start_function (qualifiers, !emit_implementation,
+                  format, config, function, output);
+  if (emit_implementation)
+    {
+      gsk_buffer_append_string (output, "\n{\n");
+      output_function_info[function].implementor (format, config, output);
+      gsk_buffer_append_string (output, "}\n\n");
+    }
   return;
 }
 

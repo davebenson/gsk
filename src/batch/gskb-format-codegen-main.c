@@ -28,13 +28,10 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include "gskb-codegen-config.h"
-#include "gskb-namespace.h"
 #include "../gskutils.h"
 
 static const char *cmdline_input = NULL;
 
-static const char *cmdline_type_prefix = NULL;
-static const char *cmdline_func_prefix = NULL;
 static const char *cmdline_basename = NULL;
 static gboolean cmdline_all_static = FALSE;
 
@@ -49,7 +46,7 @@ write_buffers_or_die (const char *fname,
                       guint       n_buffers,
                       GskBuffer **buffers)
 {
-  int fd = open (fname, O_CREAT|O_TRUNC, 0666);
+  int fd = open (fname, O_CREAT|O_TRUNC|O_WRONLY, 0666);
   guint i;
   if (fd < 0)
     g_error ("error creating %s: %s", fname, g_strerror (errno));
@@ -65,66 +62,12 @@ write_buffers_or_die (const char *fname,
   close (fd);
 }
 
-
-static gboolean
-handle_prefix (const gchar    *option_name,
-               const gchar    *value,
-               gpointer        data,
-               GError        **error)
-{
-  GString *tmp;
-  const char *at;
-  gboolean uc_next;
-  cmdline_basename = g_strdup (value);
-
-  /* convert to _ for func_prefix */
-  tmp = g_string_new ("");
-  for (at = value; *at; at++)
-    if (*at == '-')
-      g_string_append_c (tmp, '_');
-    else
-      g_string_append_c (tmp, *at);
-  cmdline_func_prefix = g_string_free (tmp, FALSE);
-
-  /* convert - to '' and _ to _ for type_prefix */
-  tmp = g_string_new ("");
-  uc_next = TRUE;
-  for (at = value; *at; at++)
-    {
-      if (*at == '-')
-        {
-          uc_next = TRUE;
-        }
-      else if (*at == '_')
-        {
-          uc_next = TRUE;
-          g_string_append_c (tmp, '_');
-        }
-      else if (uc_next)
-        {
-          g_string_append_c (tmp, g_ascii_toupper (*at));
-          uc_next = FALSE;
-        }
-      else
-        {
-          g_string_append_c (tmp, *at);
-        }
-    }
-  cmdline_type_prefix = g_string_free (tmp, FALSE);
-
-  return TRUE;
-}
-
 static GOptionEntry op_entries[] = 
 {
   { "input", 'i', 0, G_OPTION_ARG_FILENAME, &cmdline_input,
     "input file containing the formats", "FILE" },
-  { "type-prefix", '\0', 0, G_OPTION_ARG_STRING, &cmdline_type_prefix,
-    "prefix for generated types", "PREFIX" },
-  { "func-prefix", '\0', 0, G_OPTION_ARG_STRING, &cmdline_func_prefix,
-    "prefix for generated functions", "PREFIX" },
-  { "prefix", '\0', 0, G_OPTION_ARG_CALLBACK, handle_prefix,
-    "prefix to generate type- and func- prefix from", "PREFIX_TEMPL" },
+  { "basename", 'o', 0, G_OPTION_ARG_FILENAME, &cmdline_basename,
+    "output file basename", "FILE" },
   { "all-static", '\0', 0, G_OPTION_ARG_NONE, &cmdline_all_static,
     "generate all functions as static functions", NULL },
   { NULL, '\0', 0, 0, NULL, NULL, NULL }
@@ -158,14 +101,10 @@ int main(int argc, char **argv)
                           error->message);
   g_option_context_free (op_context);
 
-  if (cmdline_type_prefix == NULL)
-    gsk_fatal_user_error ("--type-prefix (or --prefix) is required");
-  if (cmdline_func_prefix == NULL)
-    gsk_fatal_user_error ("--func-prefix (or --prefix) is required");
   if (cmdline_input == NULL)
     gsk_fatal_user_error ("--input is required");
 
-  config = gskb_codegen_config_new (cmdline_type_prefix, cmdline_func_prefix);
+  config = gskb_codegen_config_new ();
   if (cmdline_all_static)
     gskb_codegen_config_set_all_static (config, TRUE);
 
@@ -207,28 +146,28 @@ int main(int argc, char **argv)
       ns_section (ns, GSKB_CODEGEN_SECTION_FORMAT_IMPLS, config, &impls);
       gsk_buffer_printf (&impls, "\n/* function implementations */\n");
       ns_section (ns, GSKB_CODEGEN_SECTION_FUNCTION_IMPLS, config, &impls);
-      if (config->all_static)
-        {
-          char *fname = g_strdup_printf ("%s.include", cmdline_basename);
-          GskBuffer *buffers[2] = { &decls, &impls };
-          write_buffers_or_die (fname, 2, buffers);
-          g_free (fname);
-        }
-      else
-        {
-          char *fname;
-          GskBuffer *p[1];
-          fname = g_strdup_printf ("%s.h", cmdline_basename);
-          p[0] = &decls;
-          write_buffers_or_die (fname, 1, p);
-          g_free (fname);
-          fname = g_strdup_printf ("%s.c", cmdline_basename);
-          p[0] = &impls;
-          write_buffers_or_die (fname, 1, p);
-          g_free (fname);
-        }
     }
 
+  if (config->all_static)
+    {
+      char *fname = g_strdup_printf ("%s.include", cmdline_basename);
+      GskBuffer *buffers[2] = { &decls, &impls };
+      write_buffers_or_die (fname, 2, buffers);
+      g_free (fname);
+    }
+  else
+    {
+      char *fname;
+      GskBuffer *p[1];
+      fname = g_strdup_printf ("%s.h", cmdline_basename);
+      p[0] = &decls;
+      write_buffers_or_die (fname, 1, p);
+      g_free (fname);
+      fname = g_strdup_printf ("%s.c", cmdline_basename);
+      p[0] = &impls;
+      write_buffers_or_die (fname, 1, p);
+      g_free (fname);
+    }
   gskb_codegen_config_free (config);
 
   return 0;

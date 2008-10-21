@@ -104,6 +104,7 @@ typedef struct
 %type opt_format {GskbFormat *}
 %type opt_int_type {GskbFormatIntType}
 %type named_format {ParserNamedFormat}
+%type namespace_decl {char *}
 %start_symbol toplevel
 %name gskb_lemon_parser_
 
@@ -301,10 +302,36 @@ named_format(RV) ::= ALIAS format(IN) BAREWORD(NAME).
 	  RV.name = g_strdup (NAME->str); }
 
 /* Toplevel parsing */
-named_format_list ::= .
-named_format_list ::= named_format_list named_format(NF) SEMICOLON.
-	{ gskb_format_set_name (NF.format, parse_context->cur_namespace, NF.name);
+toplevel_directives ::= .
+toplevel_directives ::= toplevel_directives named_format(NF) SEMICOLON.
+	{ if (parse_context->cur_namespace == NULL)
+	    {
+	      ADD_ERROR ("no 'namespace' directive before format");
+	    }
+	  else
+	    {
+	      gskb_format_set_name (NF.format, parse_context->cur_namespace, NF.name);
+	    }
 	  g_free (NF.name);
-	  gskb_format_unref (NF.format); }
+	  gskb_format_unref (NF.format);
+	}
 
-toplevel ::= named_format_list.
+namespace_decl(NS) ::= NAMESPACE BAREWORD(ns).
+	{ NS = g_strdup (ns->str); }
+
+toplevel_directives ::= toplevel_directives namespace_decl(NS).
+	{ 
+	  GskbNamespace *ns = gskb_context_find_namespace (parse_context->context, NS);
+	  if (ns == NULL)
+	    {
+	      ns = gskb_namespace_new (NS);
+	      gskb_context_add_namespace (parse_context->context, parse_context->is_implementing, ns);
+	    }
+	  else
+	    gskb_namespace_ref (ns);
+	  if (parse_context->cur_namespace != NULL)
+	    gskb_namespace_unref (parse_context->cur_namespace);
+	  parse_context->cur_namespace = ns;
+	}
+
+toplevel ::= toplevel_directives.

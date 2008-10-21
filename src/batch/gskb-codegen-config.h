@@ -104,13 +104,11 @@ typedef enum
 typedef struct _GskbCodegenConfig GskbCodegenConfig;
 struct _GskbCodegenConfig
 {
-  char *type_prefix, *func_prefix;
   gboolean all_static;
 };
 
 GskbCodegenConfig *
-     gskb_codegen_config_new            (const char        *type_prefix,
-                                         const char        *func_prefix);
+     gskb_codegen_config_new            (void);
 void gskb_codegen_config_set_all_static (GskbCodegenConfig *config,
                                          gboolean           all_static);
 void gskb_codegen_config_free           (GskbCodegenConfig *config);

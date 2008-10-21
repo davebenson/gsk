@@ -702,7 +702,7 @@ gskb_format_enum_new  (gboolean    is_extensible,
       uint_table_entries[i].entry_data = indices + i;
     }
   rv->name_to_index = gskb_str_table_new (sizeof (gint32), GSKB_ALIGNOF_UINT32, n_values, str_table_entries);
-  rv->value_to_index = gskb_uint_table_new (sizeof (gint32), GSKB_ALIGNOF_UINT32, n_values, uint_table_entries);
+  rv->code_to_index = gskb_uint_table_new (sizeof (gint32), GSKB_ALIGNOF_UINT32, n_values, uint_table_entries);
   g_free (indices);
   g_free (str_table_entries);
   g_free (uint_table_entries);
@@ -839,6 +839,22 @@ gskb_format_bit_fields_new (guint                  n_fields,
 }
 
 GskbFormat *
+gskb_format_alias_new (GskbFormat *format)
+{
+  GskbFormatAlias *rv = g_new0 (GskbFormatAlias, 1);
+  rv->base.type = GSKB_FORMAT_TYPE_ALIAS;
+  rv->base.ref_count = 1;
+  rv->base.ctype = format->any.ctype;
+  rv->base.c_align_of = format->any.c_align_of;
+  rv->base.c_size_of = format->any.c_size_of;
+  rv->base.always_by_pointer = format->any.always_by_pointer;
+  rv->base.requires_destruct = format->any.requires_destruct;
+  rv->base.fixed_length = format->any.fixed_length;
+  rv->format = gskb_format_ref (format);
+  return (GskbFormat *) rv;
+}
+
+GskbFormat *
 gskb_format_ref (GskbFormat *format)
 {
   g_return_val_if_fail (format->any.ref_count > 0, format);
@@ -853,6 +869,10 @@ gskb_format_unref (GskbFormat *format)
   if (--(format->any.ref_count) == 0)
     {
       guint i;
+      g_return_if_fail (!format->any.is_global);
+
+      /* NOTE: the namespace keeps a ref to this format */
+      g_return_if_fail (format->any.ns == NULL);
       switch (format->type)
         {
         case GSKB_FORMAT_TYPE_INT:
@@ -901,18 +921,11 @@ gskb_format_unref (GskbFormat *format)
             g_free ((char *) format->v_enum.values[i].name);
           g_free (format->v_enum.values);
           gskb_str_table_free (format->v_enum.name_to_index);
-          gskb_uint_table_free (format->v_enum.value_to_index);
+          gskb_uint_table_free (format->v_enum.code_to_index);
           break;
         case GSKB_FORMAT_TYPE_ALIAS:
           gskb_format_unref (format->v_alias.format);
           break;
-        }
-      if (format->any.ns)
-        {
-          g_free (format->any.name);
-          g_free (format->any.c_func_prefix);
-          g_free (format->any.c_type_name);
-          gskb_namespace_unref (format->any.ns);
         }
       g_free (format);
     }
@@ -977,6 +990,31 @@ GskbFormatUnionCase    *gskb_format_union_find_case_code(GskbFormat *format,
     return format->v_union.cases + (*index_ptr);
 }
 
+GskbFormatEnumValue *
+gskb_format_enum_find_value (GskbFormat *format,
+                             const char *name)
+{
+  const gint32 *index_ptr;
+  g_return_val_if_fail (format->type == GSKB_FORMAT_TYPE_ENUM, NULL);
+  index_ptr = gskb_str_table_lookup (format->v_enum.name_to_index, name);
+  if (index_ptr == NULL)
+    return NULL;
+  else
+    return format->v_enum.values + (*index_ptr);
+}
+GskbFormatEnumValue *
+gskb_format_enum_find_value_code (GskbFormat *format,
+                                   guint       code)
+{
+  const gint32 *index_ptr;
+  g_return_val_if_fail (format->type == GSKB_FORMAT_TYPE_ENUM, NULL);
+  g_return_val_if_fail (format->v_enum.is_extensible, NULL);
+  index_ptr = gskb_uint_table_lookup (format->v_enum.code_to_index, code);
+  if (index_ptr == NULL)
+    return NULL;
+  else
+    return format->v_enum.values + (*index_ptr);
+}
 /* used internally by union_new and struct_new */
 static void
 maybe_name_subformat (GskbFormat *format,
@@ -1036,6 +1074,23 @@ gskb_format_set_name       (GskbFormat    *format,
       /* no child types to name */
       break;
     }
+
+  /* shouldn't be possible,
+     since maybe_name_subformat() always creates longer names
+     than the starting name. */
+  g_return_if_fail (gskb_namespace_lookup_format (ns, name) == NULL);
+
+  /* link the format and namespace together.  the namespace
+     holds a ref to the format. */
+  format->any.ns = ns;
+  g_hash_table_insert (ns->name_to_format, format->any.name, format);
+  if (ns->n_formats == ns->formats_alloced)
+    {
+      guint new_n = ns->n_formats * 2;
+      ns->formats = g_renew (GskbFormat *, ns->formats, new_n);
+      ns->formats_alloced = new_n;
+    }
+  ns->formats[ns->n_formats++] = gskb_format_ref (format);
 }
 
 static inline void
@@ -2574,12 +2629,22 @@ gskb_context_unref          (GskbContext   *context)
 
 void
 gskb_context_add_namespace  (GskbContext   *context,
+                             gboolean       is_implementing,
                              GskbNamespace *ns)
 {
   g_return_if_fail (g_hash_table_lookup (context->ns_by_name, ns->name) == NULL);
   g_hash_table_insert (context->ns_by_name,
                        ns->name,
                        gskb_namespace_ref (ns));
+  if (is_implementing)
+    g_ptr_array_add (context->implemented_namespaces, ns);
+}
+
+GskbNamespace *
+gskb_context_find_namespace (GskbContext   *context,
+                             const char    *name)
+{
+  return g_hash_table_lookup (context->ns_by_name, name);
 }
 
 /* --- parsing --- */
@@ -2613,7 +2678,6 @@ tokenize_string (const char *pseudo_filename,
             {
               line_no++;
               column_no = 1;
-              continue;
             }
           else
             {
@@ -2717,10 +2781,11 @@ error:
 }
 
 static gboolean
-parse_tokens (GskbContext *context,
-              guint n_tokens,
+parse_tokens (GskbContext    *context,
+              guint           n_tokens,
               GskbParseToken *tokens,
-              GError    **error)
+              gboolean        is_implementing,
+              GError        **error)
 {
   void *yy = gskb_lemon_parser_Alloc ((void*(*)(size_t))g_malloc);
   GskbParseContext parse_context;
@@ -2728,6 +2793,7 @@ parse_tokens (GskbContext *context,
   memset (&parse_context, 0, sizeof (parse_context));
   parse_context.context = context;
   parse_context.errors = g_ptr_array_new ();
+  parse_context.is_implementing = is_implementing;
 
   for (i = 0; i < n_tokens; i++)
     {
@@ -2735,6 +2801,7 @@ parse_tokens (GskbContext *context,
       if (parse_context.errors->len != 0)
         goto got_parse_error;
     }
+  gskb_lemon_parser_ (yy, 0, NULL, &parse_context);
 
   g_ptr_array_free (parse_context.errors, TRUE);
   gskb_lemon_parser_Free (yy, g_free);
@@ -2771,7 +2838,7 @@ gskb_context_parse_string  (GskbContext   *context,
     {
       return FALSE;
     }
-  if (!parse_tokens (context, n_tokens, tokens, error))
+  if (!parse_tokens (context, n_tokens, tokens, TRUE, error))
     {
       free_token_array (n_tokens, tokens);
       return FALSE;
@@ -2804,3 +2871,102 @@ gskb_context_parse_format  (GskbContext   *context,
   ...
 }
 #endif
+
+/* === Namespaces === */
+GskbNamespace *
+gskb_namespace_new (const char *name)
+{
+  GskbNamespace *ns;
+  guint name_len;
+  gboolean word_start;
+  guint i;
+  g_return_val_if_fail (name != NULL, NULL);
+
+  ns = g_new (GskbNamespace, 1);
+  ns->name = g_strdup (name);
+  name_len = strlen (name);
+  ns->c_func_prefix = g_malloc (name_len + 2);
+  ns->c_type_prefix = g_malloc (name_len + 2);
+  word_start = TRUE;
+  for (i = 0; i < name_len; i++)
+    {
+      if (name[i] == '.')
+        {
+          ns->c_func_prefix[i] = ns->c_type_prefix[i] = '_';
+          word_start = TRUE;
+        }
+      else if (word_start)
+        {
+          ns->c_func_prefix[i] = name[i];
+          ns->c_type_prefix[i] = g_ascii_toupper (name[i]);
+          word_start = FALSE;
+        }
+      else
+        {
+          ns->c_func_prefix[i] = name[i];
+          ns->c_type_prefix[i] = name[i];
+        }
+    }
+  strcpy (ns->c_func_prefix + i, "_");
+  strcpy (ns->c_type_prefix + i, "_");
+
+  ns->ref_count = 1;
+  ns->name_to_format = g_hash_table_new (g_str_hash, g_str_equal);
+  ns->n_formats = 0;
+  ns->formats_alloced = 8;
+  ns->formats = g_new (GskbFormat *, ns->formats_alloced);
+  ns->is_writable = 1;
+  ns->is_global = 0;
+  return ns;
+}
+
+GskbNamespace *
+gskb_namespace_ref (GskbNamespace *ns)
+{
+  g_return_val_if_fail (ns->ref_count > 0, ns);
+  ++(ns->ref_count);
+  return ns;
+}
+void
+gskb_namespace_unref (GskbNamespace *ns)
+{
+  g_return_if_fail (ns->ref_count > 0);
+  if (--(ns->ref_count) == 0)
+    {
+      guint i;
+      g_return_if_fail (!ns->is_global);
+      for (i = 0; i < ns->n_formats; i++)
+        {
+          /* unname the format */
+          g_assert (ns->formats[i]->any.ns == ns);
+          g_free (ns->formats[i]->any.c_type_name);
+          ns->formats[i]->any.c_type_name = NULL;
+          g_free (ns->formats[i]->any.c_func_prefix);
+          ns->formats[i]->any.c_func_prefix = NULL;
+          g_free (ns->formats[i]->any.name);
+          ns->formats[i]->any.name = NULL;
+          ns->formats[i]->any.ns = NULL;
+
+          /* unref the format */
+          gskb_format_unref (ns->formats[i]);
+        }
+      if (ns->is_writable)
+        g_hash_table_destroy (ns->name_to_format);
+      else
+        gskb_str_table_free (ns->name_to_format);
+      g_free (ns->name);
+      g_free (ns->c_type_prefix);
+      g_free (ns->c_func_prefix);
+      g_free (ns);
+    }
+}
+
+GskbFormat *
+gskb_namespace_lookup_format (GskbNamespace *ns,
+                              const char *name)
+{
+  if (ns->is_writable)
+    return g_hash_table_lookup (ns->name_to_format, name);
+  else
+    return (gpointer) gskb_str_table_lookup (ns->name_to_format, name);
+}

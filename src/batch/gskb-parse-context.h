@@ -32,6 +32,7 @@ struct _GskbParseContext
   GskbContext *context;
   GskbNamespace *cur_namespace;
   GPtrArray *errors;
+  gboolean is_implementing;
 };
 
 struct _GskbParseToken

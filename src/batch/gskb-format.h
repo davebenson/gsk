@@ -272,7 +272,7 @@ struct _GskbFormatEnum
   gboolean is_extensible;
 
   gpointer name_to_index;
-  gpointer value_to_index;
+  gpointer code_to_index;
 };
 #define GSKB_FORMAT_UNION_UNKNOWN_VALUE_CODE 0
 
@@ -414,7 +414,10 @@ GskbContext   *gskb_context_ref            (GskbContext   *context);
 void           gskb_context_unref          (GskbContext   *context);
 
 void           gskb_context_add_namespace  (GskbContext   *context,
+                                            gboolean       is_implementing,
                                             GskbNamespace *ns);
+GskbNamespace *gskb_context_find_namespace (GskbContext   *context,
+                                            const char    *name);
 gboolean       gskb_context_parse_string   (GskbContext   *context,
                                             const char    *pseudo_filename,
                                             const char    *str,
