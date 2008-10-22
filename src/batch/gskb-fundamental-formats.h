@@ -922,7 +922,7 @@ gskb_long_pack (gskb_long value, GskbAppendFunc func, gpointer data)
 G_INLINE_FUNC guint
 gskb_long_unpack (const guint8 *data, gskb_long *value_out)
 {
-  gint32 ff;
+  gint64 ff;
   if ((data[0] & 0x80) == 0
    || (data[1] & 0x80) == 0
    || (data[2] & 0x80) == 0
@@ -1044,42 +1044,36 @@ gskb_ulong_pack (gskb_ulong value, GskbAppendFunc func, gpointer data)
 G_INLINE_FUNC guint
 gskb_ulong_unpack (const guint8 *data, gskb_ulong *value_out)
 {
-  if ((data[0] & 0x80) == 0)
+  guint64 ff;
+  if ((data[0] & 0x80) == 0
+   || (data[1] & 0x80) == 0
+   || (data[2] & 0x80) == 0
+   || (data[3] & 0x80) == 0)
     {
-      *value_out = data[0];
-      return 1;
+      gskb_uint v;
+      guint rv = gskb_uint_unpack (data, &v);
+      *value_out = v;
+      return rv;
     }
-  else if ((data[1] & 0x80) == 0)
+  ff = (guint64) (((guint32)(data[0]&0x7f))
+               | ((guint32)(data[1]&0x7f) << 7)
+               | ((guint32)(data[2]&0x7f) << 14)
+               | ((guint32)(data[3]&0x7f) << 21))
+     | ((guint64)(data[4]&0x7f) << 28);
+  if ((data[4] & 0x80) == 0)
     {
-      *value_out = (guint32) (data[0] & 0x7f)
-                 | (guint32) (data[1] << 7);
-      return 2;
-    }
-  else if ((data[2] & 0x80) == 0)
-    {
-      *value_out = (guint32) (data[0] & 0x7f)
-                 | ((guint32) (data[1] & 0x7f) << 7)
-                 | (guint32) (data[2] << 14);
-      return 3;
-    }
-  else if ((data[3] & 0x80) == 0)
-    {
-      *value_out = (guint32) (data[0] & 0x7f)
-                 | ((guint32) (data[1] & 0x7f) << 7)
-                 | ((guint32) (data[2] & 0x7f) << 14)
-                 | (guint32) (data[3] << 21);
-      return 4;
+      *value_out = ff;
+      return 5;
     }
   else
     {
-      *value_out = (guint32) (data[0] & 0x7f)
-                 | ((guint32) (data[1] & 0x7f) << 7)
-                 | ((guint32) (data[2] & 0x7f) << 14)
-                 | ((guint32) (data[3] & 0x7f) << 21)
-                 | (guint32) (data[4] << 28);
-      return 5;
+      guint32 hi;
+      guint rv = 5 + gskb_uint_unpack (data + 5, &hi);
+      *value_out = (((guint64) hi) << 35) | ff;
+      return rv;
     }
 }
+
 G_INLINE_FUNC guint
 gskb_ulong_validate_partial (guint length,
                              const guint8 *data,
