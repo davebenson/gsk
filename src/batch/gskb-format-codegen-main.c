@@ -122,6 +122,7 @@ int main(int argc, char **argv)
                              "#include \"gskb-str-table-internals.h\"\n"
                              "#include \"gskb-uint-table-internals.h\"\n"
                              "#include \"gskb-fundamental-formats.h\"\n"
+                             "#include \"../gskerror.h\"\n"
                              "#include \"gskb-config.h\"\n");
 
   for (ns_index = 0;

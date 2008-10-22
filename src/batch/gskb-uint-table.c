@@ -76,7 +76,6 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
       if (entries_sorted[i].value + 1 != entries_sorted[i+1].value)
         n_ranges++;
     }
-  g_message ("gskb_uint_table_new: n_entries=%u, n_ranges=%u", n_entries, n_ranges);
   if (n_ranges == 1 && entries_sorted[i].value == 0)
     {
       /* direct map */
@@ -115,7 +114,6 @@ gskb_uint_table_new   (gsize     sizeof_entry_data,
             }
           else
             {
-              g_message ("range %u had %u elements (starting at value %u)", range_index, ranges[range_index].count, ranges[range_index].start);
               range_index++;
               ranges[range_index].start = entries_sorted[i].value;
               ranges[range_index].count = 1;
@@ -195,7 +193,7 @@ gskb_uint_table_print_compilable_deps (GskbUIntTable *table,
       for (i = 0; i < table->table_size; i++)
         {
           gsk_buffer_printf (output,
-                             "  %u,\n",
+                             "  %uU,\n",
                              ((guint32*)table->table_data)[i]);
         }
       gsk_buffer_printf (output, "};\n");
@@ -206,7 +204,7 @@ gskb_uint_table_print_compilable_deps (GskbUIntTable *table,
       for (i = 0; i < table->table_size; i++)
         {
           GskbUIntTableRange r = ((GskbUIntTableRange*)table->table_data)[i];
-          gsk_buffer_printf (output, "  { %u, %u, %u },\n",
+          gsk_buffer_printf (output, "  { %uU, %uU, %uU },\n",
                              r.start, r.count, r.entry_data_offset);
         }
       gsk_buffer_printf (output, "};\n");
@@ -236,12 +234,6 @@ void           gskb_uint_table_print_compilable_object
       type_name = "GSKB_UINT_TABLE_RANGES";
       break;
     }
-
-  g_message ("gskb_uint_table_print_compilable_object: type_name=%s [type=%u]", type_name, table->type);
-  g_message ("    table_name=%s", table_name);
-  g_message ("    table_size=%u", table->table_size);
-  g_message ("    n_entry_data=%u", table->n_entry_data);
-  g_message ("    max_value=%u", table->max_value);
 
   gsk_buffer_printf (output,
                      "{\n"

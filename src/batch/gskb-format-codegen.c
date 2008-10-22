@@ -26,6 +26,7 @@
 #include "gskb-codegen-config.h"
 #include "gskb-str-table.h"
 #include "gskb-uint-table.h"
+#include "gskb-fundamental-formats.h"
 
 GskbCodegenConfig *
 gskb_codegen_config_new            (void)
@@ -149,7 +150,7 @@ gskb_format_codegen__emit_structures   (GskbFormat *format,
                                c->name);
         }
       if (format->v_union.is_extensible)
-        gsk_buffer_printf (output, "    GskbUnknownValue unknown;\n");
+        gsk_buffer_printf (output, "    GskbUnknownValue unknown_value;\n");
       gsk_buffer_printf (output, "  } info;\n"
                                  "};\n\n");
 
@@ -703,6 +704,17 @@ static void start_function (const char *qualifiers,
                             GskBuffer *buffer);
 
 
+static char *make_union_type_enum_name (GskbFormat *format,
+                                        const char *case_name)
+{
+  char *tmp = g_strconcat (format->any.c_func_prefix,
+                           "__type__",
+                           case_name,
+                           NULL);
+  char *rv = g_ascii_strup (tmp, -1);
+  g_free (tmp);
+  return rv;
+}
 
 
 /* pack */
@@ -783,7 +795,7 @@ implement__pack(GskbFormat *format,
                   {
                     gsk_buffer_printf (output,
                                        "  while (unknown_index < value->unknown_members.length\n"
-                                       "     &&  value->unknown_members.values[unknown_members].code < %u)\n"
+                                       "     &&  value->unknown_members.values[unknown_index].code < %u)\n"
                                        "    {\n"
                                        "      gskb_unknown_value_pack (value->unknown_members.values + unknown_index,\n"
                                        "                               append_func, append_func_data);\n"
@@ -814,18 +826,25 @@ implement__pack(GskbFormat *format,
                                    member->name);
               }
           }
+        if (format->v_struct.is_extensible)
+          gsk_buffer_printf (output,
+                             "  while (unknown_index < value->unknown_members.length)\n"
+                             "    {\n"
+                             "      gskb_unknown_value_pack (value->unknown_members.values + unknown_index,\n"
+                             "                               append_func, append_func_data);\n"
+                             "      unknown_index++;\n"
+                             "    }\n"
+                             "  append_func (1, (const guint8 *) \"\", append_func_data);\n");
       }
       break;
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
-        gsk_buffer_printf (output,
-                           "  guint32 code = value->type;\n");
+        char *unknown_value_name = make_union_type_enum_name (format, "unknown_value");
         if (format->v_union.is_extensible)
           gsk_buffer_printf (output,
-                             "  if (value->type != %s__UNKNOWN_VALUE)\n"
+                             "  if (value->type != %s)\n"
                              "    gskb_uint_pack (value->type, append_func, append_func_data);\n",
-                             ucname);
+                             unknown_value_name);
         else
           gsk_buffer_printf (output,
                              "  gskb_uint_pack (value->type, append_func, append_func_data);\n");
@@ -836,10 +855,10 @@ implement__pack(GskbFormat *format,
         for (i = 0; i < format->v_union.n_cases; i++)
           {
             GskbFormatUnionCase *c = format->v_union.cases + i;
-            char *uccasename = g_ascii_strup (c->name, -1);
+            char *case_name = make_union_type_enum_name (format, c->name);
             gsk_buffer_printf (output,
-                               "    case %s__%s:\n",
-                               ucname, uccasename);
+                               "    case %s:\n",
+                               case_name);
             if (c->format != NULL)
               {
                 if (format->v_union.is_extensible)
@@ -856,26 +875,30 @@ implement__pack(GskbFormat *format,
             else
               {
                 if (format->v_union.is_extensible)
-                  gsk_buffer_printf (output, "  guint8 zero = 0;\n"
-                             "append_func (1, &zero, append_func_data);\n");
+                  gsk_buffer_printf (output,
+                                     "     {\n"
+                                     "        guint8 zero = 0;\n"
+                                     "        append_func (1, &zero, append_func_data);\n"
+                                     "        break;\n"
+                                     "     }\n");
               }
-            g_free (uccasename);
+            g_free (case_name);
           }
         if (format->v_union.is_extensible)
           {
             gsk_buffer_printf (output,
-                               "    case %s__UNKNOWN_VALUE:\n"
+                               "    case %s:\n"
                                "      gskb_unknown_value_pack (&value->info.unknown_value,\n"
                                "                               append_func, append_func_data);\n"
                                "      break;\n",
-                               ucname);
+                               unknown_value_name);
           }
-        g_free (ucname);
 
         gsk_buffer_printf (output,
                            "    default:\n"
                            "      g_assert_not_reached ();\n"
                            "    }\n");
+        g_free (unknown_value_name);
         break;
       }
     case GSKB_FORMAT_TYPE_ENUM:
@@ -886,7 +909,6 @@ implement__pack(GskbFormat *format,
     case GSKB_FORMAT_TYPE_BIT_FIELDS:
       {
         gsk_buffer_printf (output,
-                           "  const guint8 *unpacked = (const guint8 *) value;\n"
                            "  guint8 packed[%u];\n"
                            "  %s_pack_slab (value, packed);\n"
                            "  append_func (sizeof (packed), packed, append_func_data);\n",
@@ -964,69 +986,88 @@ implement__get_packed_size(GskbFormat *format,
             gsk_buffer_printf (output,
                                "  {\n"
                                "    guint i = 0;\n"
-                               "    for (i = 0; i < value->unknown_values.length; i++)\n"
-                               "      rv += gskb_unknown_value_get_packed_size (value->unknown_values.values + i);\n"
+                               "    for (i = 0; i < value->unknown_members.length; i++)\n"
+                               "      rv += gskb_unknown_value_get_packed_size (value->unknown_members.values + i);\n"
                                "  }\n");
+            for (i = 0; i < format->v_struct.n_members; i++)
+              {
+                GskbFormatStructMember *member = format->v_struct.members + i;
+                gsk_buffer_printf (output,
+                                   "  if (value->has.%s)\n"
+                                   "    {\n"
+                                   "      guint32 subsize = %s_get_packed_size (%svalue->%s);\n"
+                                   "      rv += %u      /* gskb_uint_get_packed_size(%u) */\n"
+                                   "          + gskb_uint_get_packed_size (subsize)\n"
+                                   "          + subsize;\n"
+                                   "    }\n",
+                                   member->name,
+                                   member->format->any.c_func_prefix,
+                                   member->format->any.always_by_pointer?"&":"", member->name,
+                                   gskb_uint_get_packed_size (member->code),
+                                   member->code);
+              }
+            gsk_buffer_printf (output, "  rv += 1;                /* 0 terminated */\n");
           }
-        for (i = 0; i < format->v_struct.n_members; i++)
+        else
           {
-            GskbFormatStructMember *member = format->v_struct.members + i;
-            gsk_buffer_printf (output,
-                               "  rv += %s_get_packed_size (%svalue->%s);\n",
-                               member->format->any.c_func_prefix,
-                               member->format->any.always_by_pointer?"&":"", member->name);
+            for (i = 0; i < format->v_struct.n_members; i++)
+              {
+                GskbFormatStructMember *member = format->v_struct.members + i;
+                gsk_buffer_printf (output,
+                                   "  rv += %s_get_packed_size (%svalue->%s);\n",
+                                   member->format->any.c_func_prefix,
+                                   member->format->any.always_by_pointer?"&":"", member->name);
+              }
           }
-        if (format->v_struct.is_extensible)
-          gsk_buffer_printf (output, "  rv += 1;                /* 0 terminated */\n");
         gsk_buffer_printf (output, "  return rv;\n");
         break;
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
+        char *unknown_value_name = make_union_type_enum_name (format, "unknown_value");
         gsk_buffer_printf (output, "  switch (value->type)\n    {\n");
         for (i = 0; i < format->v_union.n_cases; i++)
           {
             GskbFormatUnionCase *c = format->v_union.cases + i;
-            char *uccasename = g_ascii_strup (c->name, -1);
-            gsk_buffer_printf (output, "    case %s__%s:\n",
-                               ucname, uccasename);
+            char *uccasename = make_union_type_enum_name (format, c->name);
+            gsk_buffer_printf (output, "    case %s:\n",
+                               uccasename);
             if (format->v_union.is_extensible)
               {
                 if (c->format == NULL)
-                  gsk_buffer_printf (output, "      return gskb_uint_get_packed_size (%s__%s);\n",
-                                     ucname, uccasename);
+                  gsk_buffer_printf (output, "      return gskb_uint_get_packed_size (%s);\n",
+                                     uccasename);
                 else
-                  gsk_buffer_printf (output, "      return gskb_uint_get_packed_size (%s__%s) + %s_get_packed_size (%svalue->info.%s);\n",
-                                     ucname, uccasename,
+                  gsk_buffer_printf (output, "      return gskb_uint_get_packed_size (%s) + %s_get_packed_size (%svalue->info.%s);\n",
+                                     uccasename,
                                      c->format->any.c_func_prefix, c->format->any.always_by_pointer?"&":"", c->name);
               }
             else
               {
                 if (c->format == NULL)
-                  gsk_buffer_printf (output, "      return gskb_uint_get_packed_size (%s__%s) + 1;\n",
-                                     ucname, uccasename);
+                  gsk_buffer_printf (output, "      return gskb_uint_get_packed_size (%s) + 1;\n",
+                                     uccasename);
                 else
                   gsk_buffer_printf (output,
                                      "      {\n"
                                      "        guint subsize = %s_get_packed_size (%svalue->info.%s);\n"
-                                     "        return gskb_uint_get_packed_size (%s__%s)\n"
+                                     "        return gskb_uint_get_packed_size (%s)\n"
                                      "             + gskb_uint_get_packed_size (subsize)\n"
                                      "             + subsize;\n"
                                      "      }\n",
                                      c->format->any.c_func_prefix, c->format->any.always_by_pointer?"&":"", c->name,
-                                     ucname, uccasename);
+                                     uccasename);
               }
             g_free (uccasename);
           }
         if (format->v_union.is_extensible)
           {
             gsk_buffer_printf (output,
-                               "  case %s__UNKNOWN_VALUE:\n"
+                               "  case %s:\n"
                                "    return gskb_unknown_value_get_packed_size (&value->info.unknown_value);\n",
-                               ucname);
+                               unknown_value_name);
           }
-        g_free (ucname);
+        g_free (unknown_value_name);
         gsk_buffer_printf (output, "    default:\n"
                                    "      g_return_val_if_reached (0);\n"
                                    "    }\n");
@@ -1102,40 +1143,85 @@ implement__pack_slab      (GskbFormat *format,
     case GSKB_FORMAT_TYPE_STRUCT:
       {
         gsk_buffer_printf (output, "  guint rv = 0;\n");
-        for (i = 0; i < format->v_struct.n_members; i++)
+        if (format->v_struct.is_extensible)
           {
-            GskbFormatStructMember *member = format->v_struct.members + i;
+            guint last_code = 0;
             gsk_buffer_printf (output,
-                               "  rv += %s_pack_slab (%svalue->%s, out + rv);\n",
-                               member->format->any.c_func_prefix,
-                               member->format->any.always_by_pointer?"&":"", member->name);
+                               "  guint unknown_index = 0;\n");
+            for (i = 0; i < format->v_struct.n_members; i++)
+              {
+                GskbFormatStructMember *member = format->v_struct.members + i;
+                if (last_code + 1 != member->code)
+                  {
+                    gsk_buffer_printf (output,
+                                       "  while (unknown_index < value->unknown_members.length\n"
+                                       "     &&  value->unknown_members.values[unknown_index].code < %u)\n"
+                                       "    {\n"
+                                       "      rv += gskb_unknown_value_pack_slab (value->unknown_members.values + unknown_index,\n"
+                                       "                               out + rv);\n"
+                                       "      unknown_index++;\n"
+                                       "    }\n",
+                                       member->code);
+                  }
+                gsk_buffer_printf (output,
+                                   "  if (value->has.%s)\n"
+                                   "    {\n"
+                                   "      rv += gskb_uint_pack_slab (%u, out + rv);\n"
+                                   "      rv += gskb_uint_pack_slab (%s_get_packed_size (%svalue->%s), out + rv);\n"
+                                   "      rv += %s_pack_slab (%svalue->%s, out + rv);\n"
+                                   "    }\n",
+                               member->name,
+                               member->code,
+                               member->format->any.c_func_prefix, member->format->any.always_by_pointer?"&":"", member->name,
+                               member->format->any.c_func_prefix, member->format->any.always_by_pointer?"&":"", member->name);
+                last_code = member->code;
+              }
+            gsk_buffer_printf (output,
+                               "  while (unknown_index < value->unknown_members.length)\n"
+                               "    {\n"
+                               "      rv += gskb_unknown_value_pack_slab (value->unknown_members.values + unknown_index,\n"
+                               "                               out + rv);\n"
+                               "      unknown_index++;\n"
+                               "    }\n"
+                               "  out[rv++] = 0;   /* nul terminate */\n");
+          }
+        else            /* non-extensible structs */
+          {
+            for (i = 0; i < format->v_struct.n_members; i++)
+              {
+                GskbFormatStructMember *member = format->v_struct.members + i;
+                gsk_buffer_printf (output,
+                                   "  rv += %s_pack_slab (%svalue->%s, out + rv);\n",
+                                   member->format->any.c_func_prefix,
+                                   member->format->any.always_by_pointer?"&":"", member->name);
+              }
           }
         gsk_buffer_printf (output, "  return rv;\n");
         break;
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
+        char *unknown_value_name = make_union_type_enum_name (format, "unknown_value");
         gsk_buffer_printf (output, "  switch (value->type)\n    {\n");
         for (i = 0; i < format->v_union.n_cases; i++)
           {
             GskbFormatUnionCase *c = format->v_union.cases + i;
-            char *uccasename = g_ascii_strup (c->name, -1);
-            gsk_buffer_printf (output, "    case %s__%s:\n",
-                               ucname, uccasename);
+            char *uccasename = make_union_type_enum_name (format, c->name);
+            gsk_buffer_printf (output, "    case %s:\n",
+                               uccasename);
             if (c->format == NULL)
-              gsk_buffer_printf (output, "      return gskb_uint_pack_slab (%s__%s, out);\n",
-                                 ucname, uccasename);
+              gsk_buffer_printf (output, "      return gskb_uint_pack_slab (%s, out);\n",
+                                 uccasename);
             else
               gsk_buffer_printf (output, "      {\n"
-                                         "         guint size1 = gskb_uint_pack_slab (%s__%s, out);\n"
+                                         "         guint size1 = gskb_uint_pack_slab (%s, out);\n"
                                          "         return size1 + %s_pack_slab (%svalue->info.%s, out + size1);\n"
                                          "      }\n",
-                                         ucname, uccasename,
+                                         uccasename,
                                          c->format->any.c_func_prefix, c->format->any.always_by_pointer?"&":"", c->name);
             g_free (uccasename);
           }
-        g_free (ucname);
+        g_free (unknown_value_name);
         gsk_buffer_printf (output, "    default:\n"
                                    "      g_return_val_if_reached (0);\n"
                                    "    }\n");
@@ -1153,6 +1239,8 @@ implement__pack_slab      (GskbFormat *format,
     case GSKB_FORMAT_TYPE_BIT_FIELDS:
       {
         guint n_packed_bits = 0;
+        gsk_buffer_printf (output,
+                           "  const guint8 *unpacked = (const guint8 *) value;\n");
         for (i = 0; i < format->any.c_size_of; i++)
           {
             guint8 bits = format->v_bit_fields.bits_per_unpacked_byte[i];
@@ -1164,17 +1252,17 @@ implement__pack_slab      (GskbFormat *format,
                     /* need to initialize the byte */
                     if (bits == 8)
                       gsk_buffer_printf (output,
-                                         "  packed[%u] = unpacked[%u];",
+                                         "  out[%u] = unpacked[%u];",
                                          n_packed_bits / 8, i);
                     else
                       gsk_buffer_printf (output,
-                                         "  packed[%u] = unpacked[%u] & 0x%02x;\n",
+                                         "  out[%u] = unpacked[%u] & 0x%02x;\n",
                                          n_packed_bits / 8, i, (guint8)((1<<bits) - 1));
                   }
                 else
                   {
                     gsk_buffer_printf (output,
-                                       "  packed[%u] |= (unpacked[%u] & 0x%02x) << %u;\n",
+                                       "  out[%u] |= (unpacked[%u] & 0x%02x) << %u;\n",
                                        n_packed_bits / 8, i, (guint8)((1<<bits) - 1),
                                        n_packed_bits % 8);
                   }
@@ -1300,8 +1388,9 @@ implement__validate_partial  (GskbFormat *format,
                                "        return rv;\n"
                                "      if (code <= last_code)\n"
                                "        {\n"
-                               "          g_set_error (error, \"expected extensible struct code to be ascending, got %%u then %%u\",\n"
-                               "                              last_code, code);\n"
+                               "          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,\n"
+                               "                       \"expected extensible struct code to be ascending, got %%u then %%u\",\n"
+                               "                       last_code, code);\n"
                                "          return 0;\n"
                                "        }\n"
                                "      if ((sub_used=gskb_uint_validate_unpack (length - rv, data + rv, &sub_len, error)) == 0)\n"
@@ -1369,14 +1458,13 @@ implement__validate_partial  (GskbFormat *format,
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
+        char *unknown_value_name = make_union_type_enum_name (format, "unknown_value");
         
         if (format->v_union.is_extensible)
           {
             gsk_buffer_printf (output,
                                "  guint sub_used2;\n"
-                               "  guint32 prefixed_len;\n"
-                               "  guint32 last_code = 0;\n");
+                               "  guint32 prefixed_len;\n");
           }
         gsk_buffer_printf (output,
                            "  guint rv;\n"
@@ -1403,30 +1491,29 @@ implement__validate_partial  (GskbFormat *format,
         for (i = 0; i < format->v_union.n_cases; i++)
           {
             GskbFormatUnionCase *c = format->v_union.cases + i;
-            char *uccasename = g_ascii_strup (c->name, -1);
-            gsk_buffer_printf (output, "    case %s__%s:\n",
-                               ucname, uccasename);
+            char *uccasename = make_union_type_enum_name (format, c->name);
+            gsk_buffer_printf (output, "    case %s:\n",
+                               uccasename);
             if (c->format == NULL)
               {
                 if (format->v_union.is_extensible)
                   gsk_buffer_printf (output,
-                                     "      if (len != 0)\n"
+                                     "      if (prefixed_len != 0)\n"
                                      "        {\n"
                                      "           g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,\n"
                                      "                        \"expected length for empty union case to be 0, got %%u\",\n"
-                                     "                        len);\n"
-                                     "           return FALSE;\n"
+                                     "                        prefixed_len);\n"
+                                     "           return 0;\n"
                                      "        }\n");
-                gsk_buffer_printf (output, "      *n_used_out = sub_used;\n"
-                                           "      return TRUE;\n");
+                gsk_buffer_printf (output, "      return sub_used;\n");
               }
             else
               {
                 gsk_buffer_printf (output, "      rv = sub_used;\n"
-                                           "      if ((sub_used = %s_validate_partial (len - rv, data + rv, error)) == 0)\n"
+                                           "      if ((sub_used = %s_validate_partial (length - rv, data + rv, error)) == 0)\n"
                                            "        {\n"
                                            "           gsk_g_error_add_prefix (error, \"validating case '%%s' of '%%s'\", \"%s\", \"%s\");\n"
-                                           "           return FALSE;\n"
+                                           "           return 0;\n"
                                            "        }\n",
                                            c->format->any.c_func_prefix, c->name, format->any.name);
                 if (format->v_union.is_extensible)
@@ -1435,35 +1522,33 @@ implement__validate_partial  (GskbFormat *format,
                                      "        {\n"
                                      "          g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_PARSE,\n"
          "                  \"validated length for case %%s of union %%s had length mismatch (header said %%u, got %%u)\",\n"
-                                     "                       \"%s\", \"%s\", len, sub_used);\n"
-                                     "          return FALSE;\n"
+                                     "                       \"%s\", \"%s\", prefixed_len, sub_used);\n"
+                                     "          return 0;\n"
                                      "        }\n",
                                      c->name, format->any.name);
                 gsk_buffer_printf (output,
-                                   "      *n_used_out = rv + sub_used;\n"
-                                   "      return TRUE;\n");
+                                   "      return rv + sub_used;\n");
               }
 
             g_free (uccasename);
           }
-        g_free (ucname);
         if (format->v_union.is_extensible)
           {
             gsk_buffer_printf (output,
                                "    default:\n"
-                               "      *n_used_out = sub_used + len;\n"
-                               "      return TRUE;\n"
+                               "      return sub_used + prefixed_len;\n"
                                "    }\n");
           }
         else
           {
             gsk_buffer_printf (output, "    default:\n"
-                                       "      g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,\n"
+                                       "      g_set_error (error, GSK_G_ERROR_DOMAIN,\n"
                                        "                   GSK_ERROR_BAD_FORMAT,\n"
                                        "                   \"invalid tag %%u for '%%s'\", type, \"%s\");\n"
-                                       "      return FALSE;\n"
+                                       "      return 0;\n"
                                        "    }\n", format->any.name);
           }
+        g_free (unknown_value_name);
         break;
       }
     case GSKB_FORMAT_TYPE_ENUM:
@@ -1472,28 +1557,32 @@ implement__validate_partial  (GskbFormat *format,
         if (format->v_enum.is_extensible)
           {
             gsk_buffer_printf (output,
-                               "  return gskb_uint_validate_partial (len, data, error);\n");
+                               "  return gskb_uint_validate_partial (length, data, error);\n");
             break;
           }
         gsk_buffer_printf (output,
-                           "  if ((*n_used_out = gskb_uint_validate_unpack (len, data, &val, error)) == 0)\n"
-                           "    return FALSE;\n"
+                           "  gskb_%s val;\n"
+                           "  guint rv = gskb_%s_validate_unpack (length, data, &val, error);\n"
+                           "  if (rv == 0)\n"
+                           "    return 0;\n"
                            "  switch (val)\n"
-                           "  {\n");
+                           "  {\n",
+                           gskb_format_int_type_name (format->v_enum.int_type),
+                           gskb_format_int_type_name (format->v_enum.int_type));
         for (i = 0; i < format->v_enum.n_values; i++)
           {
             GskbFormatEnumValue *e = format->v_enum.values + i;
             char *uccasename = g_ascii_strup (e->name, -1);
             gsk_buffer_printf (output,
-                               "  case %s__%s: return TRUE;\n", ucname, uccasename);
+                               "  case %s__%s: return rv;\n", ucname, uccasename);
             g_free (uccasename);
           }
         gsk_buffer_printf (output,
                            "  default:\n"
-                           "    g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,\n"
+                           "    g_set_error (error, GSK_G_ERROR_DOMAIN,\n"
                            "                 GSK_ERROR_BAD_FORMAT,\n"
                            "                 \"invalid value %%u for enum %%s\", val, \"%s\");\n"
-                           "    return FALSE;\n"
+                           "    return 0;\n"
                            "  }\n",
                            format->any.name);
 
@@ -1508,7 +1597,7 @@ implement__validate_partial  (GskbFormat *format,
           gsk_buffer_printf (output,
                              "  if ((data[%u] & 0x%02x) != 0)\n"
                              "    {\n"
-                             "      g_set_error (error, GSK_G_ERROR_DOMAIN_QUARK,\n"
+                             "      g_set_error (error, GSK_G_ERROR_DOMAIN,\n"
                              "                   GSK_ERROR_BAD_FORMAT,\n"
                              "                   \"expected few %%u bits of packed bit fields %%s to be zero\",\n"
                              "                   %u, \"%s\");\n"
@@ -1608,41 +1697,40 @@ implement_unpack_functions         (GskbFormat *format,
             gsk_buffer_printf (output,
                                "  GArray *unknown_members = NULL;\n"
                                "  guint sub_used;\n"
-                               "  guint32 code;\n"
+                               "  guint32 code, sub_len;\n"
                                "  memset (&value_out->has, 0, sizeof (%s_Contents));\n"
                                "  for (;;)\n"
                                "    {\n"
-                               "      rv += gskb_uint_unpack (data + rv, &code);\n"
+                               "      rv += gskb_uint_unpack (in + rv, &code);\n"
                                "      if (code == 0)\n"
                                "        {\n"
                                "          if (unknown_members == NULL)\n"
                                "            {\n"
-                               "              value_out->unknown_values.length = 0;\n"
-                               "              value_out->unknown_values.data = NULL;\n"
+                               "              value_out->unknown_members.length = 0;\n"
+                               "              value_out->unknown_members.values = NULL;\n"
                                "            }\n"
                                "          else\n"
                                "            {\n"
                                "              gsize size = unknown_members->len * sizeof (GskbUnknownValue);\n"
-                               "              value_out->unknown_values.length = unknown_members->len;\n",
+                               "              value_out->unknown_members.length = unknown_members->len;\n",
                                format->any.c_type_name);
             if (with_mempool)
               {
                 gsk_buffer_printf (output,
-                               "              value_out->unknown_members.data = gsk_mem_pool_alloc (mem_pool, size);\n");
+                               "              value_out->unknown_members.values = gsk_mem_pool_alloc (mem_pool, size);\n");
               }
             else
               {
                 gsk_buffer_printf (output,
-                               "              value_out->unknown_members.data = g_malloc (size);\n");
+                               "              value_out->unknown_members.values = g_malloc (size);\n");
               }
             gsk_buffer_printf (output,
-                               "              memcpy (value_out->unknown_members.data, unknown_members->data, size);\n"
+                               "              memcpy (value_out->unknown_members.values, unknown_members->data, size);\n"
                                "              g_array_free (unknown_members, TRUE);\n"
                                "            }\n"
                                "          return rv;\n"
                                "        }\n"
-                               "      rv = sub_used;\n"
-                               "      sub_used = gskb_uint_unpack (data + rv, &sub_len);\n"
+                               "      sub_used = gskb_uint_unpack (in + rv, &sub_len);\n"
                                "      rv += sub_used;\n"
                                "      switch (code)\n"
                                "        {\n");
@@ -1666,10 +1754,13 @@ implement_unpack_functions         (GskbFormat *format,
                                "          {\n"
                                "            GskbUnknownValue uv;\n"
                                "            uv.code = code;\n"
-                               "            uv.length = length;\n"
-                               "            uv.data = %slength);\n"
-                               "            memcpy (uv.data, in + rv, length);\n"
-                               "            rv += length;\n"
+                               "            uv.length = sub_len;\n"
+                               "            uv.data = %ssub_len);\n"
+                               "            memcpy (uv.data, in + rv, sub_len);\n"
+                               "            if (unknown_members == NULL)\n"
+                               "              unknown_members = g_array_new (FALSE, FALSE, sizeof (GskbUnknownValue));\n"
+                               "            g_array_append_val (unknown_members, uv);\n"
+                               "            rv += sub_len;\n"
                                "          }\n"
                                "          break;\n"
                                "        }\n"
@@ -1692,19 +1783,20 @@ implement_unpack_functions         (GskbFormat *format,
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
         gsk_buffer_printf (output,
                            "  guint rv;\n"
-                           "  guint32 type;\n"
-                           "  rv = gskb_uint_unpack (data, &type);\n"
-                           "  value_out->type = type;\n");
+                           "  gskb_%s type;\n"
+                           "  rv = gskb_%s_unpack (in, &type);\n"
+                           "  value_out->type = type;\n",
+                           gskb_format_int_type_name (format->v_union.int_type),
+                           gskb_format_int_type_name (format->v_union.int_type));
         gsk_buffer_printf (output, "  switch (type)\n    {\n");
         for (i = 0; i < format->v_union.n_cases; i++)
           {
             GskbFormatUnionCase *c = format->v_union.cases + i;
-            char *uccasename = g_ascii_strup (c->name, -1);
-            gsk_buffer_printf (output, "    case %s__%s:\n",
-                               ucname, uccasename);
+            char *uccasename = make_union_type_enum_name (format, c->name);
+            gsk_buffer_printf (output, "    case %s:\n",
+                               uccasename);
             if (c->format == NULL)
               gsk_buffer_printf (output, "      return rv;\n");
             else
@@ -1713,7 +1805,6 @@ implement_unpack_functions         (GskbFormat *format,
 
             g_free (uccasename);
           }
-        g_free (ucname);
         gsk_buffer_printf (output, "    default:\n"
                                    "      g_return_val_if_reached (0);\n"
                                    "    }\n");
@@ -1733,6 +1824,8 @@ implement_unpack_functions         (GskbFormat *format,
     case GSKB_FORMAT_TYPE_BIT_FIELDS:
       {
         guint packed_bits_used = 0;
+        gsk_buffer_printf (output,
+                           "  guint8 *unpacked = (guint8 *) value_out;\n");
         for (i = 0; i < format->any.fixed_length; i++)
           {
             guint bits = format->v_bit_fields.bits_per_unpacked_byte[i];
@@ -1744,7 +1837,7 @@ implement_unpack_functions         (GskbFormat *format,
                 else
                   g_snprintf (maybe_mask, sizeof (maybe_mask), " & 0x%02x", (1<<bits)-1);
                 gsk_buffer_printf (output,
-                                   "  unpacked[%u] = ((data[%u] >> %u) | (data[%u] << %u))%s;\n",
+                                   "  unpacked[%u] = ((in[%u] >> %u) | (in[%u] << %u))%s;\n",
                                    i,
                                    packed_bits_used / 8, packed_bits_used % 8,
                                    packed_bits_used / 8 + 1, 8 - packed_bits_used % 8,
@@ -1763,11 +1856,13 @@ implement_unpack_functions         (GskbFormat *format,
                 else
                   g_snprintf (maybe_mask, sizeof (maybe_mask), " & 0x%02x", (1<<bits)-1);
                 gsk_buffer_printf (output,
-                                   "  unpacked[%u] = ((data[%u]%s)%s);\n",
+                                   "  unpacked[%u] = ((in[%u]%s)%s);\n",
                                    i, packed_bits_used/8, maybe_shift, maybe_mask);
               }
             packed_bits_used += bits;
           }
+        gsk_buffer_printf (output, "  return %u;\n", format->any.fixed_length);
+        break;
       }
 
     default:
@@ -1860,14 +1955,13 @@ implement__destruct (GskbFormat *format,
       }
     case GSKB_FORMAT_TYPE_UNION:
       {
-        char *ucname = g_ascii_strup (format->any.c_func_prefix, -1);
         gsk_buffer_printf (output, "  switch (value->type)\n    {\n");
         for (i = 0; i < format->v_union.n_cases; i++)
           {
             GskbFormatUnionCase *c = format->v_union.cases + i;
-            char *uccasename = g_ascii_strup (c->name, -1);
-            gsk_buffer_printf (output, "    case %s__%s:\n",
-                               ucname, uccasename);
+            char *uccasename = make_union_type_enum_name (format, c->name);
+            gsk_buffer_printf (output, "    case %s:\n",
+                               uccasename);
             if (c->format == NULL)
               gsk_buffer_printf (output, "      break;\n");
             else
@@ -1877,7 +1971,6 @@ implement__destruct (GskbFormat *format,
 
             g_free (uccasename);
           }
-        g_free (ucname);
         gsk_buffer_printf (output, "    default:\n"
                                    "      g_return_if_reached ();\n"
                                    "    }\n");

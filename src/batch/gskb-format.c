@@ -643,8 +643,9 @@ gskb_format_union_new (gboolean is_extensible,
       {
         ev[i].name = "unknown_value";
         ev[i].code = GSKB_FORMAT_UNION_UNKNOWN_VALUE_CODE;
+        i++;
       }
-    type_format = gskb_format_enum_new (is_extensible, int_type, n_cases, ev, error);
+    type_format = gskb_format_enum_new (is_extensible, int_type, i, ev, error);
     g_assert (type_format != NULL);
     g_free (ev);
   }
@@ -664,6 +665,11 @@ gskb_format_union_new (gboolean is_extensible,
     }
 
   rv->sys_type_offset = 0;
+  rv->base.requires_destruct = is_extensible;
+  for (i = 0; i < n_cases; i++)
+    if (cases[i].format && cases[i].format->any.requires_destruct)
+      rv->base.requires_destruct = TRUE;
+  rv->base.always_by_pointer = TRUE;
 
   /* requires not only that the structure packing system is fairly normal,
      also requires that c unions have alignment equal to the their
@@ -945,6 +951,8 @@ gskb_format_bit_fields_new (guint                  n_fields,
           rv->bits_per_unpacked_byte[n_unpacked_bytes++] = 8;
         }
     }
+  if (bit_align > 0)
+    rv->bits_per_unpacked_byte[n_unpacked_bytes++] = bit_align;
 
   return (GskbFormat *) rv;
 }
@@ -1150,8 +1158,6 @@ gskb_format_set_name       (GskbFormat    *format,
 {
   guint i;
   char *lc_name;
-
-  g_message ("gskb_format_set_name: ns=%s, name=%s", ns->name,name);
 
   g_return_if_fail (format->any.ns == NULL);
   g_return_if_fail (format->any.name == NULL);
@@ -2657,7 +2663,7 @@ GskbFormatInt gskb_format_ints_array[GSKB_N_FORMAT_INT_TYPES] =
   WRITE_INT_FORMAT ("uint",   UINT32, UINT32, UINT,   guint32,  0),
   WRITE_INT_FORMAT ("long",   INT64,  UINT64, LONG,   gint64,   0),
   WRITE_INT_FORMAT ("ulong",  UINT64, UINT64, ULONG,  guint64,  0),
-  WRITE_INT_FORMAT ("bit",    UINT8,  UINT8,  BIT,    gskb_bit, 0)
+  WRITE_INT_FORMAT ("bit",    UINT8,  UINT8,  BIT,    gskb_bit, 1)
 #undef WRITE_INT_FORMAT
 };
 
@@ -2908,7 +2914,6 @@ tokenize_string (const char *pseudo_filename,
           if (tt_ptr)
             {
               token.type = * tt_ptr;
-              g_message ("got special token %u for %s", token.type, token.str);
             }
           else
             token.type = GSKB_TOKEN_TYPE_BAREWORD;
@@ -2958,7 +2963,6 @@ parse_tokens (GskbContext    *context,
 
   for (i = 0; i < n_tokens; i++)
     {
-      g_message ("adding token %u: %s [line %u]", tokens[i].type, tokens[i].str, tokens[i].line_no);
       gskb_lemon_parser_(yy, tokens[i].type, &tokens[i], &parse_context);
       if (parse_context.errors->len != 0)
         goto got_parse_error;

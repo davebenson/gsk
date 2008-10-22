@@ -86,6 +86,11 @@ G_INLINE_FUNC void  gskb_##lctypename##_pack (maybe_const gskb_##lctypename valu
 
 GSKB_FOREACH_FUNDAMENTAL_TYPE(GSKB_DECLARE_PACK)
 #undef GSKB_DECLARE_PACK
+G_INLINE_FUNC void gskb_unknown_value_pack (const GskbUnknownValue *value,
+                                            GskbAppendFunc          append,
+                                            gpointer                data);
+G_INLINE_FUNC guint gskb_unknown_value_pack_slab (const GskbUnknownValue *value,
+                                                  guint8                 *slab);
 
 #define GSKB_IS_LITTLE_ENDIAN       (G_BYTE_ORDER==G_LITTLE_ENDIAN)
 
@@ -112,6 +117,7 @@ G_INLINE_FUNC guint gskb_ulong_get_packed_size(guint64 value);
 G_INLINE_FUNC guint gskb_string_get_packed_size(const char * value);
 #define gskb_float32_get_packed_size(value) 4
 #define gskb_float64_get_packed_size(value) 8
+G_INLINE_FUNC guint gskb_unknown_value_get_packed_size (const GskbUnknownValue *value);
 
 /* declare pack_slab() */
 #define DECLARE_PACK_SLAB(name, maybe_const) \
@@ -148,6 +154,40 @@ G_INLINE_FUNC guint gskb_uint_validate_unpack   (guint len,
   G_INLINE_FUNC guint gskb_##name##_unpack (const guint8 *data, gskb_##name *value_out);
 GSKB_FOREACH_FUNDAMENTAL_TYPE(DECLARE_UNPACK);
 #undef DECLARE_UNPACK
+
+#define gskb_int8_unpack_mempool(data, value_out, mem_pool)  gskb_int8_unpack(data, value_out)
+#define gskb_int16_unpack_mempool(data, value_out, mem_pool) gskb_int16_unpack(data, value_out)
+#define gskb_int32_unpack_mempool(data, value_out, mem_pool) gskb_int32_unpack(data, value_out)
+#define gskb_int64_unpack_mempool(data, value_out, mem_pool) gskb_int64_unpack(data, value_out)
+#define gskb_uint8_unpack_mempool(data, value_out, mem_pool)  gskb_uint8_unpack(data, value_out)
+#define gskb_uint16_unpack_mempool(data, value_out, mem_pool) gskb_uint16_unpack(data, value_out)
+#define gskb_uint32_unpack_mempool(data, value_out, mem_pool) gskb_uint32_unpack(data, value_out)
+#define gskb_uint64_unpack_mempool(data, value_out, mem_pool) gskb_uint64_unpack(data, value_out)
+#define gskb_int_unpack_mempool(data, value_out, mem_pool)    gskb_int_unpack(data, value_out)
+#define gskb_uint_unpack_mempool(data, value_out, mem_pool)   gskb_uint_unpack(data, value_out)
+#define gskb_long_unpack_mempool(data, value_out, mem_pool)   gskb_long_unpack(data, value_out)
+#define gskb_ulong_unpack_mempool(data, value_out, mem_pool)  gskb_ulong_unpack(data, value_out)
+#define gskb_bit_unpack_mempool(data, value_out, mem_pool)    gskb_bit_unpack(data, value_out)
+G_INLINE_FUNC guint gskb_string_unpack_mempool(const guint8 *data,
+                                               gskb_string  *value_out,
+                                               GskMemPool   *mem_pool);
+
+#define gskb_int8_destruct(value)       ((void)value)
+#define gskb_int16_destruct(value)      ((void)value)  
+#define gskb_int32_destruct(value)      ((void)value)
+#define gskb_int64_destruct(value)      ((void)value)
+#define gskb_uint8_destruct(value)      ((void)value)
+#define gskb_uint16_destruct(value)     ((void)value)
+#define gskb_uint32_destruct(value)     ((void)value)
+#define gskb_uint64_destruct(value)     ((void)value)
+#define gskb_int_destruct(value)        ((void)value)
+#define gskb_uint_destruct(value)       ((void)value)
+#define gskb_long_destruct(value)       ((void)value)
+#define gskb_ulong_destruct(value)      ((void)value)
+#define gskb_bit_destruct(value)        ((void)value)
+#define gskb_float32_destruct(value)    ((void)value)
+#define gskb_float64_destruct(value)    ((void)value)
+G_INLINE_FUNC void gskb_string_destruct(gskb_string *p_string);
 
 /* common formats */
 #define gskb_int_format_generic(int_type) \
@@ -791,7 +831,7 @@ gskb_uint_unpack (const guint8 *data, gskb_uint *value_out)
 G_INLINE_FUNC guint
 gskb_long_get_packed_size (gskb_long value)
 {
-  if ((1LL<<31) <= value && value <= ((1LL<<31)-1))
+  if (G_MININT32 <= value && value <= G_MAXINT32)
     return gskb_int_get_packed_size (value);
   if (-(1LL<<34) <= value && value < (1LL<<34))
     return 5;
@@ -800,7 +840,7 @@ gskb_long_get_packed_size (gskb_long value)
 G_INLINE_FUNC guint
 gskb_long_pack_slab (gskb_long value, guint8 *out)
 {
-  if ((1LL<<31) <= value && value <= ((1LL<<31)-1))
+  if (G_MININT32 <= value && value <= G_MAXINT32)
     return gskb_int_pack_slab (value, out);
   if (-(1LL<<34) <= value && value < (1LL<<34))
     {
@@ -893,70 +933,27 @@ gskb_long_unpack (const guint8 *data, gskb_long *value_out)
       *value_out = v;
       return rv;
     }
-  ff = ((gint32)(data[0]&0x7f))
-     | ((gint32)(data[1]&0x7f) << 7)
-     | ((gint32)(data[2]&0x7f) << 14)
-     | ((gint32)(data[3]&0x7f) << 21);
+  ff = (gint64) (((gint32)(data[0]&0x7f))
+               | ((gint32)(data[1]&0x7f) << 7)
+               | ((gint32)(data[2]&0x7f) << 14)
+               | ((gint32)(data[3]&0x7f) << 21))
+     | ((gint64)(data[4]&0x7f) << 28);
   if ((data[4] & 0x80) == 0)
     {
-      *value_out = (gint64) ff 
-                 | ((gint64)data[4] << 28);
+      if (data[4] & 0x40)
+        {
+          /* set sign bits */
+          ff |= 0xfffffff800000000ULL;
+        }
+      *value_out = (gint64) ff;
       return 5;
-    }
-  else if ((data[5] & 0x80) == 0)
-    {
-      *value_out = (gint64)ff
-                 | ((gint64)(data[4]&0x7f) << 28)
-                 | ((gint64)(data[5]     ) << 35);
-      return 6;
-    }
-  else if ((data[6] & 0x80) == 0)
-    {
-      *value_out = (gint64)ff
-                 | ((gint64)(data[4]&0x7f) << 28)
-                 | ((gint64)(data[5]&0x7f) << 35)
-                 | ((gint64)(data[6]     ) << 42);
-
-      return 7;
-    }
-  else if ((data[7] & 0x80) == 0)
-    {
-      *value_out = (gint64)ff
-                 | ((gint64)(data[4]&0x7f) << 28)
-                 | ((gint64)(data[5]&0x7f) << 35)
-                 | ((gint64)(data[6]&0x7f) << 42)
-                 | ((gint64)(data[7]     ) << 49);
-      return 8;
-    }
-  else if ((data[7] & 0x80) == 0)
-    {
-      *value_out = (gint64)ff
-                 | ((gint64)(data[4]&0x7f) << 28)
-                 | ((gint64)(data[5]&0x7f) << 35)
-                 | ((gint64)(data[6]&0x7f) << 42)
-                 | ((gint64)(data[7]     ) << 49);
-      return 8;
-    }
-  else if ((data[8] & 0x80) == 0)
-    {
-      *value_out = (gint64)ff
-                 | ((gint64)(data[4]&0x7f) << 28)
-                 | ((gint64)(data[5]&0x7f) << 35)
-                 | ((gint64)(data[6]&0x7f) << 42)
-                 | ((gint64)(data[7]&0x7f) << 49)
-                 | ((gint64)(data[8]     ) << 56);
-      return 9;
     }
   else
     {
-      *value_out = (gint64)ff
-                 | ((gint64)(data[4]&0x7f) << 28)
-                 | ((gint64)(data[5]&0x7f) << 35)
-                 | ((gint64)(data[6]&0x7f) << 42)
-                 | ((gint64)(data[7]&0x7f) << 49)
-                 | ((gint64)(data[8]&0x7f) << 56)
-                 | ((gint64)(data[9]     ) << 63);
-      return 10;
+      gint32 hi;
+      guint rv = 5 + gskb_int_unpack (data + 5, &hi);
+      *value_out = (((gint64) hi) << 35) | ff;
+      return rv;
     }
 }
 G_INLINE_FUNC guint
@@ -967,7 +964,7 @@ gskb_long_validate_partial (guint length,
   /* TODO: verify this returns the shortest encoding possible? */
   guint i;
   for (i = 0; i < 10; i++)
-    if ((data[0] & 0x80) == 0)
+    if ((data[i] & 0x80) == 0)
       return i + 1;
   g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
                "validating data of type 'long': too long");
@@ -1037,10 +1034,11 @@ gskb_ulong_pack_slab (gskb_ulong value, guint8 *out)
       return 10;
     }
 }
+#define GSKB_ULONG_MAX_PACKED_SIZE 10
 G_INLINE_FUNC void
 gskb_ulong_pack (gskb_ulong value, GskbAppendFunc func, gpointer data)
 {
-  guint8 slab[5];
+  guint8 slab[GSKB_ULONG_MAX_PACKED_SIZE];
   func (gskb_ulong_pack_slab (value, slab), slab, data);
 }
 G_INLINE_FUNC guint
@@ -1090,7 +1088,7 @@ gskb_ulong_validate_partial (guint length,
   /* TODO: verify this returns the shortest encoding possible? */
   guint i;
   for (i = 0; i < 10; i++)
-    if ((data[0] & 0x80) == 0)
+    if ((data[i] & 0x80) == 0)
       return i + 1;
   g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
                "validating data of type 'ulong': too long");
@@ -1112,6 +1110,21 @@ G_INLINE_FUNC guint
 gskb_bit_unpack (const guint8 *data, gskb_bit *value_out)
 {
   *value_out = *data;
+  return 1;
+}
+G_INLINE_FUNC guint
+gskb_bit_validate_partial (guint length,
+                           const guint8 *data,
+                           GError **error)
+{
+  if (!gskb_simple_fixed_length_validate_partial ("bit", length, 1, error))
+    return 0;
+  if (data[0] > 1)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                   "'bit' value must be 0 or 1");
+      return 0;
+    }
   return 1;
 }
 
@@ -1254,6 +1267,14 @@ gskb_string_unpack (const guint8 *data, gskb_string *value_out)
   return len + 1;
 }
 G_INLINE_FUNC guint
+gskb_string_unpack_mempool(const guint8 *data,
+                           gskb_string  *value_out,
+                           GskMemPool   *mem_pool)
+{
+  *value_out = (char *) (const char *) data;
+  return (strchr ((const char *) data, 0) + 1) - (const char *) data;
+}
+G_INLINE_FUNC guint
 gskb_string_validate_partial (guint length,
                               const guint8 *data,
                               GError **error)
@@ -1267,7 +1288,32 @@ gskb_string_validate_partial (guint length,
     }
   return (nul - data) + 1;
 }
-
+G_INLINE_FUNC void gskb_string_destruct(gskb_string *p_string)
+{
+  g_free (*p_string);
+}
+G_INLINE_FUNC void gskb_unknown_value_pack (const GskbUnknownValue *value,
+                                            GskbAppendFunc          append,
+                                            gpointer                data)
+{
+  gskb_uint_pack (value->code, append, data);
+  gskb_uint_pack (value->length, append, data);
+  append (value->length, value->data, data);
+}
+G_INLINE_FUNC guint gskb_unknown_value_pack_slab (const GskbUnknownValue *value,
+                                                  guint8                 *slab)
+{
+  guint rv = gskb_uint_pack_slab (value->code, slab);
+  rv += gskb_uint_pack_slab (value->length, slab + rv);
+  memcpy (slab + rv, value->data, value->length);
+  return rv + value->length;
+}
+G_INLINE_FUNC guint gskb_unknown_value_get_packed_size (const GskbUnknownValue *value)
+{
+  return gskb_uint_get_packed_size (value->code)
+       + gskb_uint_get_packed_size (value->length)
+       + value->length;
+}
 #endif          /* G_CAN_INLINE */
 
 #undef GSKB_FOREACH_FUNDAMENTAL_TYPE

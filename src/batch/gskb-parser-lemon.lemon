@@ -328,8 +328,7 @@ named_format(RV) ::= ALIAS format(IN) BAREWORD(NAME).
 /* Toplevel parsing */
 toplevel_directives ::= .
 toplevel_directives ::= toplevel_directives named_format(NF) SEMICOLON.
-	{ g_message ("got named_format: %s", NF.name);
-	  if (parse_context->cur_namespace == NULL)
+	{ if (parse_context->cur_namespace == NULL)
 	    {
 	      ADD_ERROR ("no 'namespace' directive before format");
 	    }

@@ -45,6 +45,21 @@ extensible struct Ioo
   long c = 3;
 };
 
+extensible struct IooExt1
+{
+  string a = 1;
+  int b = 2;
+  long c = 3;
+  int q = 100;
+};
+
+extensible struct IooExt2
+{
+  string a = 1;
+  long c = 3;
+  long r = 101;
+};
+
 extensible union Joo
 {
   string a = 1;

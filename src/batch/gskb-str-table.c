@@ -485,7 +485,7 @@ gskb_str_table_print_compilable_deps(GskbStrTable *table,
       for (i = 0; i < table->table_size; i++)
         {
           gpointer value_ptr;
-          gsk_buffer_printf (output, "  { { %u, ", at->hash_code);
+          gsk_buffer_printf (output, "  { { %uU, ", at->hash_code);
           if (at->str_slab_offset == G_MAXUINT32)
             gsk_buffer_append_string (output, "G_MAXUINT32");
           else
