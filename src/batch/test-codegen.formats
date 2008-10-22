@@ -50,7 +50,7 @@ extensible struct IooExt1
   string a = 1;
   int b = 2;
   long c = 3;
-  int q = 100;
+  long q = 100;
 };
 
 extensible struct IooExt2
