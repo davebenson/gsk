@@ -67,6 +67,7 @@ gskstreamlistenersocket.h \
 gskstreamtransferrequest.h \
 gskstreamwatchdog.h \
 gskstringmatcher.h \
+gsktable.h \
 gskthreadpool.h \
 gsktree.h \
 gsktypes.h \
@@ -130,6 +131,9 @@ gsktypes.c \
 gskutils.c
 
 noinst_HEADERS = \
+gsktable-file.h \
+gsktable-helpers.h \
+gsktable-implement-run-merge-task.inc.c \
 debug.h \
 cycle.h
 
