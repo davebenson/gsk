@@ -544,7 +544,7 @@ gsk_dns_rr_new_a       (const char    *owner,
  * @ttl: the time-to-live for this record.
  *     This is maximum time for this record to be stored on a remote host,
  *     in seconds.
- * @ip_address: 16-byte IP address to contact @owner.
+ * @address: 16-byte IP address to contact @owner.
  * @allocator: an optional message to get memory from; this can prevent you
  *    from having to destroy the record: it will automatically get freed as
  *    part of the #GskDnsMessage.
@@ -557,7 +557,7 @@ gsk_dns_rr_new_a       (const char    *owner,
 GskDnsResourceRecord *
 gsk_dns_rr_new_aaaa    (const char    *owner,
 			guint32        ttl,
-			const guint8  *ip_address,
+			const guint8  *address,
 			GskDnsMessage *allocator)
 {
   GskDnsResourceRecord *rv;
@@ -565,7 +565,7 @@ gsk_dns_rr_new_aaaa    (const char    *owner,
     return NULL;
   rv = gsk_dns_rr_new_generic (allocator, owner, ttl);
   rv->type = GSK_DNS_RR_HOST_ADDRESS_IPV6;
-  memcpy (rv->rdata.aaaa.address, ip_address, 4);
+  memcpy (rv->rdata.aaaa.address, address, 16);
   return rv;
 }
 
