@@ -176,3 +176,11 @@ and then further requests will never be processed.
 @client: 
 
 
+<!-- ##### FUNCTION gsk_http_client_propagate_content_read_shutdown ##### -->
+<para>
+
+</para>
+
+@client: 
+
+

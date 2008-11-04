@@ -31,6 +31,7 @@ the input of one stream and the output of another.
 @write_side: 
 @blocking_write_side: 
 @blocking_read_side: 
+@use_read_buffer: 
 @buffer: 
 @max_buffered: 
 @atomic_read_size: 

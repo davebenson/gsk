@@ -1,3 +1,6 @@
+gsk (1.0.62)
+  * bug fix in blocking of POST data.
+
 gsk (1.0.61)
   * gsk_http_server_set_idle_timeout(),
     gsk_http_content_set_idle_timeout(): adjust the keepalive timeout
