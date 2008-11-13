@@ -49,6 +49,11 @@ struct _GskMemPoolFixed
 #define GSK_MEM_POOL_FIXED_STATIC_INIT(size) \
                           { NULL, NULL, 0, size, NULL } 
 
+G_INLINE_FUNC void     gsk_mem_pool_fixed_construct_with_scratch_buf
+                                                 (GskMemPoolFixed *pool,
+                                                  gsize            elt_size,
+                                                  gpointer         buffer,
+                                                  gsize            buffer_n_elements);
 void     gsk_mem_pool_fixed_construct (GskMemPoolFixed  *pool,
                                        gsize             size);
 gpointer gsk_mem_pool_fixed_alloc     (GskMemPoolFixed  *pool);
@@ -133,6 +138,18 @@ G_INLINE_FUNC void     gsk_mem_pool_destruct     (GskMemPool     *pool)
       g_free (slab);
       slab = new_slab;
     }
+}
+G_INLINE_FUNC void     gsk_mem_pool_fixed_construct_with_scratch_buf
+                                                 (GskMemPoolFixed *pool,
+                                                  gsize            elt_size,
+                                                  gpointer         buffer,
+                                                  gsize            buffer_n_elements)
+{
+  pool->slab_list = NULL;
+  pool->chunk = buffer;
+  pool->pieces_left = buffer_n_elements;
+  pool->piece_size = elt_size;
+  pool->free_list = NULL;
 }
 
 #endif /* G_CAN_INLINE */
