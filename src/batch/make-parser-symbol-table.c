@@ -24,6 +24,7 @@
 */
 
 #include "gskb-str-table.h"
+#include "gskb-str-table.c"             /* hack */
 #include <errno.h>
 #include "../gskerrno.h"
 
@@ -51,7 +52,8 @@ static const char *symbols[] = {
 "bitfields",
 "enum",
 "alias",
-"namespace"
+"namespace",
+"void"
 };
 
 static void

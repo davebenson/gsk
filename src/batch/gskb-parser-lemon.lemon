@@ -161,7 +161,7 @@ opt_value(RV) ::= EQUALS INTEGER(I).
 
 opt_format(RV) ::= format(A).
 	{ RV = A; }
-opt_format(RV) ::= .
+opt_format(RV) ::= VOID.
 	{ RV = NULL; }
 
 
@@ -254,7 +254,7 @@ format(RV) ::= BITFIELDS LBRACE bitfield_list(LIST) RBRACE.
 	  if (RV == NULL)
 	    ADD_G_ERROR (error);
 	  free_bitfield_list (LIST); }
-named_format(RV) ::= BITFIELDS BAREWORD(NAME) LBRACE bitfield_list(LIST) RBRACE SEMICOLON.
+named_format(RV) ::= BITFIELDS BAREWORD(NAME) LBRACE bitfield_list(LIST) RBRACE.
         { GError *error = NULL;
 	  RV.format = gskb_format_bit_fields_new (LIST->len,
 					  (GskbFormatBitField *) LIST->data,
@@ -324,6 +324,14 @@ named_format(RV) ::= opt_extensible(EXT) ENUM opt_int_type(IT) BAREWORD(NAME) LB
 named_format(RV) ::= ALIAS format(IN) BAREWORD(NAME).
 	{ RV.format = gskb_format_alias_new (IN);
 	  RV.name = g_strdup (NAME->str); }
+
+/* a format, referenced by name */
+format(RV) ::= BAREWORD(NAME).
+	{ RV = gskb_namespace_lookup_format (parse_context->cur_namespace, NAME->str);
+	  if (RV == NULL)
+	    ADD_G_ERROR (g_error_new (GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+				      "unknown format '%s' in namespace",
+				      NAME->str)); }
 
 /* Toplevel parsing */
 toplevel_directives ::= .

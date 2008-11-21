@@ -35,7 +35,7 @@ union Hoo
 {
   string a;
   struct { int8 a; int8 b; } b;
-  c;
+  void c;
 };
 
 extensible struct Ioo
@@ -65,5 +65,10 @@ extensible union Joo
   string a = 1;
   int b = 2;
   long c = 3;
-  d = 4;
+  void d = 4;
+};
+bitfields Zoo
+{
+  a : 1;
+  b : 2;
 };

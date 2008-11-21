@@ -32,6 +32,10 @@ GskbCodegenConfig *
 gskb_codegen_config_new            (void)
 {
   GskbCodegenConfig *config = g_slice_new0 (GskbCodegenConfig);
+  config->rv_type_space = 11;
+  config->func_name_space = 40;
+  config->type_name_space = 14;
+  config->max_width = 80;
   return config;
 }
 void
@@ -698,6 +702,7 @@ typedef void (*OutputFunctionImplementor)   (GskbFormat *format,
 /* helper functions, used by implementor functions */
 static void start_function (const char *qualifiers,
                             gboolean    include_semicolon,
+                            gboolean    is_header,
                             GskbFormat *format,
                             const GskbCodegenConfig *config,
                             GskbCodegenOutputFunction function,
@@ -2021,52 +2026,178 @@ dissect_type_str (const char *type,
   *n_stars_out = n_stars;
 }
 
+typedef enum
+{
+  FITS_WELL,         /* the type and name fit into their own slots */
+  FITS_AWKWARDLY,    /* the type and name should be separated by a space at most */
+  DOES_NOT_FIT       /* print the type on one line and the name on the next */
+} Fitting;
 static void
 generic_start_function (GskBuffer *buffer,
                         const char *qualifiers,
                         const char *ret_value,
                         const char *func_name,
                         gboolean    include_semicolon,
-                        guint n_args,
-                        char **args_type_name_pairs)
+                        gboolean    in_header,
+                        guint       n_args,
+                        char      **args_type_name_pairs,
+                        const GskbCodegenConfig *config)
 {
   guint func_name_len = strlen (func_name);
-  guint max_stripped_type_len = 0, max_stars = 0;
   guint i;
-  for (i = 0; i < n_args; i++)
+  guint max_type_len;
+  if (in_header)
     {
-      guint stl, s;
-      dissect_type_str (args_type_name_pairs[2*i], &stl, &s);
-      max_stripped_type_len = MAX (max_stripped_type_len, stl);
-      max_stars = MAX (max_stars, s);
-    }
-
-  if (qualifiers[0])
-    gsk_buffer_printf (buffer, "%s %s\n", qualifiers, ret_value);
-  else
-    gsk_buffer_printf (buffer, "%s\n", ret_value);
-  if (n_args == 0)
-    {
-      gsk_buffer_printf (buffer, "%s (void);\n", func_name);
+      max_type_len = config->type_name_space;
     }
   else
     {
-      gsk_buffer_printf (buffer, "%s (", func_name);
+      guint max_stripped_type_len = 0, max_stars = 0;
       for (i = 0; i < n_args; i++)
         {
           guint stl, s;
           dissect_type_str (args_type_name_pairs[2*i], &stl, &s);
-          gsk_buffer_append (buffer, args_type_name_pairs[2*i], stl);
-          gsk_buffer_append_repeated_char (buffer, ' ', max_stripped_type_len - stl + 1 + max_stars - s);
-          gsk_buffer_append_repeated_char (buffer, '*', s);
-          gsk_buffer_append_string (buffer, args_type_name_pairs[2*i+1]);
+          max_stripped_type_len = MAX (max_stripped_type_len, stl);
+          max_stars = MAX (max_stars, s);
+        }
+      max_type_len = max_stripped_type_len + max_stars;
+    }
+
+  /* print the qualifier and rv type.
+     In the header:
+       if they exceed the maximum,
+       print on a separate line and 
+     Otherwise:
+       print them on a separate line.
+   */
+  if (qualifiers[0])
+    gsk_buffer_printf (buffer, "%s %s", qualifiers, ret_value);
+  else
+    gsk_buffer_printf (buffer, "%s", ret_value);
+  if (in_header)
+    {
+      guint qlen = strlen (qualifiers);
+      guint rvlen = strlen (ret_value);
+      guint qrvlen = qlen ? (qlen + 1 + rvlen) : rvlen;
+      if (qrvlen > config->rv_type_space)
+        {
+          gsk_buffer_append_char (buffer, '\n');
+          gsk_buffer_append_repeated_char (buffer, ' ', config->rv_type_space);
+        }
+      else if (qrvlen < config->rv_type_space)
+        {
+          gsk_buffer_append_repeated_char (buffer, ' ', config->rv_type_space - qrvlen);
+        }
+    }
+  else
+    {
+      gsk_buffer_append_char (buffer, '\n');
+    }
+
+  /* print the function name */
+  gsk_buffer_append_string (buffer, func_name);
+
+  if (in_header)
+    {
+      guint func_name_len = strlen (func_name);
+      if (func_name_len < config->func_name_space)
+        {
+          gsk_buffer_append_repeated_char (buffer, ' ', config->func_name_space - func_name_len);
+        }
+      else if (func_name_len > config->func_name_space)
+        {
+          gsk_buffer_append_char (buffer, '\n');
+          gsk_buffer_append_repeated_char (buffer, ' ', config->func_name_space + config->rv_type_space);
+        }
+    }
+  else
+    gsk_buffer_append_char (buffer, ' ');
+
+  /* handle arguments */
+  if (n_args == 0)
+    {
+      gsk_buffer_printf (buffer, "(void)%s\n",
+                         include_semicolon ? ";" : "");
+    }
+  else
+    {
+      guint max_name_len = config->max_width
+                         - config->rv_type_space
+                         - config->func_name_space
+                         - config->type_name_space
+                         - 1;
+      gsk_buffer_append_string (buffer, "(");
+      for (i = 0; i < n_args; i++)
+        {
+          guint stl, s;
+          const char *type = args_type_name_pairs[2*i];
+          const char *name = args_type_name_pairs[2*i+1];
+          guint name_len = strlen (name);
+          Fitting fitting;
+          dissect_type_str (type, &stl, &s);
+
+          /* there are several cases:
+                FITS_WELL        the type and name fit into their own slots
+                FITS_AWKWARDLY   the type and name should be separated by a space at most
+                DOES_NOT_FIT     print the type on one line and the name on the next
+           */
+          if (!in_header)
+            fitting = FITS_WELL;
+          else
+            {
+              guint type_len = stl + s;
+              gboolean needs_space = (s == 0);
+              gboolean type_fits = (type_len + (needs_space ? 1 : 0)) <= config->type_name_space;
+              gboolean name_fits = (name_len < max_name_len);
+              guint tn_space = (type_len + (needs_space ? 1 : 0)) + name_len;
+              if (type_fits && name_fits)
+                fitting = FITS_WELL;
+              else if (tn_space <= max_name_len + config->type_name_space)
+                fitting = FITS_AWKWARDLY;
+              else
+                fitting = DOES_NOT_FIT;
+            }
+                
+          switch (fitting)
+            {
+              case FITS_WELL:
+                gsk_buffer_append (buffer, type, stl);
+                if (max_type_len + 1 > stl + s)
+                  gsk_buffer_append_repeated_char (buffer, ' ', max_type_len - stl + 1 - s);
+                gsk_buffer_append_repeated_char (buffer, '*', s);
+                gsk_buffer_append_string (buffer, name);
+                break;
+              case FITS_AWKWARDLY:
+                gsk_buffer_append (buffer, type, stl);
+                if (s)
+                  gsk_buffer_append_repeated_char (buffer, '*', s);
+                else
+                  gsk_buffer_append_char (buffer, ' ');
+                gsk_buffer_append_string (buffer, name);
+                break;
+              case DOES_NOT_FIT:
+                gsk_buffer_append (buffer, type, stl);
+                if (s)
+                  {
+                    gsk_buffer_append_char (buffer, ' ');
+                    gsk_buffer_append_repeated_char (buffer, '*', s);
+                  }
+                gsk_buffer_append_char (buffer, '\n');
+                if (name_len + 2 < config->max_width)
+                  gsk_buffer_append_repeated_char (buffer, ' ', config->max_width - 2 - name_len);
+                gsk_buffer_append (buffer, name, name_len);
+                break;
+            }
+
           if (i + 1 == n_args)
             gsk_buffer_printf (buffer, ")%s\n",
                                include_semicolon ? ";" : "");
           else
             {
               gsk_buffer_append_string (buffer, ",\n");
-              gsk_buffer_append_repeated_char (buffer, ' ', func_name_len + 2);
+              gsk_buffer_append_repeated_char (buffer, ' ',
+                                               in_header ? (config->rv_type_space + config->func_name_space + 1)
+                                                         : (func_name_len + 2));
             }
         }
     }
@@ -2074,6 +2205,7 @@ generic_start_function (GskBuffer *buffer,
 static void
 start_function (const char *qualifiers,
                 gboolean    include_semicolon,
+                gboolean    is_header,
                 GskbFormat *format,
                 const GskbCodegenConfig *config,
                 GskbCodegenOutputFunction function,
@@ -2139,8 +2271,10 @@ start_function (const char *qualifiers,
                           output_function_info[function].ret_value,
                           func_name,
                           include_semicolon,
+                          is_header,
                           n_args,
-                          substituted_names);
+                          substituted_names,
+                          config);
   g_free (func_name);
   g_strfreev (substituted_names);
 }
@@ -2217,7 +2351,7 @@ gskb_format_codegen_emit_function      (GskbFormat *format,
       break;
     }
 
-  start_function (qualifiers, !emit_implementation,
+  start_function (qualifiers, !emit_implementation, !emit_implementation,
                   format, config, function, output);
   if (emit_implementation)
     {

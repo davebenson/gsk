@@ -107,6 +107,10 @@ typedef struct _GskbCodegenConfig GskbCodegenConfig;
 struct _GskbCodegenConfig
 {
   gboolean all_static;
+  guint rv_type_space;
+  guint func_name_space;
+  guint type_name_space;
+  guint max_width;
 };
 
 GskbCodegenConfig *

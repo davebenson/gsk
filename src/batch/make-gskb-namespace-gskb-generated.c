@@ -24,6 +24,7 @@
 */
 
 #include "gskb-str-table.h"
+#include "gskb-str-table.c"             /* hack */
 #include "../gskerrno.h"
 #include <errno.h>
 
@@ -41,7 +42,8 @@ static const char *builtin_format_info[] =
   "int", "uint", "long", "ulong",
   "bit",
   "string",
-  "float32", "float64" };
+  "float32", "float64"
+  };
 
 
 static void output_format_name (gconstpointer entry_data, GskBuffer *output)
