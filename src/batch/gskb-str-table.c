@@ -344,20 +344,8 @@ GskbStrTable *gskb_str_table_new    (gsize     sizeof_entry_data,
       hashes_5003_33[i] = compute_hash_5003_33 (s);
     }
 
-  /* use roughly N log N as the min starting size,
-     though there's really no basis for that choice. */
-  min_size = (n_entries + 3);
-  {
-    guint factor = 1;
-    guint tmp = n_entries;
-    while (tmp > 2)
-      {
-        factor++;
-        tmp /= 2;
-      }
-    min_size *= factor;
-  }
-  max_size = min_size + 300;
+  min_size  = n_entries + 3;
+  max_size = min_size + 450;
 
   if (can_use_ablz
    && (size=find_perfect_hash_prime (min_size, max_size, n_entries, hashes_ablz)) != 0)

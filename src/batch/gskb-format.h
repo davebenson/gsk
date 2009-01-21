@@ -177,6 +177,8 @@ struct _GskbFormatFloat
   GskbFormatAny base;
   GskbFormatFloatType float_type;
 };
+#define gskb_format_float_type_name(float_type) \
+  ((const char *)(gskb_format_floats_array[(float_type)].base.name))
 
 struct _GskbFormatString
 {
@@ -397,6 +399,16 @@ gboolean    gskb_format_unpack_value_mempool
                                         gpointer       value,
                                         GskMemPool    *mem_pool);
 
+typedef enum
+{
+  GSKB_FORMAT_EQUAL_IGNORE_NAMES = (1<<0),
+  GSKB_FORMAT_EQUAL_PERMIT_EXTENSIONS = (1<<1),
+  GSKB_FORMAT_EQUAL_NO_ALIASES = (1<<2)
+} GskbFormatEqualFlags;
+gboolean    gskb_formats_equal         (GskbFormat    *a,
+                                        GskbFormat    *b,
+                                        GskbFormatEqualFlags flags,
+                                        GError       **error);
 
 /* useful for code generation */
 const char *gskb_format_type_enum_name (GskbFormatType type);

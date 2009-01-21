@@ -2631,6 +2631,413 @@ gskb_format_unpack_value_mempool (GskbFormat    *format,
 }
 #endif
 
+static gboolean
+compare_members (GskbFormatStructMember *a,
+                 GskbFormatStructMember *b,
+                 GskbFormatEqualFlags flags,
+                 GError       **error)
+{
+  if (strcmp (a->name, b->name) != 0)
+    {
+      if (error)
+        g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                     "members %s and %s has different names",
+                     a->name, b->name);
+      return FALSE;
+    }
+  if (a->code != b->code)
+    {
+      if (error)
+        g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                     "members %s differ in code (%u v %u)",
+                     a->name, a->code, b->code);
+      return FALSE;
+    }
+  if (!gskb_formats_equal (a->format, b->format, flags, error))
+    {
+      if (error)
+        gsk_g_error_add_prefix (error, "comparing members %s", a->name);
+      return FALSE;
+    }
+  return TRUE;
+}
+static gboolean
+compare_cases   (GskbFormatUnionCase *a,
+                 GskbFormatUnionCase *b,
+                 GskbFormatEqualFlags flags,
+                 GError       **error)
+{
+  if (strcmp (a->name, b->name) != 0)
+    {
+      if (error)
+        g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                     "members %s and %s has different names",
+                     a->name, b->name);
+      return FALSE;
+    }
+  if (a->code != b->code)
+    {
+      if (error)
+        g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                     "members %s differ in code (%u v %u)",
+                     a->name, a->code, b->code);
+      return FALSE;
+    }
+  if (a->format == NULL && b->format == NULL)
+    return TRUE;
+  if (a->format == NULL || b->format == NULL)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                   "case %s: one version has a format, the other does not",
+                   a->name);
+      return FALSE;
+    }
+  if (!gskb_formats_equal (a->format, b->format, flags, error))
+    {
+      if (error)
+        gsk_g_error_add_prefix (error, "comparing members %s", a->name);
+      return FALSE;
+    }
+  return TRUE;
+}
+static gboolean
+compare_bit_field(GskbFormatBitField *a,
+                  GskbFormatBitField *b,
+                  GError       **error)
+{
+  if (strcmp (a->name, b->name) != 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                   "bit-field %s does not match bit-field %s",
+                   a->name, b->name);
+      return FALSE;
+    }
+  if (a->length != b->length)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                   "bit-fields %s differ in length %u v %u",
+                   a->name, a->length, b->length);
+      return FALSE;
+    }
+  return TRUE;
+}
+static gboolean
+compare_enum_values (GskbFormatEnumValue *a,
+                     GskbFormatEnumValue *b,
+                     GError       **error)
+{
+  if (strcmp (a->name, b->name) != 0)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                   "enum-value %s does not match enum-value %s",
+                   a->name, b->name);
+      return FALSE;
+    }
+  if (a->code != b->code)
+    {
+      g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                   "enum-values %s differ in code %u v %u",
+                   a->name, a->code, b->code);
+      return FALSE;
+    }
+  return TRUE;
+}
+
+gboolean    gskb_formats_equal         (GskbFormat    *a,
+                                        GskbFormat    *b,
+                                        GskbFormatEqualFlags flags,
+                                        GError       **error)
+{
+  gboolean permit_extensions;
+  permit_extensions = (flags & GSKB_FORMAT_EQUAL_PERMIT_EXTENSIONS) != 0;
+  if ((flags & GSKB_FORMAT_EQUAL_NO_ALIASES) == 0)
+    {
+      while (a->type == GSKB_FORMAT_TYPE_ALIAS)
+        a = a->v_alias.format;
+      while (b->type == GSKB_FORMAT_TYPE_ALIAS)
+        b = b->v_alias.format;
+    }
+  if (a->type != b->type)
+    {
+      if (error)
+        g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                     "formats of type %s and %s are not compatible",
+                     gskb_format_type_name (a->type),
+                     gskb_format_type_name (b->type));
+      return FALSE;
+    }
+  if ((flags & GSKB_FORMAT_EQUAL_IGNORE_NAMES) == 0)
+    {
+      if (a->any.name != NULL)
+        {
+          if (b->any.name == NULL)
+            {
+              if (error)
+                g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                             "format named %s compared with unnamed format",
+                             a->any.name);
+              return FALSE;
+            }
+          if (strcmp (a->any.name, b->any.name) != 0)
+            {
+              if (error)
+                g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                             "format named %s is not considered equal to format named %s",
+                             a->any.name, b->any.name);
+              return FALSE;
+            }
+        }
+      else
+        {
+          if (b->any.name != NULL)
+            {
+              if (error)
+                g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                             "format named %s compared with unnamed format",
+                             b->any.name);
+              return FALSE;
+            }
+        }
+    }
+  switch (a->type)
+    {
+    case GSKB_FORMAT_TYPE_INT:
+      if (a->v_int.int_type != b->v_int.int_type)
+        {
+          if (error)
+            g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                         "%s and %s are not equal",
+                         gskb_format_int_type_name (a->v_int.int_type),
+                         gskb_format_int_type_name (b->v_int.int_type));
+          return FALSE;
+        }
+      return TRUE;
+    case GSKB_FORMAT_TYPE_FLOAT:
+      if (a->v_float.float_type != b->v_float.float_type)
+        {
+          if (error)
+            g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                         "%s and %s are not equal",
+                         gskb_format_float_type_name (a->v_float.float_type),
+                         gskb_format_float_type_name (b->v_float.float_type));
+          return FALSE;
+        }
+      return TRUE;
+    case GSKB_FORMAT_TYPE_STRING:
+      return TRUE;
+    case GSKB_FORMAT_TYPE_FIXED_ARRAY:
+      if (!gskb_formats_equal (a->v_fixed_array.element_format,
+                               b->v_fixed_array.element_format,
+                               flags, error))
+        {
+          if (error)
+            gsk_g_error_add_prefix (error, "comparing elements of fixed-length arrays of lengths %u and %u",
+                                    a->v_fixed_array.length,
+                                    b->v_fixed_array.length);
+          return FALSE;
+        }
+      if (a->v_fixed_array.length != b->v_fixed_array.length)
+        {
+          if (error)
+            g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                         "number of elements in fixed-length array differ (%u versus %u)",
+                         a->v_fixed_array.length,
+                         b->v_fixed_array.length);
+          return FALSE;
+        }
+      return TRUE;
+    case GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY:
+      if (!gskb_formats_equal (a->v_fixed_array.element_format,
+                               b->v_fixed_array.element_format,
+                               flags, error))
+        {
+          if (error)
+            gsk_g_error_add_prefix (error, "comparing elements of length-prefixed arrays");
+          return FALSE;
+        }
+      return TRUE;
+    case GSKB_FORMAT_TYPE_STRUCT:
+      {
+        if (a->v_struct.is_extensible != b->v_struct.is_extensible)
+          {
+            if (error)
+              g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                           "%sextensible and %sextensible structs not compatible",
+                           a->v_struct.is_extensible ? "" : "non-",
+                           b->v_struct.is_extensible ? "" : "non-");
+            return FALSE;
+          }
+        if (!a->v_struct.is_extensible)
+          permit_extensions = FALSE;
+        if (permit_extensions)
+          {
+            guint a_at, b_at;
+            if (a->v_struct.n_members > b->v_struct.n_members)
+              {
+                if (error)
+                  g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                               "extensible structs differ and there are fewer members of the later structure, not allowed");
+                return FALSE;
+              }
+            b_at = 0;
+            for (a_at = 0; a_at < a->v_struct.n_members; a_at++)
+              {
+                while (a->v_struct.members[a_at].code
+                     > b->v_struct.members[b_at].code)
+                  b_at++;
+                if (!compare_members (a->v_struct.members + a_at,
+                                      b->v_struct.members + b_at,
+                                      flags, error))
+                  {
+                    return FALSE;
+                  }
+              }
+          }
+        else
+          {
+            guint i;
+            if (a->v_struct.n_members != b->v_struct.n_members)
+              {
+                g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                             "structures differ in the number of members (%u v %u)",
+                             a->v_struct.n_members, b->v_struct.n_members);
+                return FALSE;
+              }
+            for (i = 0; i < a->v_struct.n_members; i++)
+              if (!compare_members (a->v_struct.members + i,
+                                    b->v_struct.members + i,
+                                    flags, error))
+                {
+                  return FALSE;
+                }
+          }
+      }
+      return TRUE;
+    case GSKB_FORMAT_TYPE_UNION:
+      {
+        guint a_at, b_at;
+        b_at = 0;
+        if (a->v_union.is_extensible != b->v_union.is_extensible)
+          {
+            if (error)
+              g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                           "%sextensible and %sextensible unions not compatible",
+                           a->v_union.is_extensible ? "" : "non-",
+                           b->v_union.is_extensible ? "" : "non-");
+            return FALSE;
+          }
+        if (!a->v_union.is_extensible)
+          permit_extensions = FALSE;
+        for (a_at = 0; a_at < a->v_union.n_cases; a_at++)
+          {
+            if (b_at == b->v_union.n_cases)
+              {
+                if (error)
+                  g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                               "may not remove union cases");
+                return FALSE;
+              }
+            if (permit_extensions)
+              while (b_at < b->v_union.n_cases
+                  && b->v_union.cases[b_at].code < a->v_union.cases[a_at].code)
+                b_at++;
+            if (!compare_cases (a->v_union.cases + a_at,
+                                b->v_union.cases + b_at,
+                                flags, error))
+              return FALSE;
+            b_at++;
+          }
+        if (!permit_extensions
+         && b_at < b->v_union.n_cases)
+          {
+            if (error)
+              g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                           "added cases, but not an extensible union");
+            return FALSE;
+          }
+        return TRUE;
+      }
+    case GSKB_FORMAT_TYPE_BIT_FIELDS:
+      {
+        guint i;
+        /* NOTE: bit fields do not have an option to be extensible */
+        if (a->v_bit_fields.n_fields != b->v_bit_fields.n_fields)
+          {
+            g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                         "number of fields in bit_fields differ (%u v %u)",
+                         a->v_bit_fields.n_fields, b->v_bit_fields.n_fields);
+            return FALSE;
+          }
+        for (i = 0; i < a->v_bit_fields.n_fields; i++)
+          {
+            if (!compare_bit_field (a->v_bit_fields.fields + i,
+                                    b->v_bit_fields.fields + i,
+                                    error))
+              return FALSE;
+          }
+        return TRUE;
+      }
+    case GSKB_FORMAT_TYPE_ENUM:
+      {
+        guint at_a, at_b;
+        gboolean permit_extensions;
+        if (a->v_enum.is_extensible != b->v_enum.is_extensible)
+          {
+            if (error)
+              g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                           "%sextensible and %sextensible enums not compatible",
+                           a->v_enum.is_extensible ? "" : "non-",
+                           b->v_enum.is_extensible ? "" : "non-");
+            return FALSE;
+          }
+        if (!a->v_enum.is_extensible)
+          permit_extensions = FALSE;
+        for (at_a = at_b = 0; at_a < a->v_enum.n_values; at_a++)
+          {
+            if (permit_extensions)
+              while (at_b < b->v_enum.n_values
+                  && b->v_enum.values[at_b].code < a->v_enum.values[at_a].code)
+                at_b++;
+            if (at_b == b->v_enum.n_values)
+              {
+                if (error)
+                  g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                               "missing value %s in enum",
+                               a->v_enum.values[at_a].name);
+                return FALSE;
+              }
+            if (!compare_enum_values (a->v_enum.values + at_a,
+                                      b->v_enum.values + at_b,
+                                      error))
+              return FALSE;
+            at_b++;
+          }
+        if (at_b < b->v_enum.n_values
+         && !permit_extensions)
+          {
+            if (error)
+              g_set_error (error, GSK_G_ERROR_DOMAIN, GSK_ERROR_BAD_FORMAT,
+                           "missing value %s in enum",
+                           b->v_enum.values[at_b].name);
+            return FALSE;
+          }
+        return TRUE;
+      }
+    case GSKB_FORMAT_TYPE_ALIAS:
+      if (!gskb_formats_equal (a->v_alias.format,
+                               b->v_alias.format,
+                               flags, error))
+        {
+          if (error)
+            gsk_g_error_add_prefix (error, "in alias");
+          return FALSE;
+        }
+      return TRUE;
+    default:
+      g_assert_not_reached ();
+    }
+  g_assert_not_reached ();
+}
 
 
 GskbFormatInt gskb_format_ints_array[GSKB_N_FORMAT_INT_TYPES] =
@@ -2653,11 +3060,11 @@ GskbFormatInt gskb_format_ints_array[GSKB_N_FORMAT_INT_TYPES] =
   }
   WRITE_INT_FORMAT ("int8",   INT8,   UINT8,  INT8,   gint8,    1),
   WRITE_INT_FORMAT ("int16",  INT16,  UINT16, INT16,  gint16,   2),
-  WRITE_INT_FORMAT ("int32",  INT32,  UINT16, INT32,  gint32,   4),
+  WRITE_INT_FORMAT ("int32",  INT32,  UINT32, INT32,  gint32,   4),
   WRITE_INT_FORMAT ("int64",  INT64,  UINT64, INT64,  gint64,   8),
   WRITE_INT_FORMAT ("uint8",  UINT8,  UINT8,  UINT8,  guint8,   1),
   WRITE_INT_FORMAT ("uint16", UINT16, UINT16, UINT16, guint16,  2),
-  WRITE_INT_FORMAT ("uint32", UINT32, UINT16, UINT32, guint32,  4),
+  WRITE_INT_FORMAT ("uint32", UINT32, UINT32, UINT32, guint32,  4),
   WRITE_INT_FORMAT ("uint64", UINT64, UINT64, UINT64, guint64,  8),
   WRITE_INT_FORMAT ("int",    INT32,  UINT32, INT,    gint32,   0),
   WRITE_INT_FORMAT ("uint",   UINT32, UINT32, UINT,   guint32,  0),

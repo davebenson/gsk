@@ -167,13 +167,84 @@ opt_format(RV) ::= VOID.
 
 /* Fixed-length array */
 format(RV) ::= format(ELT) LBRACKET INTEGER(len) RBRACKET.
-	{ RV = gskb_format_fixed_array_new (len->i, ELT);
-	  gskb_format_unref (ELT); }
+	{ if (ELT->any.name != NULL)
+	    {
+	      char *arr_name = g_strdup_printf ("%s_Array%u",
+						ELT->any.name,
+						len->i);
+	      RV = gskb_namespace_lookup_format (parse_context->cur_namespace,
+						 arr_name);
+	      if (RV != NULL)
+		{
+		  g_assert (RV->type == GSKB_FORMAT_TYPE_FIXED_ARRAY);
+		  g_assert (gskb_formats_equal (RV->v_fixed_array.element_format,
+						ELT, 0, NULL));
+                  g_assert (RV->v_fixed_array.length == len->i);
+		  gskb_format_ref (RV);
+		}
+	      else
+		{
+		  RV = gskb_format_fixed_array_new (len->i, ELT);
+		  if (parse_context->cur_namespace != NULL)
+		    {
+		      if (parse_context->cur_namespace != ELT->any.ns)
+			{
+			  g_free (arr_name);
+			  arr_name = g_strdup_printf ("From_%s%s_Array%u",
+						      ELT->any.ns->c_type_prefix,
+						      ELT->any.name,
+						      len->i);
+			}
+		      gskb_format_set_name (RV,
+					    parse_context->cur_namespace,
+					    arr_name);
+		      g_free (arr_name);
+		    }
+		}
+	    }
+	  else
+	    RV = gskb_format_fixed_array_new (len->i, ELT);
+	  gskb_format_unref (ELT);
+	}
 
 /* Length-prefixed array */
 format(RV) ::= format(ELT) LBRACKET RBRACKET.
-	{ RV = gskb_format_length_prefixed_array_new (ELT);
-	  gskb_format_unref (ELT); }
+	{ if (ELT->any.name != NULL)
+	    {
+	      char *arr_name = g_strdup_printf ("%s_Array",
+						ELT->any.name);
+	      RV = gskb_namespace_lookup_format (parse_context->cur_namespace,
+						 arr_name);
+	      if (RV != NULL)
+		{
+		  g_assert (RV->type == GSKB_FORMAT_TYPE_LENGTH_PREFIXED_ARRAY);
+		  g_assert (gskb_formats_equal (RV->v_length_prefixed_array.element_format,
+						ELT, 0, NULL));
+		  gskb_format_ref (RV);
+		}
+	      else
+		{
+		  RV = gskb_format_length_prefixed_array_new (ELT);
+		  if (parse_context->cur_namespace != NULL)
+		    {
+		      if (parse_context->cur_namespace != ELT->any.ns)
+			{
+			  g_free (arr_name);
+			  arr_name = g_strdup_printf ("From_%s%s_Array",
+						      ELT->any.ns->c_type_prefix,
+						      ELT->any.name);
+			}
+		      gskb_format_set_name (RV,
+					    parse_context->cur_namespace,
+					    arr_name);
+		      g_free (arr_name);
+		    }
+		}
+	    }
+	  else
+	    RV = gskb_format_length_prefixed_array_new (ELT);
+	  gskb_format_unref (ELT);
+	}
 
 /* Structures */
 member(RV) ::= format(TYPE) BAREWORD(NAME) opt_value(OV) SEMICOLON.

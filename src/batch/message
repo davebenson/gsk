@@ -22,7 +22,7 @@
 */
 
 
-struct Checksum
+struct Checksum		// must be fixed length
 {
   byte[20] sha1;
 };
@@ -44,45 +44,32 @@ typedef Metadatum[] Metadata;
 union Message
 {
   struct {
-    uint64 est_n_records;	/* or 0 for unknown */
-    uint64 est_n_bytes;		/* or 0 for unknown */
+    bit has_size;
+    ulong size;
     string filename;
     Metadata metadata;
-    optional uint8[16] md5sum;
-  } begin_upload;
+    bit checksum_terminated;
+    Checksum checksum;
+    bit full_bandwidth;
+  } begin_upload;		/* data follows if full_bandwidth */
   struct {
-    uint64 est_n_records;	/* or 0 for unknown */
-    uint64 est_n_bytes;		/* or 0 for unknown */
-    Metadata metadata;
-    uint64 key;
-  } expect_upload;
-  struct {
-    uint64 key;
+    ulong key;			/* or 0 for full_bandwidth uploads */
   } expecting_upload;
   struct {
-    ...
-  } begin_upload;
+    ulong key;
+    uint8[] data;
+  } upload_data;
   struct {
-    ...
-  } upload_header;
+    string filename;
+  } begin_download;
   struct {
-    uint64 key;
-    byte[] data;
-  } file_data;
-  struct {
-    uint64 key;
-    byte[] data;
-  } file_data;
-  struct {
-    guint64 key;
+    ulong key;
   } upload_done;
   struct {
-    guint64 key;
-  } done_uploading;
-  struct {
-    guint64 key;
+    ulong key;
   } upload_succeeded;
   struct {
-    guint64 key;
+    ulong key;
+    string message;
   } upload_failed;
 };
