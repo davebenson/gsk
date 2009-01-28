@@ -255,9 +255,13 @@ gsk_dns_client_task_unref (ClientTask *task)
       else
 	{
 	  guint msg_id = task->message_id;
-	  g_hash_table_insert (task->client->id_to_task_list,
-			       GUINT_TO_POINTER (msg_id),
-			       task->hash_next);
+          if (task->hash_next == NULL)
+            g_hash_table_remove (task->client->id_to_task_list,
+                                 GUINT_TO_POINTER (msg_id));
+          else
+            g_hash_table_insert (task->client->id_to_task_list,
+                                 GUINT_TO_POINTER (msg_id),
+                                 task->hash_next);
 	}
 
       /* remove timeout */
