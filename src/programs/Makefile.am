@@ -1,10 +1,13 @@
 INCLUDES = @GLIB_CFLAGS@ @GSK_DEBUG_CFLAGS@
 
 bin_PROGRAMS = gsk-control-client gsk-netcat gsk-wget gsk-debug-alloc-tool \
-	gsk-throttle-proxy gsk-webserver gsk-escape
+	gsk-throttle-proxy gsk-webserver gsk-escape gsk-analyze-successive-memdumps
 
 gsk_control_client_SOURCES = gsk-control-client-main.c
 gsk_control_client_LDADD = ../libgsk-1.0.la @READLINE_LIBS@ @GLIB_EXTRA_LDFLAGS@
+
+gsk_analyze_successive_memdumps_SOURCES = gsk-analyze-successive-memdumps-main.c
+gsk_analyze_successive_memdumps_LDADD = ../libgsk-1.0.la @GLIB_EXTRA_LDFLAGS@
 
 gsk_netcat_SOURCES = gsk-netcat.c
 gsk_netcat_LDADD = ../libgsk-1.0.la @GLIB_EXTRA_LDFLAGS@
