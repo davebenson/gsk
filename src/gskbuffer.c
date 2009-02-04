@@ -72,11 +72,6 @@ static int num_recycled = 0;
 static GskBufferFragment* recycling_stack = 0;
 G_LOCK_DEFINE_STATIC (recycling_stack);
 
-/* Foreign fragments are of a different size, and have a different
- * pool accordingly.
- */
-static GMemChunk *foreign_mem_chunk = NULL;
-G_LOCK_DEFINE_STATIC (foreign_mem_chunk);
 #endif
 
 static GskBufferFragment *
@@ -116,17 +111,7 @@ new_foreign_fragment (gconstpointer        ptr,
 		      gpointer             ddata)
 {
   GskBufferFragment *fragment;
-#if GSK_DEBUG_BUFFER_ALLOCATIONS
-  fragment = g_malloc (sizeof (GskBufferFragment));
-#else
-  G_LOCK (foreign_mem_chunk);
-  if (foreign_mem_chunk == NULL)
-    foreign_mem_chunk = g_mem_chunk_create (GskBufferFragment, 16,
-                                            G_ALLOC_AND_FREE);
-  fragment = g_mem_chunk_alloc (foreign_mem_chunk);
-  G_UNLOCK (foreign_mem_chunk);
-#endif
-
+  fragment = g_slice_new (GskBufferFragment);
   fragment->is_foreign = 1;
   fragment->buf_start = 0;
   fragment->buf_length = length;
@@ -139,18 +124,17 @@ new_foreign_fragment (gconstpointer        ptr,
 }
 
 #if GSK_DEBUG_BUFFER_ALLOCATIONS
-#define recycle(frag) g_free(frag)
+#define recycle(frag) G_STMT_START{ \
+    if (frag->is_foreign) g_slice_free(GskBufferFragment, frag); \
+    else g_free (frag); \
+   }G_STMT_END
 #else	/* optimized (?) */
 static void
 recycle(GskBufferFragment* frag)
 {
   if (frag->is_foreign)
     {
-      if (frag->destroy != NULL)
-        (*frag->destroy) (frag->destroy_data);
-      G_LOCK (foreign_mem_chunk);
-      g_mem_chunk_free (foreign_mem_chunk, frag);
-      G_UNLOCK (foreign_mem_chunk);
+      g_slice_free (GskBufferFragment, frag);
       return;
     }
   G_LOCK (recycling_stack);
