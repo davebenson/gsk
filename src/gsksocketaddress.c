@@ -304,9 +304,18 @@ gsk_socket_address_local_init (GskSocketAddressLocal *socket_address_local)
 }
 
 static void
+gsk_socket_address_local_finalize (GObject *object)
+{
+  GskSocketAddressLocal *local = GSK_SOCKET_ADDRESS_LOCAL (object);
+  g_free (local->path);
+  G_OBJECT_CLASS (gsk_socket_address_local_parent_class)->finalize (object);
+}
+
+static void
 gsk_socket_address_local_class_init (GskSocketAddressLocalClass *class)
 {
   GskSocketAddressClass *address_class = GSK_SOCKET_ADDRESS_CLASS (class);
+  GObjectClass *object_class = G_OBJECT_CLASS (class);
   class->max_path_length = GSK_STRUCT_MEMBER_SIZE (struct sockaddr_un, sun_path);
   address_class->sizeof_native_address = sizeof (struct sockaddr_un);
   address_class->address_family = GSK_AF_LOCAL;
@@ -317,6 +326,7 @@ gsk_socket_address_local_class_init (GskSocketAddressLocalClass *class)
   address_class->equals = gsk_socket_address_local_equals;
   address_class->hash = gsk_socket_address_local_hash;
   gsk_socket_address_register_subclass (address_class);
+  object_class->finalize = gsk_socket_address_local_finalize;
 }
 
 /**
