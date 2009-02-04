@@ -1,3 +1,12 @@
+gsk (1.0.63) (not released)
+  * dns memory leak (it would leak up to 2^16 hash-table entries before
+    reusing them)
+  * memory leak in local socket-addresses.
+  * add gsk-analyze-successive-memdumps
+  * fix gsk_escape functions properly handle situations
+    like "\0000", which should be two characters:
+    a NUL followed by a digit '0'.
+
 gsk (1.0.62)
   * bug fix in blocking of POST data.
 

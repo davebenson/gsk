@@ -297,8 +297,17 @@ gsk_escape_memory (gconstpointer    data,
 	      g_string_append (out, "\\\"");
 	      break;
 	    default:
-	      g_string_sprintfa (out, "\\%o", c);
-	      break;
+              {
+                /* if the next character is a digit,
+                   we must use a 3-digit code.
+                   at the end-of-string we use a 3-digit to be careful
+                   so that two escaped strings can be concatenated. */
+                if (i + 1 == len || g_ascii_isdigit (((guint8*)data)[1]))
+                  g_string_sprintfa (out, "\\%03o", c);
+                else
+                  g_string_sprintfa (out, "\\%o", c);
+                break;
+              }
 	    }
 	}
       else
@@ -368,13 +377,25 @@ gsk_unescape_memory (const char *quoted,
             }
           else if (g_ascii_isdigit (*str))
             {
-              /* octal */
-              /* XXX: i don't think this really matches
-                 how c parses \ooo expressions... */
-              char *tmpend;
-              guint c = strtoul (str, &tmpend, 8);
+              /* octal: use up to three octal digits */
+              char v[4];
+              v[0] = *str;
+              if (!g_ascii_isdigit (str[1]))
+                v[1] = 0;
+              else
+                {
+                  v[1] = str[1];
+                  if (!g_ascii_isdigit (str[2]))
+                    v[2] = 0;
+                  else
+                    {
+                      v[2] = str[2];
+                      v[3] = 0;
+                    }
+                }
+              guint c = strtoul (v, NULL, 8);
               g_string_append_c (s, c);
-              str = tmpend;
+              str += strlen (v);
             }
           else
             goto bad_backslashed;
