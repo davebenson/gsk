@@ -983,7 +983,7 @@ gsk_dns_client_resolve (GskDnsResolver               *resolver,
 			GSList                       *questions,
 			GskDnsResolverResponseFunc    func,
 			GskDnsResolverFailFunc        on_fail,
-			gpointer                      func_data,
+			Gpointer                      func_data,
 			GDestroyNotify                destroy,
 			GskDnsResolverHints          *hints)
 {
