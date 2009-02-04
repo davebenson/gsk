@@ -115,7 +115,7 @@ int main(int argc, char **argv)
   char *tmp_fname;
   char **files;
   guint n_files;
-
+  AllocInfo *total_by_time;
   op_context = g_option_context_new (NULL);
   g_option_context_set_summary (op_context, "gsk-analyze-successive-memdumps");
   g_option_context_add_main_entries (op_context, op_entries, NULL);
@@ -134,6 +134,7 @@ int main(int argc, char **argv)
   n_files = argc - 1;
   files = argv + 1;
   g_printerr ("Scanning %u input files... ", n_files);
+  total_by_time = g_new0 (AllocInfo, n_files);
   for (i = 0; i < n_files; i++)
     {
       FILE *fp = fopen (files[i], "r");
@@ -179,6 +180,8 @@ next_block_start:
         }
       context->alloc_infos[i] = ai;
       context->total_bytes += ai.n_bytes;
+      total_by_time[i].n_bytes += ai.n_bytes;
+      total_by_time[i].n_blocks += ai.n_blocks;
       goto next_block_start;
 
 done_file:
@@ -207,11 +210,33 @@ done_file:
            "set terminal png\n\n");
   index_html_fp = NULL;
 
+  {
+    FILE *fp;
+    tmp_fname = g_strdup_printf ("%s/data/total.data", dir_name);
+    fp = fopen (tmp_fname, "w");
+    if (fp == NULL)
+      g_error ("creating %s failed", tmp_fname);
+    g_free (tmp_fname);
+    for (i = 0; i < n_files; i++)
+      fprintf (fp, "%u %u %u\n", i,
+               total_by_time[i].n_bytes,
+               total_by_time[i].n_blocks);
+    fclose (fp);
+
+    fprintf (gnuplot_script_fp,
+             "set output \"%s/images/total.png\"\n", dir_name, i);
+    fprintf (gnuplot_script_fp,
+             "plot \"%s/data/total.data\" using 1:2 title \"bytes\", \"%s/data/total.data\" using 1:3 title \"blocks\"\n",
+             dir_name, dir_name);
+  }
+
   tmp_fname = g_strdup_printf ("%s/index.html", dir_name);
   main_html_fp = fopen (tmp_fname, "w");
   if (main_html_fp == NULL)
     g_error ("error creating %s: %s", tmp_fname, g_strerror (errno));
-  fprintf (main_html_fp, "<html><body>\n<ul>\n");
+  fprintf (main_html_fp, "<html><body>\n"
+                         "Total:\n<br/><img src=\"images/total.png\" /><br/>\n"
+                         "<ul>\n");
 
   g_printerr ("Writing data files for %u contexts... ", all_contexts->len);
   for (i = 0; i < all_contexts->len; i++)
@@ -316,7 +341,7 @@ done_file:
       CodePoint *cp = all_code_points->pdata[i];
       FILE *fp;
       unsigned j;
-      update_percent_bar (i, all_contexts->len);
+      update_percent_bar (i, all_code_points->len);
       memset (totals, 0, sizeof (AllocInfo) * n_files);
       for (j = 0; j < cp->context_indices->len; j++)
         {
@@ -371,7 +396,7 @@ done_file:
                "</body></html>\n");
       fclose (fp);
     }
-  update_percent_bar (i, all_contexts->len);
+  update_percent_bar (i, all_code_points->len);
   fprintf (main_html_fp,
            "</ul>\n"
            "</body></html>\n");
