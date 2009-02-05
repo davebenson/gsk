@@ -30,6 +30,9 @@
 /* Define to 1 if you have the `gethrtime' function. */
 #undef HAVE_GETHRTIME
 
+/* Define to 1 if you have the `getrusage' function. */
+#undef HAVE_GETRUSAGE
+
 /* Define to 1 if you have the `gmtime_r' function. */
 #undef HAVE_GMTIME_R
 

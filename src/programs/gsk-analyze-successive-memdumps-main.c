@@ -101,6 +101,11 @@ pr_context (FILE *fp, guint i, Context *context, const char *image_dir)
            image_dir,
            i);
 }
+static gboolean
+is_preamble_line (const char *str)
+{
+  return g_str_has_prefix (str, "rusage:");
+}
 
 int main(int argc, char **argv)
 {
@@ -146,9 +151,13 @@ int main(int argc, char **argv)
       if (fp == NULL)
         gsk_fatal_user_error ("opening %s failed: %s",
 	                      files[i], g_strerror (errno));
-      if (!fgets (buf, sizeof (buf), fp))
-        gsk_fatal_user_error ("file %s: unexpected eof", files[i]);
-      line_no++;
+      do
+        {
+          if (!fgets (buf, sizeof (buf), fp))
+            gsk_fatal_user_error ("file %s: unexpected eof", files[i]);
+          line_no++;
+        }
+      while (is_preamble_line (buf));
 next_block_start:
       if (g_str_has_prefix (buf, "Summary: "))
         goto done_file;
@@ -224,7 +233,7 @@ done_file:
     fclose (fp);
 
     fprintf (gnuplot_script_fp,
-             "set output \"%s/images/total.png\"\n", dir_name, i);
+             "set output \"%s/images/total.png\"\n", dir_name);
     fprintf (gnuplot_script_fp,
              "plot \"%s/data/total.data\" using 1:2 title \"bytes\", \"%s/data/total.data\" using 1:3 title \"blocks\"\n",
              dir_name, dir_name);

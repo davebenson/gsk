@@ -125,7 +125,9 @@ new_foreign_fragment (gconstpointer        ptr,
 
 #if GSK_DEBUG_BUFFER_ALLOCATIONS
 #define recycle(frag) G_STMT_START{ \
-    if (frag->is_foreign) g_slice_free(GskBufferFragment, frag); \
+    if (frag->is_foreign) { \
+      { if (frag->destroy) frag->destroy (frag->destroy_data); \
+        g_slice_free(GskBufferFragment, frag); } \
     else g_free (frag); \
    }G_STMT_END
 #else	/* optimized (?) */
@@ -134,6 +136,8 @@ recycle(GskBufferFragment* frag)
 {
   if (frag->is_foreign)
     {
+      if (frag->destroy)
+        frag->destroy (frag->destroy_data);
       g_slice_free (GskBufferFragment, frag);
       return;
     }
