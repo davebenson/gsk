@@ -27,6 +27,8 @@ gsk_debug_alloc_tool_LDADD = ../libgsk-1.0.la @GLIB_EXTRA_LDFLAGS@
 gsk_escape_SOURCES = gsk-escape.c
 gsk_escape_LDADD = ../libgsk-1.0.la @GLIB_EXTRA_LDFLAGS@
 
-noinst_PROGRAMS = example-server
+noinst_PROGRAMS = example-server gsk-connreset-daemon
 example_server_SOURCES = example-server.c
 example_server_LDADD = ../libgsk-1.0.la @GLIB_EXTRA_LDFLAGS@
+gsk_connreset_daemon_SOURCES = gsk-connreset-daemon.c
+gsk_connreset_daemon_LDADD = ../libgsk-1.0.la @GLIB_EXTRA_LDFLAGS@

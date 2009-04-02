@@ -8,6 +8,8 @@
 #include <assert.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <time.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -71,7 +73,7 @@ static AllocationContext root_context =
 
 static guint8 underrun_detection_magic[4] = { 0xf3, 0x1d, 0x77, 0x39 };
 static guint8 overrun_detection_magic[4]  = { 0xe5, 0x2c, 0x96, 0xdf };
-static guint  stack_depth = 10;
+static guint  stack_depth = 16;
 static guint  stack_levels_to_ignore = 1;
 static FILE   *output_fp = NULL;
 
@@ -583,6 +585,73 @@ void gsk_print_debug_mem_vtable (void)
 
   /* use addr2line to resolve references to this executable */
   resolve_executable_symbols (n_nonempty_contexts, symbols, &to_free);
+
+  /* write preamble */
+#ifdef __linux__
+  {
+    char buf[128];
+    FILE *read_fp;
+    unsigned long ps = getpagesize ();
+    unsigned long size, resident, share, code_size, lib_size, data_size, dirty;
+    g_snprintf (buf, sizeof (buf), "/proc/%u/statm", (unsigned) getpid ());
+    read_fp = fopen (buf, "r");
+    if (fscanf (read_fp, "%lu %lu %lu %lu %lu %lu",
+                &size, &resident, &share, &code_size, &lib_size, &data_size,
+                &dirty) != 6)
+      g_warning ("couldn't parse /proc/%u/statm", (unsigned) getpid ());
+    else
+      fprintf (fp,
+               "rusage: size: %lu\n"
+               "rusage: resident: %lu\n"
+               "rusage: share: %lu\n"
+               "rusage: code-size: %lu\n"
+               "rusage: lib-size: %lu\n"
+               "rusage: data-size: %lu\n",
+               ps * size,
+               ps * resident,
+               ps * share,
+               ps * code_size,
+               ps * lib_size,
+               ps * data_size);
+    fclose (read_fp);
+  }
+#elif HAVE_GETRUSAGE
+  {
+    struct rusage ru;
+    if (getrusage (RUSAGE_SELF, &ru) == 0)
+      {
+        fprintf (fp,
+                 "rusage: user-time: %u.%06us\n"
+                 "rusage: system-time: %u.%06us\n"
+                 "rusage: max-rss: %ld\n"
+                 "rusage: shared-mem: %ld\n"
+                 "rusage: unshared-mem: %ld\n"
+                 "rusage: stack: %ld\n"
+                 "rusage: page-reclaims: %ld\n"
+                 "rusage: page-faults: %ld\n"
+                 "rusage: n-swaps: %ld\n"
+                 "rusage: block-input ops: %ld\n"
+                 "rusage: block-output ops: %ld\n"
+                 "rusage: signals-received: %ld\n"
+                 "rusage: volutary context switches: %ld\n"
+                 "rusage: involutary context switches: %ld\n",
+                 (unsigned) ru.ru_utime.tv_sec, (unsigned) ru.ru_utime.tv_usec,
+                 (unsigned) ru.ru_stime.tv_sec, (unsigned) ru.ru_stime.tv_usec,
+                 (long) ru.ru_maxrss,
+                 (long) ru.ru_ixrss,
+                 (long) ru.ru_idrss,
+                 (long) ru.ru_isrss,
+                 (long) ru.ru_minflt,
+                 (long) ru.ru_majflt,
+                 (long) ru.ru_nswap,
+                 (long) ru.ru_inblock,
+                 (long) ru.ru_oublock,
+                 (long) ru.ru_nsignals,
+                 (long) ru.ru_nvcsw,
+                 (long) ru.ru_nivcsw);
+      }
+  }
+#endif          /* HAVE_GETRUSAGE */
 
   /* iterate the tree in the same order, printing all the symbols */
   symbols_at = symbols;

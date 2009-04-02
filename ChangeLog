@@ -1,4 +1,4 @@
-gsk (1.0.63) (not released)
+gsk (1.0.63):
   * dns memory leak (it would leak up to 2^16 hash-table entries before
     reusing them)
   * memory leak in local socket-addresses.
@@ -6,6 +6,8 @@ gsk (1.0.63) (not released)
   * fix gsk_escape functions properly handle situations
     like "\0000", which should be two characters:
     a NUL followed by a digit '0'.
+  * use g_slice for foreign buffer fragments
+  * fix to gsk_rm_rf() with symlinks
 
 gsk (1.0.62)
   * bug fix in blocking of POST data.

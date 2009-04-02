@@ -138,10 +138,10 @@ gboolean gsk_rm_rf   (const char *dir_or_file,
 {
   int e;
   const char *op;
-  if (!g_file_test (dir_or_file, G_FILE_TEST_EXISTS))
-    return TRUE;
   if (!safe_unlink (dir_or_file, &op, &e))
     {
+      if (strcmp (op, "lstat") == 0 && e == ENOENT)
+        return TRUE;
       if (e == EISDIR)
         {
           /* scan directory, removing contents recursively */

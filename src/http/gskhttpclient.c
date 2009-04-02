@@ -748,9 +748,12 @@ gsk_http_client_shutdown_write (GskIO      *io,
   GskHttpClientRequest *request = client->first_request;
   while (request && request->state == DONE)
     request = request->next;
-  if (request && request->state == READING_RESPONSE_CONTENT_NO_ENCODING_NO_LENGTH)
+  while (request != NULL
+      && request->state >= READING_RESPONSE_HEADER_FIRST_LINE
+      && request->state <= READING_RESPONSE_CONTENT_CHUNK_NEWLINE)
     {
-      gsk_http_client_content_stream_shutdown (request->content_stream);
+      if (request->content_stream != NULL)
+        gsk_http_client_content_stream_shutdown (request->content_stream);
       request->state = DONE;
       request = request->next;
     }

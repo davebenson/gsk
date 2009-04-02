@@ -370,7 +370,7 @@ AC_SUBST(GSK_DEBUG)
 AC_SUBST(GSK_DEBUG_CFLAGS)
 
 AC_CHECK_HEADERS(unistd.h net/if.h sys/ioctl.h sys/poll.h execinfo.h)
-AC_CHECK_FUNCS(writev poll select kqueue syslog strtoll strtoq strtoull strtouq timegm gmtime_r localtime_r)
+AC_CHECK_FUNCS(writev poll select kqueue syslog strtoll strtoq strtoull strtouq timegm gmtime_r localtime_r getrusage)
 
 dnl AC_CACHE_CHECK(for /dev/poll support, ac_cv_dev_poll,
 dnl     AC_TRY_COMPILE([#include <sys/ioctl.h>
