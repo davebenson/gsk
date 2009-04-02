@@ -302,7 +302,7 @@ gsk_escape_memory (gconstpointer    data,
                    we must use a 3-digit code.
                    at the end-of-string we use a 3-digit to be careful
                    so that two escaped strings can be concatenated. */
-                if (i + 1 == len || g_ascii_isdigit (((guint8*)data)[1]))
+                if (i + 1 < len && g_ascii_isdigit (((guint8*)data)[1]))
                   g_string_sprintfa (out, "\\%03o", c);
                 else
                   g_string_sprintfa (out, "\\%o", c);
