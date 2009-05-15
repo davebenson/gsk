@@ -562,6 +562,15 @@ gsk_http_client_raw_write      (GskStream     *stream,
 	  line[nl] = 0;
 	  g_strchomp (line);
 
+          /* HACK HACK HACK:  for compatibility and upgrading
+             ignore a newline that occurs after a transfer-encoded chunk.
+             Blech, what a horrible problem. */
+          if (line[0] == 0)
+            {
+              g_free (free_buffer);
+              continue;
+            }
+
 	  handle_firstline_header (request, line);
 	  g_free (free_buffer);
 

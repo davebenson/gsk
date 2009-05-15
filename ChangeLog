@@ -1,3 +1,8 @@
+gsk (1.0.64):
+  * yet another keep-alive fix?  transfer-encoding chunked appeared
+    to be missing a newline from client and server.  (See RFC 2616)
+    (Found by Adam Kangas)
+
 gsk (1.0.63):
   * dns memory leak (it would leak up to 2^16 hash-table entries before
     reusing them)

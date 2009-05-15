@@ -213,7 +213,12 @@ handle_content_shutdown (GskStream *content_stream, gpointer data)
   if (GSK_HTTP_HEADER (trapped_response->response)->transfer_encoding_type == GSK_HTTP_TRANSFER_ENCODING_CHUNKED)
     {
       gboolean was_empty = trapped_response->outgoing.size == 0;
+#if BUGGY_SERVER_TRANSFER_ENCODING_CHUNKED
       gsk_buffer_append_string (&trapped_response->outgoing, "0\n");
+#else
+      /* TODO:  trailer support? (RFC 2616 Section 3.6.1) */
+      gsk_buffer_append_string (&trapped_response->outgoing, "0\r\n\r\n");
+#endif
       if (was_empty)
 	gsk_io_mark_idle_notify_read (server);
     }
