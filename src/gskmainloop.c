@@ -1849,7 +1849,14 @@ gsk_main_loop_default ()
 void
 _gsk_main_loop_fork_notify ()
 {
-  if (!gsk_init_get_support_threads ())
+  if (gsk_init_get_support_threads ())
+    {
+      GskMainLoop *main_loop = g_private_get (private_main_loop_key);
+      if (main_loop == NULL)
+	return;
+      g_private_set (private_main_loop_key, NULL);
+    }
+  else
     {
       /* NOTE: we don't free the memory for the main-loop,
 	 but it should not amount to much.
