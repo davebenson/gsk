@@ -2093,6 +2093,12 @@ gsk_dns_client_parse_resolv_conf_line(GskDnsClient       *client,
 	}
       return TRUE;
     }
+
+  /* ignore domain lines?  */
+  if (g_strncasecmp (text, "domain", 6) == 0)
+    {
+      return TRUE;
+    }
   return FALSE;
 }
 

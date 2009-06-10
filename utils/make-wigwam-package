@@ -18,7 +18,7 @@ mkdir $pvr
 
 cat <<"EOF" > $pvr/$pvr.options
 configure_style=gnu
-configure_options=--disable-gtk-doc
+configure_options="--disable-gtk-doc"
 EOF
 test "$?" = 0 || {
   echo "$id: couldn't create $pvr.options" 1>&2

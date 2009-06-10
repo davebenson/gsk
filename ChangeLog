@@ -1,3 +1,7 @@
+gsk (1.0.65):
+  * _gsk_main_loop_fork_notify():  NULLify the thread's main-loop
+    if it exists, since private_get() doesn't get reset by fork()
+    
 gsk (1.0.64):
   * yet another keep-alive fix?  transfer-encoding chunked appeared
     to be missing a newline from client and server.  (See RFC 2616)
