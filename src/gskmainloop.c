@@ -1849,6 +1849,7 @@ gsk_main_loop_default ()
 void
 _gsk_main_loop_fork_notify ()
 {
+  //g_message ("_gsk_main_loop_fork_notify: pid=%u, support-threads=%u", getpid(), gsk_init_get_support_threads ());
   if (gsk_init_get_support_threads ())
     {
       GskMainLoop *main_loop = g_private_get (private_main_loop_key);

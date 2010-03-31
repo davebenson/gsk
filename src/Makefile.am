@@ -29,6 +29,7 @@ gskerror.h \
 gskfork.h \
 gskghelpers.h \
 gskhook.h \
+gskindexer.h \
 gskinit.h \
 gskio.h \
 gskipv4.h \
@@ -86,6 +87,7 @@ gskerror.c \
 gskfork.c \
 gskghelpers.c \
 gskhook.c \
+gskindexer.c \
 gskinit.c \
 gskinlines.c \
 gskio.c \
