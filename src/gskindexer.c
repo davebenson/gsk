@@ -73,6 +73,9 @@ GskIndexer       *gsk_indexer_new         (GskIndexerCompareFunc compare,
 
   indexer = g_new (GskIndexer, 1);
   indexer->dir = g_strdup (buf);
+  indexer->compare = compare;
+  indexer->merge = merge;
+  indexer->user_data = user_data;
   for (i = 0; i < MAX_INDEXER_FILES; i++)
     indexer->files[i] = 0;
   indexer->n_in_memory = 0;
@@ -139,6 +142,7 @@ merge_files (GskIndexer *indexer,
   reader_b = fopen (buf, "rb");
   if (reader_b == NULL)
     g_error ("error opening %s: %s", buf, g_strerror (errno));
+  b_data = g_byte_array_new ();
   read_data (reader_b, &b_data);
 
   /* open writer */
@@ -283,7 +287,12 @@ flush_in_memory_data (GskIndexer *indexer)
                 }
             }
           else
-            imd[n_output++] = imd[i];
+            {
+              InMemoryData tmp = imd[n_output];
+              imd[n_output] = imd[i];
+              imd[i] = tmp;
+              n_output++;
+            }
         }
 
       /* no point to write out 0 length file */
@@ -292,6 +301,7 @@ flush_in_memory_data (GskIndexer *indexer)
           indexer->n_in_memory = 0;
           return;
         }
+      n_imd = n_output;
     }
   fno = indexer->next_file_id++;
   mk_filename (buf, indexer, fno);
@@ -299,7 +309,7 @@ flush_in_memory_data (GskIndexer *indexer)
   if (fp == NULL)
     g_error ("error creating %s: %s", buf, g_strerror (errno));
   unsigned i;
-  for (i = 0; i < indexer->n_in_memory; i++)
+  for (i = 0; i < n_imd; i++)
     {
       write_data (fp, indexer->in_memory_data[i].array);
     }
@@ -415,7 +425,17 @@ GskIndexerReader *gsk_indexer_make_reader (GskIndexer           *indexer)
 }
   
   /* merge all existing pieces together */
-void              gsk_indexer_destroy     (GskIndexer           *indexer);
+void              gsk_indexer_destroy     (GskIndexer           *indexer)
+{
+  guint i;
+  for (i = 0; i < MAX_INDEXER_FILES; i++)
+    if (indexer->files[i])
+      unlink_file (indexer, indexer->files[i]);
+  g_byte_array_free (indexer->tmp_pad, TRUE);
+  rmdir (indexer->dir);
+  g_free (indexer->dir);
+  g_free (indexer);
+}
 
 gboolean      gsk_indexer_reader_has_data (GskIndexerReader *reader)
 {
