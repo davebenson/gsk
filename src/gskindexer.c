@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <string.h>
 #include <errno.h>
 #include "gskqsortmacro.h"
 #include "gskindexer.h"
@@ -9,6 +10,7 @@
 #define MAX_INDEXER_FILES    64
 #define MAX_IN_MEMORY        2048
 #define MAX_DIR_RETRIES      100
+#define MAX_FILENAME         1024
 
 typedef struct _InMemoryData InMemoryData;
 struct _InMemoryData
@@ -32,14 +34,30 @@ struct _GskIndexer
 
   GByteArray *tmp_pad;
 };
-  
+
+static void
+mk_filename (char *buf,
+             GskIndexer *indexer,
+             guint64 file_no)
+{
+  g_snprintf (buf, MAX_FILENAME, "%s/%llx", indexer->dir, file_no);
+}
+
+static void
+unlink_file (GskIndexer *indexer,
+             guint64 file_no)
+{
+  char buf[MAX_FILENAME];
+  mk_filename (buf, indexer, file_no);
+  unlink (buf);
+}
 
 GskIndexer       *gsk_indexer_new         (GskIndexerCompareFunc compare,
                                            GskIndexerMergeFunc   merge,
 			                   void                 *user_data)
 {
   /* make tmp dir */
-  char buf[1024];
+  char buf[MAX_FILENAME];
   unsigned ct = 1;
   unsigned i;
   GskIndexer *indexer;
@@ -65,32 +83,135 @@ GskIndexer       *gsk_indexer_new         (GskIndexerCompareFunc compare,
   return indexer;
 }
 
+static void
+read_data (FILE *fp, GByteArray **p_arr)
+{
+  guint32 len;
+  if (fread (&len, 4, 1, fp) != 1)
+    {
+      if (feof (fp))
+        {
+          g_byte_array_free (*p_arr, TRUE);
+          *p_arr = NULL;
+          return;
+        }
+      else
+        {
+          g_error ("error reading data from file");
+        }
+    }
+  g_byte_array_set_size (*p_arr, len);
+  if (len == 0)
+    return;
+  if (fread ((*p_arr)->data, len, 1, fp) != 1)
+    g_error ("incomplete record");
+}
+
+static void
+write_data (FILE *fp, GByteArray *data)
+{
+  guint32 length = data->len;
+  if (fwrite (&length, 4, 1, fp) != 1)
+    g_error ("error writing length prefix");
+  if (length != 0 && fwrite (data->data, data->len, 1, fp) != 1)
+    g_error ("error writing data body");
+}
+
 static guint64
 merge_files (GskIndexer *indexer,
              guint64     old,
              guint64     new)
 {
   /* open readers */
+  char buf[MAX_FILENAME];
+  FILE *reader_a, *reader_b;
+  FILE *writer;
+  GByteArray *a_data, *b_data;
+  guint64 id;
+  GByteArray *tmp_pad = indexer->merge ? g_byte_array_new () : NULL;
   mk_filename (buf, indexer, old);
   reader_a = fopen (buf, "rb");
   if (reader_a == NULL)
     g_error ("error opening %s: %s", buf, g_strerror (errno));
+  a_data = g_byte_array_new ();
+  read_data (reader_a, &a_data);
   mk_filename (buf, indexer, new);
   reader_b = fopen (buf, "rb");
   if (reader_b == NULL)
     g_error ("error opening %s: %s", buf, g_strerror (errno));
-  ...
+  read_data (reader_b, &b_data);
 
   /* open writer */
   id = indexer->next_file_id++;
   mk_filename (buf, indexer, id);
-  ...
+  writer = fopen (buf, "wb");
+  if (writer == NULL)
+    g_error ("error creating writer");
 
   /* merge */
-  ...
+  while (a_data && b_data)
+    {
+      int cmp = indexer->compare (a_data->len, a_data->data,
+                                  b_data->len, b_data->data,
+                                  indexer->user_data);
+      if (cmp < 0)
+        {
+          write_data (writer, a_data);
+          read_data (reader_a, &a_data);
+        }
+      else if (cmp > 0)
+        {
+          write_data (writer, b_data);
+          read_data (reader_b, &b_data);
+        }
+      else
+        {
+          if (indexer->merge == NULL)
+            {
+              write_data (writer, a_data);
+              write_data (writer, b_data);
+            }
+          else
+            {
+              switch (indexer->merge (a_data->len, a_data->data,
+                                      b_data->len, b_data->data,
+                                      tmp_pad,
+                                      indexer->user_data))
+                {
+                case GSK_INDEXER_MERGE_RETURN_A:
+                  write_data (writer, a_data);
+                  break;
+                case GSK_INDEXER_MERGE_RETURN_B:
+                  write_data (writer, b_data);
+                  break;
+                case GSK_INDEXER_MERGE_IN_PAD:
+                  write_data (writer, tmp_pad);
+                  break;
+                case GSK_INDEXER_MERGE_DISCARD:
+                  break;
+                default:
+                  g_assert_not_reached ();
+                }
+            }
+          read_data (reader_a, &a_data);
+          read_data (reader_b, &b_data);
+        }
+    }
+  while (a_data)
+    {
+      write_data (writer, a_data);
+      read_data (reader_a, &a_data);
+    }
+  while (b_data)
+    {
+      write_data (writer, b_data);
+      read_data (reader_b, &b_data);
+    }
 
   fclose (reader_a);
   fclose (reader_b);
+  if (tmp_pad)
+    g_byte_array_free (tmp_pad, TRUE);
   fclose (writer);
   return id;
 }
@@ -100,7 +221,7 @@ flush_in_memory_data (GskIndexer *indexer)
 {
   guint64 fno;
   FILE *fp;
-  char buf[1024];
+  char buf[MAX_FILENAME];
   InMemoryData *imd = indexer->in_memory_data;
   unsigned n_imd = indexer->n_in_memory;
   if (indexer->n_in_memory == 0)
@@ -173,19 +294,14 @@ flush_in_memory_data (GskIndexer *indexer)
         }
     }
   fno = indexer->next_file_id++;
-  g_snprintf (buf, sizeof (buf), "%s/%llx", indexer->dir, fno);
+  mk_filename (buf, indexer, fno);
   fp = fopen (buf, "wb");
   if (fp == NULL)
     g_error ("error creating %s: %s", buf, g_strerror (errno));
   unsigned i;
   for (i = 0; i < indexer->n_in_memory; i++)
     {
-      guint32 length = indexer->in_memory_data[i].array->len;
-      if (fwrite (&length, 4, 1, fp) != 1
-       || fwrite (indexer->in_memory_data[i].array->data,
-                  indexer->in_memory_data[i].array->len,
-		  1, fp) != 1)
-        g_error ("error writing file: %s", g_strerror (errno));
+      write_data (fp, indexer->in_memory_data[i].array);
     }
   fclose (fp);
 
@@ -224,11 +340,14 @@ void              gsk_indexer_add         (GskIndexer           *indexer,
 struct _GskIndexerReader
 {
   FILE *fp;
-  GByteArray *data;
+  GByteArray *pad;
 };
 
 GskIndexerReader *gsk_indexer_make_reader (GskIndexer           *indexer)
 {
+  guint i;
+  int last_file_index = -1;
+  GByteArray *pad;
   flush_in_memory_data (indexer);
 
   for (i = 0; i < MAX_INDEXER_FILES; i++)
@@ -251,6 +370,7 @@ GskIndexerReader *gsk_indexer_make_reader (GskIndexer           *indexer)
             last_file_index = i;
         }
     }
+  FILE *fp;
   pad = g_byte_array_new ();
   if (last_file_index == -1)
     {
@@ -258,10 +378,10 @@ GskIndexerReader *gsk_indexer_make_reader (GskIndexer           *indexer)
     }
   else
     {
-      char buf[1024];
-      g_snprintf (buf, sizeof (buf), "%s/%llx",
-                  indexer->dir,
-                  indexer->files[last_file_index]);
+      char buf[MAX_FILENAME];
+      guint32 len;
+      mk_filename (buf, indexer, indexer->files[last_file_index]);
+                  
       fp = fopen (buf, "rb");
       if (fp == NULL)
         g_error ("error creating indexer reader: %s", g_strerror (errno));
@@ -270,9 +390,9 @@ GskIndexerReader *gsk_indexer_make_reader (GskIndexer           *indexer)
       if (fread (&len, 4, 1, fp) == 1)
         {
           g_byte_array_set_size (pad, len);
-          if (fread (pad->data, pad->len, 1, fp) != 1)
+          if (len != 0 && fread (pad->data, pad->len, 1, fp) != 1)
             {
-              ...
+              g_error ("incomplete record");
             }
         }
       else if (feof (fp))
@@ -287,6 +407,7 @@ GskIndexerReader *gsk_indexer_make_reader (GskIndexer           *indexer)
       else
         g_assert_not_reached ();
     }
+  GskIndexerReader *reader;
   reader = g_new (GskIndexerReader, 1);
   reader->fp = fp;
   reader->pad = pad;
@@ -312,12 +433,14 @@ gboolean      gsk_indexer_reader_peek_data(GskIndexerReader *reader,
 }
 gboolean      gsk_indexer_reader_advance  (GskIndexerReader *reader)
 {
+  guint32 len;
   if (reader->fp == NULL)
     return FALSE;
   if (fread (&len, 4, 1, reader->fp) == 1)
     {
       g_byte_array_set_size (reader->pad, len);
-      if (fread (reader->pad->data, reader->pad->len, 1, reader->fp) != 1)
+      if (len > 0
+        && fread (reader->pad->data, reader->pad->len, 1, reader->fp) != 1)
         {
           g_error ("partial record");
         }
