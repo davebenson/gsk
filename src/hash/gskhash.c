@@ -1300,6 +1300,7 @@ gsk_hash_new_sha256 (void)
   h->feed = sha256_feed;
   h->done = sha256_done;
   h->destroy = (void (*)(GskHash*)) g_free;
+  h->flags = 0;
   return h;
 }
 

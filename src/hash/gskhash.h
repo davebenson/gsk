@@ -10,7 +10,7 @@ typedef struct _GskHash GskHash;
 /* --- public interface --- */
 GskHash   *gsk_hash_new_md5    (void);
 GskHash   *gsk_hash_new_sha1   (void);
-GskHash   *gsk_hash_new_sha256 (void);      /* WARNING: untested */
+GskHash   *gsk_hash_new_sha256 (void);
 GskHash   *gsk_hash_new_crc32  (gboolean        big_endian);
 void       gsk_hash_feed       (GskHash        *hash,
                                 gconstpointer   data,
