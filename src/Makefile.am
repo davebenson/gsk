@@ -48,7 +48,6 @@ gskpacketqueue.h \
 gskpacketqueuefd.h \
 gskpassfd.h \
 gskpersistentconnection.h \
-gskpolystrmatcher.h \
 gskprocessinfo.h \
 gskqsortmacro.h \
 gskrequest.h \
@@ -107,7 +106,6 @@ gskpacketqueue.c \
 gskpacketqueuefd.c \
 gskpassfd.c \
 gskpersistentconnection.c \
-gskpolystrmatcher.c \
 gskprocessinfo.c \
 gskrequest.c \
 gsksimplefilter.c \
