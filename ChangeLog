@@ -1,3 +1,6 @@
+gsk (1.0.66):
+  * fix gsk_hash_new_sha256()
+
 gsk (1.0.65):
   * _gsk_main_loop_fork_notify():  NULLify the thread's main-loop
     if it exists, since private_get() doesn't get reset by fork()
