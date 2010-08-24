@@ -1045,7 +1045,13 @@ void     gsk_buffer_vprintf             (GskBuffer    *buffer,
 					 const char   *format,
 					 va_list       args)
 {
-  gsize size = g_printf_string_upper_bound (format, args);
+  va_list args_copy;
+  gsize size;
+  
+  G_VA_COPY (args_copy, args);
+  size = g_printf_string_upper_bound (format, args_copy);
+  va_end (args_copy);
+
   if (size < 1024)
     {
       char buf[1024];

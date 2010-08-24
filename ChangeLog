@@ -1,3 +1,6 @@
+gsk (1.0.67):
+  * fix gsk_buffer_vprintf() (needed a va_copy).
+
 gsk (1.0.66):
   * fix gsk_hash_new_sha256()
 
