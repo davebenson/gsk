@@ -1,3 +1,6 @@
+gsk (1.0.68):
+  * properly expire DNS entries
+
 gsk (1.0.67):
   * fix gsk_buffer_vprintf() (needed a va_copy).
 

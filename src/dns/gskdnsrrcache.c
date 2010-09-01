@@ -30,6 +30,7 @@
 #include "../gskerror.h"
 #include "../gskdebug.h"
 #include "../debug.h"
+#include "../gskmainloop.h"
 
 /* unimportant constant.
  *
@@ -973,6 +974,7 @@ gsk_dns_rr_cache_lookup_list(GskDnsRRCache           *rr_cache,
   GSList *rv = NULL;
   RRList *at;
   char *lc_owner;
+  gsk_dns_rr_cache_flush (rr_cache, gsk_main_loop_default ()->current_time.tv_sec + 1);
 
   LOWER_CASE_COPY_ON_STACK (lc_owner, owner);
   for (at = g_hash_table_lookup (rr_cache->owner_to_rr_list, lc_owner);
@@ -1025,6 +1027,8 @@ gsk_dns_rr_cache_lookup_one (GskDnsRRCache           *rr_cache,
   RRList *rv = NULL;
   GSList *rv_list = NULL;
   gboolean roundrobin = rr_cache->is_roundrobin;
+
+  gsk_dns_rr_cache_flush (rr_cache, gsk_main_loop_default ()->current_time.tv_sec + 1);
 
   LOWER_CASE_COPY_ON_STACK (lc_owner, owner);
   pending_names_to_lookup = g_slist_prepend (NULL, lc_owner);
@@ -1619,9 +1623,9 @@ gsk_dns_rr_cache_flush      (GskDnsRRCache           *rr_cache,
       RRList *next_to_expire;
       next_to_expire = gsk_g_tree_min (rr_cache->rr_list_by_expire_time);
       if (next_to_expire == NULL)
-	break;
+        break;
       if (next_to_expire->expire_time > cur_time)
-	break;
+        break;
 
       if (next_to_expire->owner_next != NULL)
 	next_to_expire->owner_next->owner_prev = next_to_expire->owner_prev;
@@ -1650,6 +1654,23 @@ gsk_dns_rr_cache_flush      (GskDnsRRCache           *rr_cache,
 	    }
 	}
       g_tree_remove (rr_cache->rr_list_by_expire_time, next_to_expire);
+
+      /* Remove from LRU list */
+      if (next_to_expire->lru_prev == NULL)
+        {
+          g_assert (rr_cache->lru_first == next_to_expire);
+          rr_cache->lru_first = next_to_expire->lru_next;
+        }
+      else
+        next_to_expire->lru_prev->lru_next = next_to_expire->lru_next;
+      if (next_to_expire->lru_next == NULL)
+        {
+          g_assert (rr_cache->lru_last == next_to_expire);
+          rr_cache->lru_last = next_to_expire->lru_prev;
+        }
+      else
+        next_to_expire->lru_next->lru_prev = next_to_expire->lru_prev;
+
       rr_cache->num_records--;
       rr_cache->num_bytes_used -= next_to_expire->byte_size;
       g_free (next_to_expire);
