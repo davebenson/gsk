@@ -594,6 +594,9 @@ header_line_parser_callback (GskHttpServerResponse *response,
   for (i = 0; line[i] != ':'; i++)
     lowercase[i] = g_ascii_tolower (line[i]);
   lowercase[i] = '\0';
+
+  val = colon + 1;
+  GSK_SKIP_WHITESPACE (val);
   
   parser = g_hash_table_lookup (response->request_parser_table, lowercase);
   if (parser == NULL)
@@ -603,11 +606,10 @@ header_line_parser_callback (GskHttpServerResponse *response,
                               && line[1] == '-';
       if (!is_nonstandard)
         g_warning ("couldn't handle header line %s", line);
+      gsk_http_header_add_misc (GSK_HTTP_HEADER (response->request), lowercase, val);
       return;
     }
 
-  val = colon + 1;
-  GSK_SKIP_WHITESPACE (val);
   if (! ((*parser->func) (GSK_HTTP_HEADER (response->request), val, parser->data)))
     {
       /* XXX: error handling */
