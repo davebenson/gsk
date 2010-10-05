@@ -475,7 +475,7 @@ G_STMT_START{                                                                 \
   while (_gsk_lookup_at)                                                      \
     {                                                                         \
       int _gsk_compare_rv;                                                    \
-      key_comparator(key,_gsk_lookup_at,_gsk_compare_rv);                     \
+      key_comparator((key),_gsk_lookup_at,_gsk_compare_rv);                   \
       if (_gsk_compare_rv < 0)                                                \
         _gsk_lookup_at = _gsk_lookup_at->left;                                \
       else if (_gsk_compare_rv > 0)                                           \
@@ -495,7 +495,7 @@ G_STMT_START{                                                                 \
   while (_gsk_lookup_at)                                                      \
     {                                                                         \
       int _gsk_compare_rv;                                                    \
-      key_comparator(key,_gsk_lookup_at,_gsk_compare_rv);                     \
+      key_comparator((key),_gsk_lookup_at,_gsk_compare_rv);                   \
       if (_gsk_compare_rv >= 0)                                               \
         {                                                                     \
           _gsk_lookup_rv = _gsk_lookup_at;                                    \
@@ -548,7 +548,7 @@ G_STMT_START{                                                                 \
   while (_gsk_lookup_at)                                                      \
     {                                                                         \
       int _gsk_compare_rv;                                                    \
-      key_comparator(key,_gsk_lookup_at,_gsk_compare_rv);                     \
+      key_comparator((key),_gsk_lookup_at,_gsk_compare_rv);                   \
       if (_gsk_compare_rv <= 0)                                               \
         {                                                                     \
           _gsk_lookup_rv = _gsk_lookup_at;                                    \
