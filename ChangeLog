@@ -1,3 +1,13 @@
+gsk (1.0.71):
+  * hanging bug in http-server with connection: close and content-length
+    a multiple of 4k.
+
+gsk (1.0.70):
+  * Constrain TTL to be at least 10 seconds. (EXPERIMENTAL)
+
+gsk (1.0.69):
+  * add misc headers to http server
+
 gsk (1.0.68):
   * properly expire DNS entries
 
