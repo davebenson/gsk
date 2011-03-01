@@ -448,7 +448,7 @@ gsk_http_server_raw_read      (GskStream     *stream,
 
   /* ok, 'at' is a response that may have data which can be read out */
   rv = 0;
-  while (at != NULL && at->response != NULL)
+  while (at != NULL && at->response != NULL && rv < length)
     {
       if (at->outgoing.size > 0)
 	{
@@ -458,8 +458,6 @@ gsk_http_server_raw_read      (GskStream     *stream,
 	      gsk_buffer_read (&at->outgoing, (char *) data + rv, length - rv);
 	      rv += amt;
 	    }
-	  if (rv == length)
-	    break;
 	}
       if (at->outgoing.size == 0 && at->content == NULL)
 	{
