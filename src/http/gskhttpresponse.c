@@ -195,6 +195,7 @@ gsk_http_response_finalize (GObject *object)
   gsk_http_header_free_string (response, response->location);
   gsk_http_header_free_string (response, response->etag);
   gsk_http_header_free_string (response, response->server);
+  gsk_http_header_free_string (response, response->expires_str);
   if (response->cache_control)
     {
       gsk_http_response_cache_directive_free (response->cache_control);
